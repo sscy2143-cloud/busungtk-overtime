@@ -1,0 +1,26 @@
+import { Outlet } from 'react-router-dom'
+import { Header } from './Header'
+import { Sidebar } from './Sidebar'
+import { BottomNav } from './BottomNav'
+
+export function AppLayout() {
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* PC: 좌측 사이드바 */}
+      <Sidebar />
+
+      {/* 모바일: 상단 헤더 */}
+      <Header />
+
+      {/* 메인 콘텐츠 */}
+      <main className="md:ml-64 pt-14 md:pt-0 pb-16 md:pb-0">
+        <div className="max-w-5xl mx-auto px-4 py-6">
+          <Outlet />
+        </div>
+      </main>
+
+      {/* 모바일: 하단 탭바 */}
+      <BottomNav />
+    </div>
+  )
+}
