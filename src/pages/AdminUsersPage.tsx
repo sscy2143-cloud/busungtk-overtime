@@ -21,6 +21,7 @@ const ROLE_COLOR: Record<UserRole, string> = {
 interface EditModal {
   open: boolean
   employee: Employee | null
+  name: string
   role: UserRole
   department: string
   isActive: boolean
@@ -47,13 +48,14 @@ export function AdminUsersPage() {
     }
   }, [isDemo])
   const [editModal, setEditModal] = useState<EditModal>({
-    open: false, employee: null, role: 'employee', department: '', isActive: true,
+    open: false, employee: null, name: '', role: 'employee', department: '', isActive: true,
   })
 
   function openEdit(emp: Employee) {
     setEditModal({
       open: true,
       employee: emp,
+      name: emp.name,
       role: emp.role,
       department: emp.department,
       isActive: emp.is_active,
@@ -66,17 +68,17 @@ export function AdminUsersPage() {
     if (isDemo) {
       await supabase.rpc('update_employee_admin', {
         p_admin_key: ADMIN_KEY, p_id: id,
-        p_role: editModal.role, p_department: editModal.department, p_is_active: editModal.isActive,
+        p_name: editModal.name, p_role: editModal.role, p_department: editModal.department, p_is_active: editModal.isActive,
       })
     } else {
       await supabase.from('employees').update({
-        role: editModal.role, department: editModal.department, is_active: editModal.isActive,
+        name: editModal.name, role: editModal.role, department: editModal.department, is_active: editModal.isActive,
       }).eq('id', id)
     }
     setEmployees((prev) =>
-      prev.map((e) => e.id === id ? { ...e, role: editModal.role, department: editModal.department, is_active: editModal.isActive } : e),
+      prev.map((e) => e.id === id ? { ...e, name: editModal.name, role: editModal.role, department: editModal.department, is_active: editModal.isActive } : e),
     )
-    setEditModal({ open: false, employee: null, role: 'employee', department: '', isActive: true })
+    setEditModal({ open: false, employee: null, name: '', role: 'employee', department: '', isActive: true })
   }
 
   async function toggleActive(id: string) {
@@ -204,8 +206,15 @@ export function AdminUsersPage() {
 
             <div className="space-y-4">
               <div>
-                <p className="text-sm font-medium text-gray-700 mb-1">{editModal.employee.name}</p>
-                <p className="text-xs text-gray-400">{editModal.employee.email}</p>
+                <p className="text-xs text-gray-400 mb-2">{editModal.employee.email}</p>
+                <label className="block text-xs font-medium text-gray-600 mb-1">이름</label>
+                <input
+                  type="text"
+                  value={editModal.name}
+                  onChange={(e) => setEditModal((p) => ({ ...p, name: e.target.value }))}
+                  placeholder="이름 입력"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                />
               </div>
 
               <div>
