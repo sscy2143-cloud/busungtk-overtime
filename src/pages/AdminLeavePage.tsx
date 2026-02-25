@@ -1,8 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Plus, Minus } from 'lucide-react'
 import { StatusBadge } from '../components/common/StatusBadge'
 import type { LeaveRequest } from '../types'
 import { LEAVE_TYPE_LABEL } from '../types'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
+
+const ADMIN_KEY = '6325'
 
 interface EmployeeBalance {
   id: string
@@ -13,7 +17,6 @@ interface EmployeeBalance {
   remaining_days: number
 }
 
-
 interface AdjustModal {
   open: boolean
   employeeId: string
@@ -23,11 +26,32 @@ interface AdjustModal {
 }
 
 export function AdminLeavePage() {
+  const { isDemo } = useAuth()
   const [tab, setTab] = useState<'approvals' | 'balances'>('approvals')
   const [requests, setRequests] = useState<LeaveRequest[]>([])
   const [balances, setBalances] = useState<EmployeeBalance[]>([])
+  const [balancesLoading, setBalancesLoading] = useState(false)
   const [rejectModal, setRejectModal] = useState<{ open: boolean; id: string; reason: string }>({ open: false, id: '', reason: '' })
   const [adjustModal, setAdjustModal] = useState<AdjustModal>({ open: false, employeeId: '', employeeName: '', delta: 0, reason: '' })
+
+  const currentYear = new Date().getFullYear()
+
+  useEffect(() => {
+    loadBalances()
+  }, [])
+
+  async function loadBalances() {
+    setBalancesLoading(true)
+    const params = isDemo
+      ? { p_admin_key: ADMIN_KEY, p_year: currentYear }
+      : { p_year: currentYear }
+
+    const { data, error } = await supabase.rpc('list_employee_balances', params)
+    if (!error && data) {
+      setBalances(data as EmployeeBalance[])
+    }
+    setBalancesLoading(false)
+  }
 
   function handleApprove(id: string) {
     setRequests((prev) => prev.map((r) => r.id === id ? { ...r, status: 'approved' } : r))
@@ -46,19 +70,46 @@ export function AdminLeavePage() {
     setAdjustModal({ open: true, employeeId: emp.id, employeeName: emp.name, delta: 0, reason: '' })
   }
 
-  function confirmAdjust() {
-    const { employeeId, delta } = adjustModal
-    setBalances((prev) =>
-      prev.map((b) =>
-        b.id === employeeId
-          ? {
-              ...b,
-              total_days: b.total_days + delta,
-              remaining_days: b.remaining_days + delta,
-            }
-          : b,
-      ),
-    )
+  async function confirmAdjust() {
+    const { employeeId, delta, reason } = adjustModal
+
+    const params = isDemo
+      ? { p_admin_key: ADMIN_KEY, p_employee_id: employeeId, p_year: currentYear, p_delta: delta, p_reason: reason }
+      : { p_employee_id: employeeId, p_year: currentYear, p_delta: delta, p_reason: reason }
+
+    const { data, error } = await supabase.rpc('upsert_leave_balance', params)
+
+    if (!error && data) {
+      const updated = Array.isArray(data) ? data[0] : data
+      if (updated) {
+        setBalances((prev) =>
+          prev.map((b) =>
+            b.id === employeeId
+              ? {
+                  ...b,
+                  total_days: updated.total_days,
+                  used_days: updated.used_days,
+                  remaining_days: updated.remaining_days,
+                }
+              : b,
+          ),
+        )
+      }
+    } else {
+      // fallback: 낙관적 업데이트 (데모/오류 시)
+      setBalances((prev) =>
+        prev.map((b) =>
+          b.id === employeeId
+            ? {
+                ...b,
+                total_days: Math.max(b.total_days + delta, 0),
+                remaining_days: Math.max(b.remaining_days + delta, 0),
+              }
+            : b,
+        ),
+      )
+    }
+
     setAdjustModal({ open: false, employeeId: '', employeeName: '', delta: 0, reason: '' })
   }
 
@@ -165,38 +216,46 @@ export function AdminLeavePage() {
       {/* 직원별 잔여 현황 탭 */}
       {tab === 'balances' && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">이름</th>
-                <th className="text-center px-2 py-3 text-xs font-semibold text-gray-500">총</th>
-                <th className="text-center px-2 py-3 text-xs font-semibold text-gray-500">사용</th>
-                <th className="text-center px-2 py-3 text-xs font-semibold text-gray-500">잔여</th>
-                <th className="text-center px-2 py-3 text-xs font-semibold text-gray-500">조정</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {balances.map((b) => (
-                <tr key={b.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3">
-                    <p className="font-semibold text-gray-900 text-sm">{b.name}</p>
-                    <p className="text-xs text-gray-400">{b.department}</p>
-                  </td>
-                  <td className="px-2 py-3 text-center text-sm text-gray-700">{b.total_days}일</td>
-                  <td className="px-2 py-3 text-center text-sm text-warning-600 font-medium">{b.used_days}일</td>
-                  <td className="px-2 py-3 text-center text-sm text-primary-600 font-bold">{b.remaining_days}일</td>
-                  <td className="px-2 py-3 text-center">
-                    <button
-                      onClick={() => openAdjust(b)}
-                      className="text-xs text-gray-500 border border-gray-200 px-2 py-1 rounded-lg hover:border-primary-400 hover:text-primary-600 transition-colors"
-                    >
-                      조정
-                    </button>
-                  </td>
+          {balancesLoading ? (
+            <p className="text-center text-sm text-gray-400 py-10">불러오는 중...</p>
+          ) : balances.length === 0 ? (
+            <p className="text-center text-sm text-gray-400 py-10">
+              활성 직원이 없습니다. 사용자 관리에서 직원을 먼저 등록해주세요.
+            </p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">이름</th>
+                  <th className="text-center px-2 py-3 text-xs font-semibold text-gray-500">총</th>
+                  <th className="text-center px-2 py-3 text-xs font-semibold text-gray-500">사용</th>
+                  <th className="text-center px-2 py-3 text-xs font-semibold text-gray-500">잔여</th>
+                  <th className="text-center px-2 py-3 text-xs font-semibold text-gray-500">조정</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {balances.map((b) => (
+                  <tr key={b.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <p className="font-semibold text-gray-900 text-sm">{b.name}</p>
+                      <p className="text-xs text-gray-400">{b.department}</p>
+                    </td>
+                    <td className="px-2 py-3 text-center text-sm text-gray-700">{b.total_days}일</td>
+                    <td className="px-2 py-3 text-center text-sm text-warning-600 font-medium">{b.used_days}일</td>
+                    <td className="px-2 py-3 text-center text-sm text-primary-600 font-bold">{b.remaining_days}일</td>
+                    <td className="px-2 py-3 text-center">
+                      <button
+                        onClick={() => openAdjust(b)}
+                        className="text-xs text-gray-500 border border-gray-200 px-2 py-1 rounded-lg hover:border-primary-400 hover:text-primary-600 transition-colors"
+                      >
+                        조정
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
 
