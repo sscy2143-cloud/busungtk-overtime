@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Calendar, Clock, ChevronRight } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../lib/supabase'
 import type { OvertimeRequest, RequestStatus } from '../types'
 import { OVERTIME_TYPE_LABEL, REQUEST_STATUS_LABEL } from '../types'
 import { StatusBadge } from '../components/common/StatusBadge'
@@ -21,9 +23,30 @@ const TYPE_COLOR: Record<string, string> = {
 
 export function RequestListPage() {
   const navigate = useNavigate()
+  const { employee } = useAuth()
   const [filter, setFilter] = useState<RequestStatus | 'all'>('all')
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [requests] = useState<OvertimeRequest[]>([])
+  const [requests, setRequests] = useState<OvertimeRequest[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!employee?.id) return
+
+    async function fetchRequests() {
+      const { data, error } = await supabase
+        .from('overtime_requests')
+        .select('*')
+        .eq('employee_id', employee!.id)
+        .order('created_at', { ascending: false })
+
+      if (!error && data) {
+        setRequests(data as OvertimeRequest[])
+      }
+      setLoading(false)
+    }
+
+    fetchRequests()
+  }, [employee?.id])
 
   const filtered =
     filter === 'all'
@@ -72,7 +95,11 @@ export function RequestListPage() {
       </div>
 
       {/* 카드 리스트 */}
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div className="text-center py-16 text-gray-400">
+          <p className="text-sm">불러오는 중...</p>
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           <p className="text-sm">신청 내역이 없습니다</p>
         </div>

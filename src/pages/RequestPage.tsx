@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AlertTriangle, Users, Calendar, Clock, Info } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../lib/supabase'
 import { OVERTIME_TYPE_LABEL } from '../types'
 import { GroupMemberSelect } from '../components/overtime/GroupMemberSelect'
 import { WeeklyGauge } from '../components/overtime/WeeklyGauge'
@@ -66,8 +67,25 @@ export function RequestPage() {
     }
     console.log('[RequestPage] submit payload:', payload)
 
-    // TODO: Supabase insert
-    await new Promise((r) => setTimeout(r, 600))
+    const groupId = groupIds.length > 0 ? crypto.randomUUID() : null
+
+    const { error } = await supabase.from('overtime_requests').insert({
+      employee_id: payload.employee_id,
+      type: payload.type,
+      date: payload.date,
+      planned_start: payload.planned_start,
+      planned_end: payload.planned_end,
+      reason: payload.reason,
+      is_retroactive: payload.is_retroactive,
+      created_by: payload.employee_id,
+      group_id: groupId,
+    })
+
+    if (error) {
+      console.error('[RequestPage] insert error:', error)
+      setSubmitting(false)
+      return
+    }
 
     setSubmitting(false)
     showToast()
