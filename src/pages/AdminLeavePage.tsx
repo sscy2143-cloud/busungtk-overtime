@@ -44,7 +44,7 @@ export function AdminLeavePage() {
   async function fetchLeaveRequests() {
     const { data, error } = await supabase
       .from('leave_requests')
-      .select('*')
+      .select('*, employee:employees!leave_requests_employee_id_fkey(id, name, department)')
       .order('created_at', { ascending: false })
 
     if (!error && data) {

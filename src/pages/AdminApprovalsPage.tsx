@@ -38,7 +38,7 @@ export function AdminApprovalsPage() {
   async function fetchOvertimes() {
     const { data, error } = await supabase
       .from('overtime_requests')
-      .select('*')
+      .select('*, employee:employees!overtime_requests_employee_id_fkey(id, name, department)')
       .order('created_at', { ascending: false })
 
     if (!error && data) {
@@ -49,7 +49,7 @@ export function AdminApprovalsPage() {
   async function fetchLeaves() {
     const { data, error } = await supabase
       .from('leave_requests')
-      .select('*')
+      .select('*, employee:employees!leave_requests_employee_id_fkey(id, name, department)')
       .order('created_at', { ascending: false })
 
     if (!error && data) {
