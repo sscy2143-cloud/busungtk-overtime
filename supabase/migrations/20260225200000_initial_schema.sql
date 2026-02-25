@@ -164,9 +164,9 @@ create trigger leave_requests_updated_at
   for each row execute function update_updated_at_column();
 
 -- ============================================================
--- 7. notifications
+-- 7. ot_notifications
 -- ============================================================
-create table if not exists notifications (
+create table if not exists ot_notifications (
   id           uuid primary key default gen_random_uuid(),
   recipient_id uuid not null references employees(id) on delete cascade,
   type         text not null,                    -- 'overtime_approved', 'leave_rejected', 'weekly_warning', ...
@@ -177,13 +177,13 @@ create table if not exists notifications (
   created_at   timestamptz not null default now()
 );
 
-create index if not exists idx_notifications_recipient_id on notifications(recipient_id);
-create index if not exists idx_notifications_is_read      on notifications(recipient_id, is_read);
+create index if not exists idx_ot_notifications_recipient_id on ot_notifications(recipient_id);
+create index if not exists idx_ot_notifications_is_read      on ot_notifications(recipient_id, is_read);
 
 -- ============================================================
--- 8. audit_logs
+-- 8. ot_audit_logs
 -- ============================================================
-create table if not exists audit_logs (
+create table if not exists ot_audit_logs (
   id          uuid primary key default gen_random_uuid(),
   actor_id    uuid references employees(id) on delete set null,
   action      text not null,                     -- 'approve_overtime', 'reject_leave', 'adjust_balance', ...
@@ -193,9 +193,9 @@ create table if not exists audit_logs (
   created_at  timestamptz not null default now()
 );
 
-create index if not exists idx_audit_logs_actor_id    on audit_logs(actor_id);
-create index if not exists idx_audit_logs_target_id   on audit_logs(target_id);
-create index if not exists idx_audit_logs_created_at  on audit_logs(created_at desc);
+create index if not exists idx_ot_audit_logs_actor_id    on ot_audit_logs(actor_id);
+create index if not exists idx_ot_audit_logs_target_id   on ot_audit_logs(target_id);
+create index if not exists idx_ot_audit_logs_created_at  on ot_audit_logs(created_at desc);
 
 -- ============================================================
 -- RLS 활성화
@@ -206,8 +206,8 @@ alter table time_records      enable row level security;
 alter table weekly_summaries  enable row level security;
 alter table leave_balances    enable row level security;
 alter table leave_requests    enable row level security;
-alter table notifications     enable row level security;
-alter table audit_logs        enable row level security;
+alter table ot_notifications     enable row level security;
+alter table ot_audit_logs        enable row level security;
 
 -- ============================================================
 -- RLS 정책: employees
@@ -401,27 +401,27 @@ create policy "leave_requests_update_manager"
   );
 
 -- ============================================================
--- RLS 정책: notifications (본인만 조회/수정)
+-- RLS 정책: ot_notifications (본인만 조회/수정)
 -- ============================================================
 
-create policy "notifications_select_self"
-  on notifications for select
+create policy "ot_notifications_select_self"
+  on ot_notifications for select
   using (recipient_id = auth.uid());
 
-create policy "notifications_update_self"
-  on notifications for update
+create policy "ot_notifications_update_self"
+  on ot_notifications for update
   using (recipient_id = auth.uid());
 
 -- ============================================================
--- RLS 정책: audit_logs (admin만 조회)
+-- RLS 정책: ot_audit_logs (admin만 조회)
 -- ============================================================
 
-create policy "audit_logs_select_admin"
-  on audit_logs for select
+create policy "ot_audit_logs_select_admin"
+  on ot_audit_logs for select
   using (
     exists (select 1 from employees where id = auth.uid() and role = 'admin')
   );
 
-create policy "audit_logs_insert_authenticated"
-  on audit_logs for insert
+create policy "ot_audit_logs_insert_authenticated"
+  on ot_audit_logs for insert
   with check (auth.uid() is not null);
