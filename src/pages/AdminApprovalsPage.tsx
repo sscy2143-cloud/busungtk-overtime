@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { CheckSquare, X, Clock } from 'lucide-react'
 import { ApprovalCard } from '../components/admin/ApprovalCard'
 import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../lib/supabase'
 import type { OvertimeRequest, LeaveRequest } from '../types'
 
 
@@ -29,7 +30,45 @@ export function AdminApprovalsPage() {
   const [rejectModal, setRejectModal] = useState<RejectModalState>({ open: false, id: '', reason: '' })
   const [timeEditModal, setTimeEditModal] = useState<TimeEditModalState>({ open: false, id: '', start: '', end: '' })
 
-  function handleApprove(id: string) {
+  useEffect(() => {
+    fetchOvertimes()
+    fetchLeaves()
+  }, [])
+
+  async function fetchOvertimes() {
+    const { data, error } = await supabase
+      .from('overtime_requests')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (!error && data) {
+      setOvertimes(data.map((r) => ({ ...r, weeklyHours: 0 })) as (OvertimeRequest & { weeklyHours: number })[])
+    }
+  }
+
+  async function fetchLeaves() {
+    const { data, error } = await supabase
+      .from('leave_requests')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (!error && data) {
+      setLeaves(data as LeaveRequest[])
+    }
+  }
+
+  async function handleApprove(id: string) {
+    const table = tab === 'overtime' ? 'overtime_requests' : 'leave_requests'
+    const { error } = await supabase
+      .from(table)
+      .update({ status: 'approved', approved_by: employee?.id, approved_at: new Date().toISOString() })
+      .eq('id', id)
+
+    if (error) {
+      console.error('[Approve] error:', error)
+      return
+    }
+
     if (tab === 'overtime') {
       setOvertimes((prev) => prev.map((r) => r.id === id ? { ...r, status: 'approved' } : r))
     } else {
@@ -42,12 +81,23 @@ export function AdminApprovalsPage() {
     setRejectModal({ open: true, id, reason: '' })
   }
 
-  function confirmReject() {
-    const { id } = rejectModal
+  async function confirmReject() {
+    const { id, reason } = rejectModal
+    const table = tab === 'overtime' ? 'overtime_requests' : 'leave_requests'
+    const { error } = await supabase
+      .from(table)
+      .update({ status: 'rejected', rejection_reason: reason })
+      .eq('id', id)
+
+    if (error) {
+      console.error('[Reject] error:', error)
+      return
+    }
+
     if (tab === 'overtime') {
-      setOvertimes((prev) => prev.map((r) => r.id === id ? { ...r, status: 'rejected', rejection_reason: rejectModal.reason } : r))
+      setOvertimes((prev) => prev.map((r) => r.id === id ? { ...r, status: 'rejected', rejection_reason: reason } : r))
     } else {
-      setLeaves((prev) => prev.map((r) => r.id === id ? { ...r, status: 'rejected', rejection_reason: rejectModal.reason } : r))
+      setLeaves((prev) => prev.map((r) => r.id === id ? { ...r, status: 'rejected', rejection_reason: reason } : r))
     }
     setCheckedIds((prev) => { const s = new Set(prev); s.delete(id); return s })
     setRejectModal({ open: false, id: '', reason: '' })
@@ -61,7 +111,17 @@ export function AdminApprovalsPage() {
     })
   }
 
-  function handleBulkApprove() {
+  async function handleBulkApprove() {
+    const ids = Array.from(checkedIds)
+    const table = tab === 'overtime' ? 'overtime_requests' : 'leave_requests'
+
+    for (const id of ids) {
+      await supabase
+        .from(table)
+        .update({ status: 'approved', approved_by: employee?.id, approved_at: new Date().toISOString() })
+        .eq('id', id)
+    }
+
     if (tab === 'overtime') {
       setOvertimes((prev) => prev.map((r) => checkedIds.has(r.id) ? { ...r, status: 'approved' } : r))
     } else {
@@ -76,8 +136,18 @@ export function AdminApprovalsPage() {
     setTimeEditModal({ open: true, id, start: req.planned_start, end: req.planned_end })
   }
 
-  function confirmTimeEdit() {
+  async function confirmTimeEdit() {
     const { id, start, end } = timeEditModal
+    const { error } = await supabase
+      .from('overtime_requests')
+      .update({ planned_start: start, planned_end: end, status: 'approved', approved_by: employee?.id, approved_at: new Date().toISOString() })
+      .eq('id', id)
+
+    if (error) {
+      console.error('[TimeEdit] error:', error)
+      return
+    }
+
     setOvertimes((prev) =>
       prev.map((r) => r.id === id ? { ...r, planned_start: start, planned_end: end, status: 'approved' } : r),
     )

@@ -1,6 +1,8 @@
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FilePlus, CalendarPlus, AlertCircle } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../lib/supabase'
 import { StatusBadge } from '../components/common/StatusBadge'
 import type { RequestStatus, OvertimeType } from '../types'
 import { OVERTIME_TYPE_LABEL } from '../types'
@@ -69,11 +71,53 @@ export function DashboardPage() {
   const navigate = useNavigate()
   const isAdmin = employee?.role === 'manager' || employee?.role === 'admin'
 
-  const weeklyHours = 0
   const maxHours = 52
-  const pendingApprovals = 0
-  const recentRequests: { id: string; type: OvertimeType; date: string; status: RequestStatus }[] = []
-  const leave = { total: 0, used: 0, remaining: 0 }
+  const [weeklyHours] = useState(0)
+  const [pendingApprovals, setPendingApprovals] = useState(0)
+  const [recentRequests, setRecentRequests] = useState<{ id: string; type: OvertimeType; date: string; status: RequestStatus }[]>([])
+  const [leave, setLeave] = useState({ total: 0, used: 0, remaining: 0 })
+
+  useEffect(() => {
+    if (!employee?.id) return
+
+    async function fetchData() {
+      // 최근 제출 (본인)
+      const { data: recent } = await supabase
+        .from('overtime_requests')
+        .select('id, type, date, status')
+        .eq('employee_id', employee!.id)
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      if (recent) {
+        setRecentRequests(recent as { id: string; type: OvertimeType; date: string; status: RequestStatus }[])
+      }
+
+      // 잔여 연차
+      const currentYear = new Date().getFullYear()
+      const { data: bal } = await supabase
+        .from('leave_balances')
+        .select('total_days, used_days, remaining_days')
+        .eq('employee_id', employee!.id)
+        .eq('year', currentYear)
+        .single()
+
+      if (bal) {
+        setLeave({ total: bal.total_days, used: bal.used_days, remaining: bal.remaining_days })
+      }
+
+      // 관리자: 승인 대기 건수
+      if (employee!.role === 'admin' || employee!.role === 'manager') {
+        const { count } = await supabase
+          .from('overtime_requests')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'pending')
+        setPendingApprovals(count ?? 0)
+      }
+    }
+
+    fetchData()
+  }, [employee?.id])
 
   return (
     <div className="space-y-4">

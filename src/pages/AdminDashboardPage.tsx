@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Clock, AlertTriangle, CalendarOff, ChevronRight } from 'lucide-react'
 import { TeamGaugeList } from '../components/admin/TeamGaugeList'
+import { supabase } from '../lib/supabase'
 import type { WarningLevel } from '../types'
 
 interface TeamMember {
@@ -18,11 +19,24 @@ export function AdminDashboardPage() {
   const [lastWeek] = useState<TeamMember[]>([])
   const members = week === 'this' ? thisWeek : lastWeek
 
-  const pendingOvertimeCount = 0
+  const [pendingOvertimeCount, setPendingOvertimeCount] = useState(0)
+  const [pendingLeaveCount, setPendingLeaveCount] = useState(0)
+
+  useEffect(() => {
+    async function fetchCounts() {
+      const [otRes, leaveRes] = await Promise.all([
+        supabase.from('overtime_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+        supabase.from('leave_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+      ])
+      setPendingOvertimeCount(otRes.count ?? 0)
+      setPendingLeaveCount(leaveRes.count ?? 0)
+    }
+    fetchCounts()
+  }, [])
+
   const approaching52Count = members.filter(
     (m) => m.warningLevel === 'warning' || m.warningLevel === 'exceeded',
   ).length
-  const pendingLeaveCount = 0
 
   return (
     <div className="space-y-6">

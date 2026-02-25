@@ -26,7 +26,7 @@ interface AdjustModal {
 }
 
 export function AdminLeavePage() {
-  const { isDemo } = useAuth()
+  const { isDemo, employee } = useAuth()
   const [tab, setTab] = useState<'approvals' | 'balances'>('approvals')
   const [requests, setRequests] = useState<LeaveRequest[]>([])
   const [balances, setBalances] = useState<EmployeeBalance[]>([])
@@ -38,7 +38,19 @@ export function AdminLeavePage() {
 
   useEffect(() => {
     loadBalances()
+    fetchLeaveRequests()
   }, [])
+
+  async function fetchLeaveRequests() {
+    const { data, error } = await supabase
+      .from('leave_requests')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (!error && data) {
+      setRequests(data as LeaveRequest[])
+    }
+  }
 
   async function loadBalances() {
     setBalancesLoading(true)
@@ -53,16 +65,30 @@ export function AdminLeavePage() {
     setBalancesLoading(false)
   }
 
-  function handleApprove(id: string) {
-    setRequests((prev) => prev.map((r) => r.id === id ? { ...r, status: 'approved' } : r))
+  async function handleApprove(id: string) {
+    const { error } = await supabase
+      .from('leave_requests')
+      .update({ status: 'approved', approved_by: employee?.id, approved_at: new Date().toISOString() })
+      .eq('id', id)
+
+    if (!error) {
+      setRequests((prev) => prev.map((r) => r.id === id ? { ...r, status: 'approved' } : r))
+    }
   }
 
   function openReject(id: string) {
     setRejectModal({ open: true, id, reason: '' })
   }
 
-  function confirmReject() {
-    setRequests((prev) => prev.map((r) => r.id === rejectModal.id ? { ...r, status: 'rejected', rejection_reason: rejectModal.reason } : r))
+  async function confirmReject() {
+    const { error } = await supabase
+      .from('leave_requests')
+      .update({ status: 'rejected', rejection_reason: rejectModal.reason })
+      .eq('id', rejectModal.id)
+
+    if (!error) {
+      setRequests((prev) => prev.map((r) => r.id === rejectModal.id ? { ...r, status: 'rejected', rejection_reason: rejectModal.reason } : r))
+    }
     setRejectModal({ open: false, id: '', reason: '' })
   }
 
