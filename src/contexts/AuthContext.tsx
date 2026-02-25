@@ -76,7 +76,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq('id', userId)
       .single()
 
-    setEmployee(data)
+    if (data) {
+      setEmployee(data)
+    } else {
+      // 첫 Google 로그인 → employees 자동 등록 (is_active: false)
+      const authUser = (await supabase.auth.getUser()).data.user
+      if (authUser) {
+        const meta = authUser.user_metadata ?? {}
+        const newEmp: Employee = {
+          id: userId,
+          name: meta.full_name || meta.name || authUser.email?.split('@')[0] || '사용자',
+          email: authUser.email ?? '',
+          avatar_url: meta.avatar_url,
+          department: '',
+          role: 'employee',
+          employee_type: 'office',
+          hourly_wage: 0,
+          manager_id: null,
+          is_active: false,
+          created_at: new Date().toISOString(),
+        }
+        const { data: inserted } = await supabase
+          .from('employees')
+          .insert(newEmp)
+          .select()
+          .single()
+        setEmployee(inserted ?? newEmp)
+      }
+    }
     setLoading(false)
   }
 

@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Users, UserCheck, UserX, Shield, X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../lib/supabase'
 import type { Employee, UserRole } from '../types'
 
 const ROLE_LABEL: Record<UserRole, string> = {
@@ -25,8 +26,17 @@ interface EditModal {
 
 export function AdminUsersPage() {
   const { employee: currentUser } = useAuth()
-  // TODO: fetch from Supabase
   const [employees, setEmployees] = useState<Employee[]>([])
+
+  useEffect(() => {
+    supabase
+      .from('employees')
+      .select('*')
+      .order('created_at', { ascending: true })
+      .then(({ data }) => {
+        if (data) setEmployees(data)
+      })
+  }, [])
   const [editModal, setEditModal] = useState<EditModal>({
     open: false, employee: null, role: 'employee', department: '', isActive: true,
   })
@@ -41,24 +51,25 @@ export function AdminUsersPage() {
     })
   }
 
-  function saveEdit() {
+  async function saveEdit() {
     if (!editModal.employee) return
+    const id = editModal.employee.id
+    const updates = { role: editModal.role, department: editModal.department, is_active: editModal.isActive }
+    await supabase.from('employees').update(updates).eq('id', id)
     setEmployees((prev) =>
-      prev.map((e) =>
-        e.id === editModal.employee!.id
-          ? { ...e, role: editModal.role, department: editModal.department, is_active: editModal.isActive }
-          : e,
-      ),
+      prev.map((e) => e.id === id ? { ...e, ...updates } : e),
     )
     setEditModal({ open: false, employee: null, role: 'employee', department: '', isActive: true })
-    // TODO: Supabase update
   }
 
-  function toggleActive(id: string) {
+  async function toggleActive(id: string) {
+    const emp = employees.find((e) => e.id === id)
+    if (!emp) return
+    const newActive = !emp.is_active
+    await supabase.from('employees').update({ is_active: newActive }).eq('id', id)
     setEmployees((prev) =>
-      prev.map((e) => e.id === id ? { ...e, is_active: !e.is_active } : e),
+      prev.map((e) => e.id === id ? { ...e, is_active: newActive } : e),
     )
-    // TODO: Supabase update
   }
 
   const activeCount = employees.filter((e) => e.is_active).length
