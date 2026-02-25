@@ -230,6 +230,11 @@ create policy "employees_select_manager"
     )
   );
 
+-- 본인 자동 등록 (첫 Google 로그인 시)
+create policy "employees_insert_self"
+  on employees for insert
+  with check (auth.uid() = id);
+
 -- admin: 전체 수정
 create policy "employees_update_admin"
   on employees for update
