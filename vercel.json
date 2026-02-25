@@ -1,0 +1,9 @@
+{
+  "redirects": [
+    { "source": "/favicon.ico", "destination": "/icon-192.svg", "statusCode": 301 }
+  ],
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/((?!assets|icon-|manifest|sw|workbox|registerSW).*)", "destination": "/index.html" }
+  ]
+}
