@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, Clock, AlertTriangle } from 'lucide-react'
 import type { OvertimeRequest, TimeRecord } from '../types'
 import { OVERTIME_TYPE_LABEL } from '../types'
 import { StatusBadge } from '../components/common/StatusBadge'
+import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../lib/supabase'
 
 interface TimesheetEntry {
   request: OvertimeRequest
@@ -24,10 +26,11 @@ interface EditModalState {
 }
 
 export function TimesheetPage() {
+  const { employee } = useAuth()
   const [dateOffset, setDateOffset] = useState(0)
   const [activeStarts, setActiveStarts] = useState<Record<string, string>>({})
   const [completedRecords, setCompletedRecords] = useState<Record<string, TimeRecord>>({})
-  const [entries] = useState<TimesheetEntry[]>([])
+  const [entries, setEntries] = useState<TimesheetEntry[]>([])
   const [editModal, setEditModal] = useState<EditModalState | null>(null)
 
   // 날짜 계산
@@ -38,6 +41,49 @@ export function TimesheetPage() {
   })
   const isToday = dateOffset === 0
 
+  useEffect(() => {
+    if (!employee?.id) return
+    fetchEntries()
+  }, [employee?.id, dateOffset])
+
+  async function fetchEntries() {
+    const targetDate = new Date()
+    targetDate.setDate(targetDate.getDate() + dateOffset)
+    const dateStr = targetDate.toISOString().split('T')[0]
+
+    const { data: requests } = await supabase
+      .from('overtime_requests')
+      .select('*')
+      .eq('employee_id', employee!.id)
+      .eq('date', dateStr)
+      .eq('status', 'approved')
+      .order('planned_start', { ascending: true })
+
+    if (requests) {
+      const requestIds = requests.map((r: OvertimeRequest) => r.id)
+      let records: TimeRecord[] = []
+      if (requestIds.length > 0) {
+        const { data: recs } = await supabase
+          .from('time_records')
+          .select('*')
+          .in('request_id', requestIds)
+        if (recs) records = recs as TimeRecord[]
+      }
+
+      const recordMap = new Map(records.map((r) => [r.request_id, r]))
+
+      const newEntries: TimesheetEntry[] = requests.map((req: OvertimeRequest) => ({
+        request: req as OvertimeRequest,
+        record: recordMap.get(req.id) || null,
+      }))
+      setEntries(newEntries)
+
+      const newCompleted: Record<string, TimeRecord> = {}
+      records.forEach((r) => { newCompleted[r.request_id] = r })
+      setCompletedRecords(newCompleted)
+    }
+  }
+
   function nowTime() {
     return new Date().toTimeString().slice(0, 5)
   }
@@ -46,19 +92,21 @@ export function TimesheetPage() {
     setActiveStarts((prev) => ({ ...prev, [requestId]: nowTime() }))
   }
 
-  function endWork(requestId: string, req: OvertimeRequest) {
+  async function endWork(requestId: string, req: OvertimeRequest) {
     const start = activeStarts[requestId]
     if (!start) return
     const [sh, sm] = start.split(':').map(Number)
-    const [eh, em] = nowTime().split(':').map(Number)
-    const totalMin = (eh * 60 + em) - (sh * 60 + sm)
+    const endTime = nowTime()
+    const [eh, em] = endTime.split(':').map(Number)
+    let totalMin = (eh * 60 + em) - (sh * 60 + sm)
+    if (totalMin < 0) totalMin += 24 * 60
 
     const rec: TimeRecord = {
       id: `rec-${requestId}`,
       request_id: requestId,
-      employee_id: 'me',
+      employee_id: employee?.id ?? 'me',
       actual_start: start,
-      actual_end: nowTime(),
+      actual_end: endTime,
       total_minutes: totalMin,
       extended_minutes: req.type === 'extended' ? totalMin : 0,
       night_minutes: req.type === 'night' ? totalMin : 0,
@@ -67,13 +115,30 @@ export function TimesheetPage() {
       edit_reason: null,
       created_at: new Date().toISOString(),
     }
-    setCompletedRecords((prev) => ({ ...prev, [requestId]: rec }))
+
+    const { data, error } = await supabase.from('time_records').insert({
+      request_id: requestId,
+      employee_id: employee?.id,
+      actual_start: start,
+      actual_end: endTime,
+      total_minutes: totalMin,
+      extended_minutes: req.type === 'extended' ? totalMin : 0,
+      night_minutes: req.type === 'night' ? totalMin : 0,
+      holiday_minutes: req.type === 'holiday' ? totalMin : 0,
+      is_manually_edited: false,
+    }).select().single()
+
+    if (!error && data) {
+      setCompletedRecords((prev) => ({ ...prev, [requestId]: data as TimeRecord }))
+    } else {
+      setCompletedRecords((prev) => ({ ...prev, [requestId]: rec }))
+    }
+
     setActiveStarts((prev) => {
       const next = { ...prev }
       delete next[requestId]
       return next
     })
-    console.log('[TimesheetPage] recorded:', rec)
   }
 
   function openEditModal(requestId: string) {
@@ -86,20 +151,19 @@ export function TimesheetPage() {
     })
   }
 
-  function saveEdit() {
+  async function saveEdit() {
     if (!editModal) return
     if (!editModal.editReason.trim()) return
     const { requestId, startVal, endVal, editReason } = editModal
     const [sh, sm] = startVal.split(':').map(Number)
     const [eh, em] = endVal.split(':').map(Number)
-    const totalMin = (eh * 60 + em) - (sh * 60 + sm)
-    setCompletedRecords((prev) => ({
-      ...prev,
-      [requestId]: {
-        ...(prev[requestId] ?? {}),
-        id: prev[requestId]?.id ?? `rec-${requestId}`,
-        request_id: requestId,
-        employee_id: 'me',
+    let totalMin = (eh * 60 + em) - (sh * 60 + sm)
+    if (totalMin < 0) totalMin += 24 * 60
+
+    const existingRec = completedRecords[requestId]
+
+    if (existingRec && existingRec.id && !existingRec.id.startsWith('rec-')) {
+      const { error } = await supabase.from('time_records').update({
         actual_start: startVal,
         actual_end: endVal,
         total_minutes: totalMin,
@@ -108,9 +172,34 @@ export function TimesheetPage() {
         holiday_minutes: 0,
         is_manually_edited: true,
         edit_reason: editReason,
-        created_at: prev[requestId]?.created_at ?? new Date().toISOString(),
-      },
-    }))
+      }).eq('id', existingRec.id)
+
+      if (!error) {
+        setCompletedRecords((prev) => ({
+          ...prev,
+          [requestId]: { ...prev[requestId], actual_start: startVal, actual_end: endVal, total_minutes: totalMin, extended_minutes: totalMin, night_minutes: 0, holiday_minutes: 0, is_manually_edited: true, edit_reason: editReason },
+        }))
+      }
+    } else {
+      setCompletedRecords((prev) => ({
+        ...prev,
+        [requestId]: {
+          ...(prev[requestId] ?? {}),
+          id: prev[requestId]?.id ?? `rec-${requestId}`,
+          request_id: requestId,
+          employee_id: employee?.id ?? 'me',
+          actual_start: startVal,
+          actual_end: endVal,
+          total_minutes: totalMin,
+          extended_minutes: totalMin,
+          night_minutes: 0,
+          holiday_minutes: 0,
+          is_manually_edited: true,
+          edit_reason: editReason,
+          created_at: prev[requestId]?.created_at ?? new Date().toISOString(),
+        },
+      }))
+    }
     setEditModal(null)
   }
 

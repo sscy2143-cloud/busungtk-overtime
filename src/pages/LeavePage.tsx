@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, CalendarDays } from 'lucide-react'
 import { StatusBadge } from '../components/common/StatusBadge'
 import type { LeaveRequest } from '../types'
 import { LEAVE_TYPE_LABEL } from '../types'
+import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../lib/supabase'
 
 
 const LEAVE_TYPE_COLOR: Record<string, string> = {
@@ -16,8 +18,40 @@ const LEAVE_TYPE_COLOR: Record<string, string> = {
 
 export function LeavePage() {
   const navigate = useNavigate()
-  const [balance] = useState({ total_days: 0, used_days: 0, remaining_days: 0 })
-  const [requests] = useState<LeaveRequest[]>([])
+  const { employee } = useAuth()
+  const [balance, setBalance] = useState({ total_days: 0, used_days: 0, remaining_days: 0 })
+  const [requests, setRequests] = useState<LeaveRequest[]>([])
+
+  useEffect(() => {
+    if (!employee?.id) return
+    fetchBalance()
+    fetchRequests()
+  }, [employee?.id])
+
+  async function fetchBalance() {
+    const currentYear = new Date().getFullYear()
+    const { data } = await supabase
+      .from('leave_balances')
+      .select('total_days, used_days, remaining_days')
+      .eq('employee_id', employee!.id)
+      .eq('year', currentYear)
+      .single()
+    if (data) {
+      setBalance({ total_days: data.total_days, used_days: data.used_days, remaining_days: data.remaining_days })
+    }
+  }
+
+  async function fetchRequests() {
+    const { data } = await supabase
+      .from('leave_requests')
+      .select('*')
+      .eq('employee_id', employee!.id)
+      .order('created_at', { ascending: false })
+    if (data) {
+      setRequests(data as LeaveRequest[])
+    }
+  }
+
   const { total_days, used_days, remaining_days } = balance
   const usedPct = total_days > 0 ? Math.round((used_days / total_days) * 100) : 0
 
@@ -104,6 +138,11 @@ export function LeavePage() {
               <StatusBadge status={req.status} />
             </div>
           ))}
+          {requests.length === 0 && (
+            <div className="px-4 py-10 text-center">
+              <p className="text-sm text-gray-400">신청 내역이 없습니다</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

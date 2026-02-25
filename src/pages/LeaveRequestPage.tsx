@@ -1,9 +1,10 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, AlertTriangle, CalendarDays } from 'lucide-react'
 import type { LeaveType } from '../types'
 import { LEAVE_TYPE_LABEL } from '../types'
 import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../lib/supabase'
 
 
 const LEAVE_TYPES: LeaveType[] = ['annual', 'half_am', 'half_pm', 'special', 'sick']
@@ -28,7 +29,23 @@ function countWeekdays(start: string, end: string): number {
 export function LeaveRequestPage() {
   const navigate = useNavigate()
   const { employee } = useAuth()
-  const [remainingDays] = useState(0)
+  const [remainingDays, setRemainingDays] = useState(0)
+
+  useEffect(() => {
+    if (!employee?.id) return
+    async function fetchBalance() {
+      const currentYear = new Date().getFullYear()
+      const { data } = await supabase
+        .from('leave_balances')
+        .select('remaining_days')
+        .eq('employee_id', employee!.id)
+        .eq('year', currentYear)
+        .single()
+      if (data) setRemainingDays(data.remaining_days)
+    }
+    fetchBalance()
+  }, [employee?.id])
+
   const [leaveType, setLeaveType] = useState<LeaveType>('annual')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
@@ -59,14 +76,21 @@ export function LeaveRequestPage() {
     if (!canSubmit) return
     setSubmitting(true)
 
-    const leaveData = {
+    // DB에 휴가 신청 저장
+    const { error } = await supabase.from('leave_requests').insert({
+      employee_id: employee?.id ?? '',
       type: leaveType,
       start_date: startDate,
       end_date: isHalfDay ? startDate : (endDate || startDate),
       days: calculatedDays,
-      reason,
+      reason: reason.trim(),
+    })
+
+    if (error) {
+      console.error('[LeaveRequest] insert error:', error)
+      setSubmitting(false)
+      return
     }
-    console.log('휴가 신청:', leaveData)
 
     // 사장님에게 SMS 알림 발송
     try {

@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Calculator, DollarSign, Receipt, X, Edit3, Check, XCircle } from 'lucide-react'
-import type { Employee, Expense, ExpenseCategory } from '../types'
+import type { Employee, Expense, ExpenseCategory, OvertimeRequest } from '../types'
 import { EXPENSE_CATEGORY_LABEL } from '../types'
 import { StatusBadge } from '../components/common/StatusBadge'
+import { supabase } from '../lib/supabase'
 
 const PAY_MULTIPLIER = {
   extended: 1.5,
@@ -30,24 +31,131 @@ interface RejectModal {
   reason: string
 }
 
+interface PayrollRow {
+  employee: Employee
+  extendedHours: number
+  nightHours: number
+  holidayHours: number
+  totalPay: number
+}
+
+function calcHours(start: string, end: string): number {
+  const [sh, sm] = start.split(':').map(Number)
+  const [eh, em] = end.split(':').map(Number)
+  let mins = (eh * 60 + em) - (sh * 60 + sm)
+  if (mins < 0) mins += 24 * 60
+  return mins / 60
+}
+
 export function AdminPayrollPage() {
   const [tab, setTab] = useState<'payroll' | 'wages' | 'expenses'>('payroll')
   const [month, setMonth] = useState(() => {
     const d = new Date()
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
   })
-  // TODO: fetch from Supabase
-  const [employees] = useState<Employee[]>([])
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [overtimeData, setOvertimeData] = useState<(OvertimeRequest & { employee: Employee })[]>([])
+  const [selectedEmployee, setSelectedEmployee] = useState<string>('all')
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [wageModal, setWageModal] = useState<WageEditModal>({ open: false, employee: null, wage: '' })
   const [rejectModal, setRejectModal] = useState<RejectModal>({ open: false, id: '', reason: '' })
+
+  useEffect(() => {
+    fetchEmployees()
+  }, [])
+
+  useEffect(() => {
+    fetchOvertimeData()
+  }, [month])
+
+  async function fetchEmployees() {
+    const { data, error } = await supabase.rpc('list_all_employees')
+    if (!error && data) {
+      setEmployees(data as Employee[])
+    }
+  }
+
+  async function fetchOvertimeData() {
+    const startDate = `${month}-01`
+    const endOfMonth = new Date(parseInt(month.split('-')[0]), parseInt(month.split('-')[1]), 0)
+    const endDate = `${month}-${String(endOfMonth.getDate()).padStart(2, '0')}`
+
+    const { data, error } = await supabase
+      .from('overtime_requests')
+      .select('*, employee:employees!overtime_requests_employee_id_fkey(id, name, department, hourly_wage)')
+      .eq('status', 'approved')
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .order('date', { ascending: true })
+
+    if (!error && data) {
+      setOvertimeData(data as (OvertimeRequest & { employee: Employee })[])
+    }
+  }
+
+  function calculatePayroll(): PayrollRow[] {
+    const map = new Map<string, PayrollRow>()
+
+    for (const req of overtimeData) {
+      const emp = req.employee
+      if (!emp) continue
+
+      const hours = calcHours(req.planned_start, req.planned_end)
+
+      let multiplier: number
+      let extendedHours = 0
+      let nightHours = 0
+      let holidayHours = 0
+
+      if (req.type === 'extended') {
+        multiplier = PAY_MULTIPLIER.extended
+        extendedHours = hours
+      } else if (req.type === 'night') {
+        multiplier = PAY_MULTIPLIER.night_overlap
+        nightHours = hours
+      } else {
+        multiplier = PAY_MULTIPLIER.holiday_base
+        holidayHours = hours
+      }
+
+      const pay = hours * emp.hourly_wage * multiplier
+
+      if (map.has(emp.id)) {
+        const row = map.get(emp.id)!
+        row.extendedHours += extendedHours
+        row.nightHours += nightHours
+        row.holidayHours += holidayHours
+        row.totalPay += pay
+      } else {
+        map.set(emp.id, {
+          employee: emp,
+          extendedHours,
+          nightHours,
+          holidayHours,
+          totalPay: pay,
+        })
+      }
+    }
+
+    return Array.from(map.values())
+  }
 
   function openWageEdit(emp: Employee) {
     setWageModal({ open: true, employee: emp, wage: String(emp.hourly_wage) })
   }
 
-  function saveWage() {
-    // TODO: Supabase update
+  async function saveWage() {
+    if (!wageModal.employee || !wageModal.wage) return
+    const { error } = await supabase
+      .from('employees')
+      .update({ hourly_wage: Number(wageModal.wage) })
+      .eq('id', wageModal.employee.id)
+
+    if (!error) {
+      setEmployees(prev => prev.map(e =>
+        e.id === wageModal.employee!.id ? { ...e, hourly_wage: Number(wageModal.wage) } : e,
+      ))
+    }
     setWageModal({ open: false, employee: null, wage: '' })
   }
 
@@ -76,6 +184,11 @@ export function AdminPayrollPage() {
   const approvedExpenses = expenses.filter((e) => e.status === 'approved')
   const totalPending = pendingExpenses.reduce((s, e) => s + e.amount, 0)
   const totalApproved = approvedExpenses.reduce((s, e) => s + e.amount, 0)
+
+  const payrollRows = calculatePayroll()
+  const filteredRows = selectedEmployee === 'all'
+    ? payrollRows
+    : payrollRows.filter(r => r.employee.id === selectedEmployee)
 
   return (
     <div className="space-y-6">
@@ -123,7 +236,7 @@ export function AdminPayrollPage() {
       {/* 수당 계산 탭 */}
       {tab === 'payroll' && (
         <div className="space-y-4">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <label className="text-sm font-medium text-gray-700">기간</label>
             <input
               type="month"
@@ -131,6 +244,16 @@ export function AdminPayrollPage() {
               onChange={(e) => setMonth(e.target.value)}
               className="px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
             />
+            <select
+              value={selectedEmployee}
+              onChange={(e) => setSelectedEmployee(e.target.value)}
+              className="px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+            >
+              <option value="all">전체</option>
+              {employees.map(emp => (
+                <option key={emp.id} value={emp.id}>{emp.name}</option>
+              ))}
+            </select>
           </div>
 
           <div className="bg-blue-50 rounded-2xl p-4">
@@ -143,7 +266,7 @@ export function AdminPayrollPage() {
             </div>
           </div>
 
-          {employees.length === 0 ? (
+          {filteredRows.length === 0 ? (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
               <Calculator className="w-12 h-12 text-gray-200 mx-auto mb-3" />
               <p className="text-sm font-medium text-gray-500 mb-1">수당 데이터가 없습니다</p>
@@ -162,7 +285,27 @@ export function AdminPayrollPage() {
                     <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">총 수당</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100" />
+                <tbody className="divide-y divide-gray-100">
+                  {filteredRows.map((row) => (
+                    <tr key={row.employee.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-gray-900">{row.employee.name}</p>
+                        <p className="text-xs text-gray-400">{row.employee.department || '-'}</p>
+                      </td>
+                      <td className="px-3 py-3 text-center text-gray-600">{formatWon(row.employee.hourly_wage)}</td>
+                      <td className="px-3 py-3 text-center text-gray-600">
+                        {row.extendedHours > 0 ? `${row.extendedHours.toFixed(1)}h` : '-'}
+                      </td>
+                      <td className="px-3 py-3 text-center text-gray-600">
+                        {row.nightHours > 0 ? `${row.nightHours.toFixed(1)}h` : '-'}
+                      </td>
+                      <td className="px-3 py-3 text-center text-gray-600">
+                        {row.holidayHours > 0 ? `${row.holidayHours.toFixed(1)}h` : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-gray-900">{formatWon(Math.round(row.totalPay))}</td>
+                    </tr>
+                  ))}
+                </tbody>
               </table>
             </div>
           )}
