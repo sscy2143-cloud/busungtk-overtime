@@ -12,6 +12,7 @@ import {
   Users,
   DollarSign,
   Receipt,
+  Settings,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -46,6 +47,7 @@ export function Sidebar() {
     { to: '/admin', label: '관리자 대시보드', icon: <Shield size={18} /> },
     { to: '/admin/approvals', label: '승인 관리', icon: <CheckSquare size={18} /> },
     { to: '/admin/leave', label: '휴가 승인', icon: <CalendarCheck size={18} /> },
+    { to: '/admin/leave-types', label: '휴가 종류 관리', icon: <Settings size={18} /> },
     { to: '/admin/payroll', label: '급여 계산', icon: <DollarSign size={18} /> },
   ]
 

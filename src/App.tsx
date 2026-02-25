@@ -14,6 +14,7 @@ import { AdminApprovalsPage } from './pages/AdminApprovalsPage'
 import { AdminLeavePage } from './pages/AdminLeavePage'
 import { AdminUsersPage } from './pages/AdminUsersPage'
 import { AdminPayrollPage } from './pages/AdminPayrollPage'
+import { AdminLeaveTypesPage } from './pages/AdminLeaveTypesPage'
 import { NotificationsPage } from './pages/NotificationsPage'
 import { ExpensePage } from './pages/ExpensePage'
 
@@ -67,6 +68,7 @@ export default function App() {
           <Route path="admin" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
           <Route path="admin/approvals" element={<AdminRoute><AdminApprovalsPage /></AdminRoute>} />
           <Route path="admin/leave" element={<AdminRoute><AdminLeavePage /></AdminRoute>} />
+          <Route path="admin/leave-types" element={<AdminRoute><AdminLeaveTypesPage /></AdminRoute>} />
           <Route path="admin/users" element={<SuperAdminRoute><AdminUsersPage /></SuperAdminRoute>} />
           <Route path="admin/payroll" element={<AdminRoute><AdminPayrollPage /></AdminRoute>} />
         </Route>
