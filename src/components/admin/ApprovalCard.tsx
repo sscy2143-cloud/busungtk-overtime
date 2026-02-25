@@ -8,6 +8,8 @@ interface ApprovalCardProps {
   type: 'overtime' | 'leave'
   onApprove: (id: string) => void
   onReject: (id: string) => void
+  onEditTime?: (id: string) => void
+  canApprove?: boolean
   checked?: boolean
   onCheck?: (id: string, checked: boolean) => void
   weeklyHours?: number
@@ -22,6 +24,8 @@ export function ApprovalCard({
   type,
   onApprove,
   onReject,
+  onEditTime,
+  canApprove = true,
   checked = false,
   onCheck,
   weeklyHours,
@@ -121,9 +125,17 @@ export function ApprovalCard({
         <p className="text-xs text-gray-500 line-clamp-2">{request.reason}</p>
       </div>
 
-      {/* 액션 버튼 */}
-      {request.status === 'pending' && (
+      {/* 액션 버튼 - 대표(admin)만 표시 */}
+      {request.status === 'pending' && canApprove && (
         <div className="flex gap-2 mt-3 ml-12">
+          {isOvertime && onEditTime && (
+            <button
+              onClick={() => onEditTime(request.id)}
+              className="flex-1 py-1.5 text-xs font-semibold bg-white text-primary-600 border border-primary-300 rounded-lg hover:bg-primary-50 transition-colors"
+            >
+              시간 수정
+            </button>
+          )}
           <button
             onClick={() => onApprove(request.id)}
             className="flex-1 py-1.5 text-xs font-semibold bg-success-500 text-white rounded-lg hover:bg-success-600 active:bg-success-700 transition-colors"
@@ -137,6 +149,11 @@ export function ApprovalCard({
             반려
           </button>
         </div>
+      )}
+
+      {/* 인사담당(manager)에게는 읽기 전용 안내 */}
+      {request.status === 'pending' && !canApprove && (
+        <p className="mt-2 ml-12 text-xs text-gray-400">대표 승인 대기 중</p>
       )}
     </div>
   )
