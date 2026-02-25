@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AlertTriangle, Users, Calendar, Clock, Info } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
@@ -17,7 +17,42 @@ export function RequestPage() {
   const { employee } = useAuth()
   const navigate = useNavigate()
 
-  const currentWeeklyHours = 0 // TODO: fetch from Supabase
+  const [currentWeeklyHours, setCurrentWeeklyHours] = useState(0)
+
+  useEffect(() => {
+    if (!employee?.id) return
+    async function fetchWeeklyHours() {
+      const now = new Date()
+      const day = now.getDay()
+      const monday = new Date(now)
+      monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1))
+      const sunday = new Date(monday)
+      sunday.setDate(monday.getDate() + 6)
+      const weekStart = monday.toISOString().split('T')[0]
+      const weekEnd = sunday.toISOString().split('T')[0]
+
+      const { data } = await supabase
+        .from('overtime_requests')
+        .select('planned_start, planned_end')
+        .eq('employee_id', employee!.id)
+        .eq('status', 'approved')
+        .gte('date', weekStart)
+        .lte('date', weekEnd)
+
+      if (data) {
+        let total = 0
+        for (const row of data) {
+          const [sh, sm] = row.planned_start.split(':').map(Number)
+          const [eh, em] = row.planned_end.split(':').map(Number)
+          let mins = (eh * 60 + em) - (sh * 60 + sm)
+          if (mins < 0) mins += 24 * 60
+          total += mins / 60
+        }
+        setCurrentWeeklyHours(total)
+      }
+    }
+    fetchWeeklyHours()
+  }, [employee?.id])
 
   const timeOptions = useMemo(() => {
     const opts: string[] = []
