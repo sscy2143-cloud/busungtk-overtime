@@ -1,30 +1,22 @@
 import { useState } from 'react'
 import { Search, X, Check } from 'lucide-react'
 
-interface DemoEmployee {
+interface Employee {
   id: string
   name: string
   department: string
 }
 
-const DEMO_EMPLOYEES: DemoEmployee[] = [
-  { id: 'emp-1', name: '김현장', department: '현장' },
-  { id: 'emp-2', name: '박기사', department: '현장' },
-  { id: 'emp-3', name: '이사무', department: '사무' },
-  { id: 'emp-4', name: '정팀장', department: '관리' },
-  { id: 'emp-5', name: '최대리', department: '사무' },
-]
-
 interface GroupMemberSelectProps {
   selectedIds: string[]
   onSelect: (ids: string[]) => void
-  employees?: DemoEmployee[]
+  employees?: Employee[]
 }
 
 export function GroupMemberSelect({
   selectedIds,
   onSelect,
-  employees = DEMO_EMPLOYEES,
+  employees = [],
 }: GroupMemberSelectProps) {
   const [query, setQuery] = useState('')
 

@@ -10,46 +10,20 @@ interface AuthState {
   loading: boolean
   isDemo: boolean
   signInWithGoogle: () => Promise<void>
-  signInAsDemo: (role: 'employee' | 'manager' | 'admin') => void
+  signInAsDemo: (password: string) => boolean
   signOut: () => Promise<void>
 }
 
 const DEMO_EMPLOYEES: Record<string, Employee> = {
-  employee: {
-    id: 'demo-emp-001',
-    name: '김현장',
-    email: 'kim@busungtk.com',
-    avatar_url: undefined,
-    department: '설치팀',
-    role: 'employee',
-    employee_type: 'field',
-    hourly_wage: 15000,
-    manager_id: 'demo-mgr-001',
-    is_active: true,
-    created_at: '2024-01-01T00:00:00Z',
-  },
-  manager: {
-    id: 'demo-mgr-001',
-    name: '정팀장',
-    email: 'jung@busungtk.com',
-    avatar_url: undefined,
-    department: '설치팀',
-    role: 'manager',
-    employee_type: 'office',
-    hourly_wage: 20000,
-    manager_id: null,
-    is_active: true,
-    created_at: '2024-01-01T00:00:00Z',
-  },
   admin: {
     id: 'demo-adm-001',
-    name: '최인사',
-    email: 'choi@busungtk.com',
+    name: '관리자 (데모)',
+    email: 'admin@busungtk.com',
     avatar_url: undefined,
     department: '경영지원',
     role: 'admin',
     employee_type: 'office',
-    hourly_wage: 25000,
+    hourly_wage: 0,
     manager_id: null,
     is_active: true,
     created_at: '2024-01-01T00:00:00Z',
@@ -113,12 +87,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
   }
 
-  function signInAsDemo(role: 'employee' | 'manager' | 'admin') {
-    const demoEmp = DEMO_EMPLOYEES[role]
+  function signInAsDemo(password: string): boolean {
+    if (password !== '6325') return false
+    const demoEmp = DEMO_EMPLOYEES.admin
     setEmployee(demoEmp)
     setUser({ id: demoEmp.id, email: demoEmp.email } as User)
     setIsDemo(true)
     setLoading(false)
+    return true
   }
 
   async function signOut() {

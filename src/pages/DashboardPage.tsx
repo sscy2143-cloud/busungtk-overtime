@@ -5,26 +5,6 @@ import { StatusBadge } from '../components/common/StatusBadge'
 import type { RequestStatus, OvertimeType } from '../types'
 import { OVERTIME_TYPE_LABEL } from '../types'
 
-// ── 목업 데이터 ──────────────────────────────────────────
-const MOCK_WEEKLY_HOURS = 38.5
-const MOCK_MAX_HOURS = 52
-const MOCK_PENDING_APPROVALS = 3
-
-interface MockRequest {
-  id: string
-  type: OvertimeType
-  date: string
-  status: RequestStatus
-}
-
-const MOCK_REQUESTS: MockRequest[] = [
-  { id: '1', type: 'extended', date: '2026-02-24', status: 'approved' },
-  { id: '2', type: 'night', date: '2026-02-21', status: 'pending' },
-  { id: '3', type: 'holiday', date: '2026-02-17', status: 'rejected' },
-]
-
-const MOCK_LEAVE = { total: 15, used: 3, remaining: 12 }
-// ────────────────────────────────────────────────────────
 
 // 주간 근무시간 게이지 (인라인 컴포넌트)
 function WeeklyGauge({ hours, max }: { hours: number; max: number }) {
@@ -89,6 +69,12 @@ export function DashboardPage() {
   const navigate = useNavigate()
   const isAdmin = employee?.role === 'manager' || employee?.role === 'admin'
 
+  const weeklyHours = 0
+  const maxHours = 52
+  const pendingApprovals = 0
+  const recentRequests: { id: string; type: OvertimeType; date: string; status: RequestStatus }[] = []
+  const leave = { total: 0, used: 0, remaining: 0 }
+
   return (
     <div className="space-y-4">
       {/* 인사 */}
@@ -102,14 +88,14 @@ export function DashboardPage() {
       </div>
 
       {/* 관리자 승인 대기 배너 */}
-      {isAdmin && MOCK_PENDING_APPROVALS > 0 && (
+      {isAdmin && pendingApprovals > 0 && (
         <div
           className="flex items-center gap-3 bg-warning-50 border border-warning-400 rounded-xl px-4 py-3 cursor-pointer hover:bg-yellow-100 transition-colors"
           onClick={() => navigate('/admin/approvals')}
         >
           <AlertCircle size={18} className="text-warning-500 flex-shrink-0" />
           <span className="text-sm font-medium text-yellow-800">
-            승인 대기 중인 신청이 <strong>{MOCK_PENDING_APPROVALS}건</strong> 있습니다
+            승인 대기 중인 신청이 <strong>{pendingApprovals}건</strong> 있습니다
           </span>
           <span className="ml-auto text-xs text-yellow-600">확인 →</span>
         </div>
@@ -121,12 +107,12 @@ export function DashboardPage() {
         {/* 카드 1: 금주 근무시간 */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
           <h2 className="text-sm font-semibold text-gray-500 mb-4">금주 근무시간</h2>
-          <WeeklyGauge hours={MOCK_WEEKLY_HOURS} max={MOCK_MAX_HOURS} />
+          <WeeklyGauge hours={weeklyHours} max={maxHours} />
           <p className="text-xs text-gray-400 mt-3">
-            {MOCK_WEEKLY_HOURS <= 40 && '정상 근무 중입니다.'}
-            {MOCK_WEEKLY_HOURS > 40 && MOCK_WEEKLY_HOURS <= 48 && '연장근무 주의 구간입니다.'}
-            {MOCK_WEEKLY_HOURS > 48 && MOCK_WEEKLY_HOURS <= 52 && '야간근무 경고 구간입니다.'}
-            {MOCK_WEEKLY_HOURS > 52 && '최대 근무시간을 초과했습니다.'}
+            {weeklyHours <= 40 && '정상 근무 중입니다.'}
+            {weeklyHours > 40 && weeklyHours <= 48 && '연장근무 주의 구간입니다.'}
+            {weeklyHours > 48 && weeklyHours <= 52 && '야간근무 경고 구간입니다.'}
+            {weeklyHours > 52 && '최대 근무시간을 초과했습니다.'}
           </p>
         </div>
 
@@ -135,27 +121,27 @@ export function DashboardPage() {
           <h2 className="text-sm font-semibold text-gray-500 mb-4">잔여 연차</h2>
           <div className="flex items-baseline gap-1 mb-3">
             <span className="text-4xl font-bold text-primary-600 tabular-nums">
-              {MOCK_LEAVE.remaining}
+              {leave.remaining}
             </span>
-            <span className="text-sm text-gray-400">/ {MOCK_LEAVE.total}일</span>
+            <span className="text-sm text-gray-400">/ {leave.total}일</span>
           </div>
           <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
             <div
               className="h-full bg-primary-400 rounded-full"
-              style={{ width: `${(MOCK_LEAVE.remaining / MOCK_LEAVE.total) * 100}%` }}
+              style={{ width: `${leave.total > 0 ? (leave.remaining / leave.total) * 100 : 0}%` }}
             />
           </div>
           <div className="flex justify-between text-xs text-gray-400 mt-1.5">
-            <span>사용 {MOCK_LEAVE.used}일</span>
-            <span>잔여 {MOCK_LEAVE.remaining}일</span>
+            <span>사용 {leave.used}일</span>
+            <span>잔여 {leave.remaining}일</span>
           </div>
         </div>
       </div>
 
-      {/* 카드 2: 최근 신청 */}
+      {/* 카드 2: 최근 제출 */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-gray-500">최근 신청</h2>
+          <h2 className="text-sm font-semibold text-gray-500">최근 제출</h2>
           <button
             className="text-xs text-primary-600 hover:underline"
             onClick={() => navigate('/requests')}
@@ -164,11 +150,11 @@ export function DashboardPage() {
           </button>
         </div>
 
-        {MOCK_REQUESTS.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-6">신청 내역이 없습니다.</p>
+        {recentRequests.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-6">제출 내역이 없습니다.</p>
         ) : (
           <ul className="space-y-3">
-            {MOCK_REQUESTS.map((req) => (
+            {recentRequests.map((req) => (
               <li
                 key={req.id}
                 className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0"
@@ -197,7 +183,7 @@ export function DashboardPage() {
           className="flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white font-semibold text-sm py-3.5 rounded-xl transition-colors shadow-sm"
         >
           <FilePlus size={18} />
-          야근 신청
+          야근 제출
         </button>
         <button
           onClick={() => navigate('/leave/request')}

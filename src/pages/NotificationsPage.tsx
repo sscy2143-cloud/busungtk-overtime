@@ -29,66 +29,8 @@ const BG_MAP: Record<string, string> = {
   approval_request: 'bg-purple-50',
 }
 
-const DEMO_NOTIFICATIONS: (Notification & { icon_type: string })[] = [
-  {
-    id: 'n-1',
-    recipient_id: 'me',
-    type: 'approval_request',
-    icon_type: 'approval_request',
-    title: '야근 승인 요청',
-    body: '김철수님이 2/24(월) 연장근무 신청을 했습니다. 확인이 필요합니다.',
-    reference_id: 'ot-1',
-    is_read: false,
-    created_at: new Date(Date.now() - 5 * 60000).toISOString(),
-  },
-  {
-    id: 'n-2',
-    recipient_id: 'me',
-    type: 'weekly_warning',
-    icon_type: 'weekly_warning',
-    title: '52시간 초과 경고',
-    body: '김철수님의 금주 근무시간이 52시간을 초과했습니다 (53.5h). 확인하세요.',
-    reference_id: 'emp-1',
-    is_read: false,
-    created_at: new Date(Date.now() - 30 * 60000).toISOString(),
-  },
-  {
-    id: 'n-3',
-    recipient_id: 'me',
-    type: 'overtime_approved',
-    icon_type: 'overtime_approved',
-    title: '야근 신청 승인',
-    body: '2/20(목) 연장근무 신청이 승인되었습니다.',
-    reference_id: 'ot-prev',
-    is_read: false,
-    created_at: new Date(Date.now() - 2 * 3600000).toISOString(),
-  },
-  {
-    id: 'n-4',
-    recipient_id: 'me',
-    type: 'leave_approved',
-    icon_type: 'leave_approved',
-    title: '휴가 신청 승인',
-    body: '3/5(목) 연차 신청이 승인되었습니다.',
-    reference_id: 'lv-3',
-    is_read: true,
-    created_at: new Date(Date.now() - 24 * 3600000).toISOString(),
-  },
-  {
-    id: 'n-5',
-    recipient_id: 'me',
-    type: 'overtime_rejected',
-    icon_type: 'overtime_rejected',
-    title: '야근 신청 반려',
-    body: '2/18(화) 야간근무 신청이 반려되었습니다. 사유: 사전 신청 필요',
-    reference_id: 'ot-old',
-    is_read: true,
-    created_at: new Date(Date.now() - 3 * 24 * 3600000).toISOString(),
-  },
-]
-
 export function NotificationsPage() {
-  const [notifications, setNotifications] = useState(DEMO_NOTIFICATIONS)
+  const [notifications, setNotifications] = useState<(Notification & { icon_type: string })[]>([])
 
   const unreadCount = notifications.filter((n) => !n.is_read).length
 

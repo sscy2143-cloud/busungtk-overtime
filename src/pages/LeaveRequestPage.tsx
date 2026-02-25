@@ -5,7 +5,6 @@ import type { LeaveType } from '../types'
 import { LEAVE_TYPE_LABEL } from '../types'
 import { useAuth } from '../contexts/AuthContext'
 
-const REMAINING_DAYS = 12
 
 const LEAVE_TYPES: LeaveType[] = ['annual', 'half_am', 'half_pm', 'special', 'sick']
 
@@ -29,6 +28,7 @@ function countWeekdays(start: string, end: string): number {
 export function LeaveRequestPage() {
   const navigate = useNavigate()
   const { employee } = useAuth()
+  const [remainingDays] = useState(0)
   const [leaveType, setLeaveType] = useState<LeaveType>('annual')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
@@ -44,7 +44,7 @@ export function LeaveRequestPage() {
     return countWeekdays(startDate, end)
   }, [isHalfDay, startDate, endDate])
 
-  const isOverLimit = calculatedDays > REMAINING_DAYS
+  const isOverLimit = calculatedDays > remainingDays
   const canSubmit = reason.trim().length > 0 && startDate && calculatedDays > 0 && !isOverLimit
 
   function handleLeaveTypeChange(type: LeaveType) {
@@ -102,7 +102,7 @@ export function LeaveRequestPage() {
         </button>
         <div>
           <h1 className="text-xl font-bold text-gray-900">휴가 신청</h1>
-          <p className="text-xs text-gray-400">잔여 연차 {REMAINING_DAYS}일</p>
+          <p className="text-xs text-gray-400">잔여 연차 {remainingDays}일</p>
         </div>
       </div>
 
@@ -195,7 +195,7 @@ export function LeaveRequestPage() {
             <div className="flex items-center gap-2 bg-danger-50 border border-danger-200 rounded-xl px-3 py-2">
               <AlertTriangle className="w-4 h-4 text-danger-500 shrink-0" />
               <p className="text-xs text-danger-600">
-                잔여 연차({REMAINING_DAYS}일)를 초과합니다. 신청 일수를 줄여주세요.
+                잔여 연차({remainingDays}일)를 초과합니다. 신청 일수를 줄여주세요.
               </p>
             </div>
           )}
@@ -221,7 +221,7 @@ export function LeaveRequestPage() {
         <div className="bg-gray-50 rounded-xl px-4 py-3 flex justify-between items-center">
           <span className="text-xs text-gray-500">신청 후 잔여 연차</span>
           <span className={`text-sm font-bold ${isOverLimit ? 'text-danger-600' : 'text-gray-800'}`}>
-            {REMAINING_DAYS - calculatedDays}일
+            {remainingDays - calculatedDays}일
           </span>
         </div>
 

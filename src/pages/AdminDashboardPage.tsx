@@ -4,39 +4,25 @@ import { Clock, AlertTriangle, CalendarOff, ChevronRight } from 'lucide-react'
 import { TeamGaugeList } from '../components/admin/TeamGaugeList'
 import type { WarningLevel } from '../types'
 
-interface DemoMember {
+interface TeamMember {
   name: string
   department: string
   totalHours: number
   warningLevel: WarningLevel
 }
 
-const THIS_WEEK: DemoMember[] = [
-  { name: '김철수', department: '냉동설비팀', totalHours: 53.5, warningLevel: 'exceeded' },
-  { name: '이영희', department: '냉동설비팀', totalHours: 49.0, warningLevel: 'warning' },
-  { name: '박민준', department: '시스템팀', totalHours: 44.5, warningLevel: 'caution' },
-  { name: '최수진', department: '시스템팀', totalHours: 38.0, warningLevel: 'normal' },
-  { name: '정다은', department: '영업팀', totalHours: 40.0, warningLevel: 'normal' },
-]
-
-const LAST_WEEK: DemoMember[] = [
-  { name: '김철수', department: '냉동설비팀', totalHours: 48.0, warningLevel: 'warning' },
-  { name: '이영희', department: '냉동설비팀', totalHours: 45.5, warningLevel: 'caution' },
-  { name: '박민준', department: '시스템팀', totalHours: 41.0, warningLevel: 'caution' },
-  { name: '최수진', department: '시스템팀', totalHours: 36.5, warningLevel: 'normal' },
-  { name: '정다은', department: '영업팀', totalHours: 39.0, warningLevel: 'normal' },
-]
-
 export function AdminDashboardPage() {
   const navigate = useNavigate()
   const [week, setWeek] = useState<'this' | 'last'>('this')
-  const members = week === 'this' ? THIS_WEEK : LAST_WEEK
+  const [thisWeek] = useState<TeamMember[]>([])
+  const [lastWeek] = useState<TeamMember[]>([])
+  const members = week === 'this' ? thisWeek : lastWeek
 
-  const pendingOvertimeCount = 4
+  const pendingOvertimeCount = 0
   const approaching52Count = members.filter(
     (m) => m.warningLevel === 'warning' || m.warningLevel === 'exceeded',
   ).length
-  const pendingLeaveCount = 2
+  const pendingLeaveCount = 0
 
   return (
     <div className="space-y-6">

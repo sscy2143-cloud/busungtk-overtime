@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Home, FileText, Clock, MoreHorizontal, Shield, Calendar, Bell, Settings, X } from 'lucide-react'
+import { Home, FileText, Clock, MoreHorizontal, Shield, Calendar, Bell, Settings, X, DollarSign, Receipt } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 
 export function BottomNav() {
@@ -49,6 +49,22 @@ export function BottomNav() {
           </button>
           <button
             className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+            onClick={() => { navigate('/expenses'); setMoreOpen(false) }}
+          >
+            <Receipt size={18} className="text-primary-500" />
+            경비 제출
+          </button>
+          {isAdmin && (
+            <button
+              className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+              onClick={() => { navigate('/admin/payroll'); setMoreOpen(false) }}
+            >
+              <DollarSign size={18} className="text-primary-500" />
+              급여 계산
+            </button>
+          )}
+          <button
+            className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
             onClick={() => { setMoreOpen(false) }}
           >
             <Settings size={18} className="text-primary-500" />
@@ -66,7 +82,7 @@ export function BottomNav() {
 
         <NavLink to="/requests" className={navItemClass}>
           <FileText size={20} />
-          <span>신청</span>
+          <span>제출</span>
         </NavLink>
 
         <NavLink to="/timesheet" className={navItemClass}>

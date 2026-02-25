@@ -9,6 +9,9 @@ import {
   CheckSquare,
   CalendarCheck,
   LogOut,
+  Users,
+  DollarSign,
+  Receipt,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -21,6 +24,7 @@ interface NavItem {
 export function Sidebar() {
   const { employee, signOut } = useAuth()
   const isAdmin = employee?.role === 'manager' || employee?.role === 'admin'
+  const isSuperAdmin = employee?.role === 'admin'
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
@@ -31,16 +35,22 @@ export function Sidebar() {
 
   const mainNav: NavItem[] = [
     { to: '/', label: '대시보드', icon: <LayoutDashboard size={18} /> },
-    { to: '/request', label: '야근 신청', icon: <FilePlus size={18} /> },
-    { to: '/requests', label: '내 신청 목록', icon: <FileText size={18} /> },
+    { to: '/request', label: '야근 제출', icon: <FilePlus size={18} /> },
+    { to: '/requests', label: '내 제출 목록', icon: <FileText size={18} /> },
     { to: '/timesheet', label: '근무 기록', icon: <Clock size={18} /> },
     { to: '/leave', label: '휴가 관리', icon: <Calendar size={18} /> },
+    { to: '/expenses', label: '경비 제출', icon: <Receipt size={18} /> },
   ]
 
   const adminNav: NavItem[] = [
     { to: '/admin', label: '관리자 대시보드', icon: <Shield size={18} /> },
     { to: '/admin/approvals', label: '승인 관리', icon: <CheckSquare size={18} /> },
     { to: '/admin/leave', label: '휴가 승인', icon: <CalendarCheck size={18} /> },
+    { to: '/admin/payroll', label: '급여 계산', icon: <DollarSign size={18} /> },
+  ]
+
+  const superAdminNav: NavItem[] = [
+    { to: '/admin/users', label: '사용자 관리', icon: <Users size={18} /> },
   ]
 
   return (
@@ -70,6 +80,19 @@ export function Sidebar() {
                 {item.label}
               </NavLink>
             ))}
+            {isSuperAdmin && (
+              <>
+                <div className="mt-4 mb-2 px-3">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">시스템</p>
+                </div>
+                {superAdminNav.map((item) => (
+                  <NavLink key={item.to} to={item.to} className={navLinkClass}>
+                    {item.icon}
+                    {item.label}
+                  </NavLink>
+                ))}
+              </>
+            )}
           </>
         )}
       </nav>

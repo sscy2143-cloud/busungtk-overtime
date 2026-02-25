@@ -3,117 +3,6 @@ import { CheckSquare, X } from 'lucide-react'
 import { ApprovalCard } from '../components/admin/ApprovalCard'
 import type { OvertimeRequest, LeaveRequest } from '../types'
 
-const DEMO_OVERTIME: (OvertimeRequest & { weeklyHours: number })[] = [
-  {
-    id: 'ot-1',
-    employee_id: 'emp-1',
-    employee: { id: 'emp-1', name: '김철수', department: '냉동설비팀', role: 'employee', email: 'kim@bstk.kr', employee_type: 'field', hourly_wage: 15000, manager_id: null, is_active: true, created_at: '' },
-    type: 'extended',
-    date: '2026-02-24',
-    planned_start: '18:00',
-    planned_end: '21:00',
-    reason: '냉동기 긴급 점검 및 부품 교체 작업',
-    status: 'pending',
-    is_retroactive: false,
-    group_id: 'grp-1',
-    created_by: 'emp-1',
-    approved_by: null,
-    approved_at: null,
-    rejection_reason: null,
-    created_at: '2026-02-24T17:50:00',
-    weeklyHours: 53.5,
-  },
-  {
-    id: 'ot-2',
-    employee_id: 'emp-2',
-    employee: { id: 'emp-2', name: '이영희', department: '냉동설비팀', role: 'employee', email: 'lee@bstk.kr', employee_type: 'field', hourly_wage: 14000, manager_id: null, is_active: true, created_at: '' },
-    type: 'holiday',
-    date: '2026-02-22',
-    planned_start: '09:00',
-    planned_end: '18:00',
-    reason: '현장 설치 작업 (토요일 고객 요청)',
-    status: 'pending',
-    is_retroactive: false,
-    group_id: 'grp-1',
-    created_by: 'emp-2',
-    approved_by: null,
-    approved_at: null,
-    rejection_reason: null,
-    created_at: '2026-02-21T16:00:00',
-    weeklyHours: 49.0,
-  },
-  {
-    id: 'ot-3',
-    employee_id: 'emp-3',
-    employee: { id: 'emp-3', name: '박민준', department: '시스템팀', role: 'employee', email: 'park@bstk.kr', employee_type: 'office', hourly_wage: 13000, manager_id: null, is_active: true, created_at: '' },
-    type: 'night',
-    date: '2026-02-25',
-    planned_start: '22:00',
-    planned_end: '02:00',
-    reason: '서버 마이그레이션 작업',
-    status: 'pending',
-    is_retroactive: true,
-    group_id: null,
-    created_by: 'emp-3',
-    approved_by: null,
-    approved_at: null,
-    rejection_reason: null,
-    created_at: '2026-02-25T09:00:00',
-    weeklyHours: 44.5,
-  },
-  {
-    id: 'ot-4',
-    employee_id: 'emp-4',
-    employee: { id: 'emp-4', name: '최수진', department: '시스템팀', role: 'employee', email: 'choi@bstk.kr', employee_type: 'office', hourly_wage: 13000, manager_id: null, is_active: true, created_at: '' },
-    type: 'extended',
-    date: '2026-02-25',
-    planned_start: '19:00',
-    planned_end: '21:30',
-    reason: '월말 정산 업무',
-    status: 'pending',
-    is_retroactive: false,
-    group_id: null,
-    created_by: 'emp-4',
-    approved_by: null,
-    approved_at: null,
-    rejection_reason: null,
-    created_at: '2026-02-25T10:00:00',
-    weeklyHours: 38.0,
-  },
-]
-
-const DEMO_LEAVE: LeaveRequest[] = [
-  {
-    id: 'lv-1',
-    employee_id: 'emp-3',
-    employee: { id: 'emp-3', name: '박민준', department: '시스템팀', role: 'employee', email: 'park@bstk.kr', employee_type: 'office', hourly_wage: 13000, manager_id: null, is_active: true, created_at: '' },
-    type: 'annual',
-    start_date: '2026-03-03',
-    end_date: '2026-03-04',
-    days: 2,
-    reason: '개인 사유',
-    status: 'pending',
-    approved_by: null,
-    approved_at: null,
-    rejection_reason: null,
-    created_at: '2026-02-25T08:00:00',
-  },
-  {
-    id: 'lv-2',
-    employee_id: 'emp-5',
-    employee: { id: 'emp-5', name: '정다은', department: '영업팀', role: 'employee', email: 'jeong@bstk.kr', employee_type: 'office', hourly_wage: 12000, manager_id: null, is_active: true, created_at: '' },
-    type: 'half_am',
-    start_date: '2026-02-26',
-    end_date: '2026-02-26',
-    days: 0.5,
-    reason: '병원 진료',
-    status: 'pending',
-    approved_by: null,
-    approved_at: null,
-    rejection_reason: null,
-    created_at: '2026-02-25T11:00:00',
-  },
-]
 
 interface RejectModalState {
   open: boolean
@@ -123,8 +12,8 @@ interface RejectModalState {
 
 export function AdminApprovalsPage() {
   const [tab, setTab] = useState<'overtime' | 'leave'>('overtime')
-  const [overtimes, setOvertimes] = useState(DEMO_OVERTIME)
-  const [leaves, setLeaves] = useState(DEMO_LEAVE)
+  const [overtimes, setOvertimes] = useState<(OvertimeRequest & { weeklyHours: number })[]>([])
+  const [leaves, setLeaves] = useState<LeaveRequest[]>([])
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set())
   const [rejectModal, setRejectModal] = useState<RejectModalState>({ open: false, id: '', reason: '' })
 
@@ -240,7 +129,7 @@ export function AdminApprovalsPage() {
               />
             ))}
             {overtimes.length === 0 && (
-              <p className="text-center text-sm text-gray-400 py-10">대기 중인 야근 신청이 없습니다</p>
+              <p className="text-center text-sm text-gray-400 py-10">대기 중인 야근 제출이 없습니다</p>
             )}
           </>
         )}

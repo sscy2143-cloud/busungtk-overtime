@@ -9,62 +9,6 @@ interface TimesheetEntry {
   record: TimeRecord | null
 }
 
-// 데모 승인된 신청 2건
-const DEMO_ENTRIES: TimesheetEntry[] = [
-  {
-    request: {
-      id: 'req-1',
-      employee_id: 'me',
-      type: 'extended',
-      date: '2026-02-25',
-      planned_start: '18:00',
-      planned_end: '21:00',
-      reason: '월말 마감 작업',
-      status: 'approved',
-      is_retroactive: false,
-      group_id: null,
-      created_by: 'me',
-      approved_by: 'mgr-1',
-      approved_at: '2026-02-25T10:00:00Z',
-      rejection_reason: null,
-      created_at: '2026-02-25T08:00:00Z',
-    },
-    record: {
-      id: 'rec-1',
-      request_id: 'req-1',
-      employee_id: 'me',
-      actual_start: '18:05',
-      actual_end: '21:10',
-      total_minutes: 185,
-      extended_minutes: 185,
-      night_minutes: 0,
-      holiday_minutes: 0,
-      is_manually_edited: false,
-      edit_reason: null,
-      created_at: '2026-02-25T21:10:00Z',
-    },
-  },
-  {
-    request: {
-      id: 'req-2',
-      employee_id: 'me',
-      type: 'extended',
-      date: '2026-02-25',
-      planned_start: '22:00',
-      planned_end: '23:30',
-      reason: '긴급 서버 점검',
-      status: 'approved',
-      is_retroactive: false,
-      group_id: null,
-      created_by: 'me',
-      approved_by: 'mgr-1',
-      approved_at: '2026-02-25T15:00:00Z',
-      rejection_reason: null,
-      created_at: '2026-02-25T14:00:00Z',
-    },
-    record: null,
-  },
-]
 
 const TYPE_COLOR: Record<string, string> = {
   extended: 'bg-blue-100 text-blue-700',
@@ -82,17 +26,12 @@ interface EditModalState {
 export function TimesheetPage() {
   const [dateOffset, setDateOffset] = useState(0)
   const [activeStarts, setActiveStarts] = useState<Record<string, string>>({})
-  const [completedRecords, setCompletedRecords] = useState<Record<string, TimeRecord>>(() => {
-    const init: Record<string, TimeRecord> = {}
-    DEMO_ENTRIES.forEach((e) => {
-      if (e.record) init[e.request.id] = e.record
-    })
-    return init
-  })
+  const [completedRecords, setCompletedRecords] = useState<Record<string, TimeRecord>>({})
+  const [entries] = useState<TimesheetEntry[]>([])
   const [editModal, setEditModal] = useState<EditModalState | null>(null)
 
   // 날짜 계산
-  const baseDate = new Date('2026-02-25')
+  const baseDate = new Date()
   baseDate.setDate(baseDate.getDate() + dateOffset)
   const displayDate = baseDate.toLocaleDateString('ko-KR', {
     year: 'numeric', month: 'long', day: 'numeric', weekday: 'short',
@@ -215,7 +154,7 @@ export function TimesheetPage() {
 
       {/* 승인된 신청 목록 */}
       <div className="space-y-4 mb-6">
-        {DEMO_ENTRIES.map(({ request: req }) => {
+        {entries.map(({ request: req }) => {
           const rec = completedRecords[req.id]
           const inProgress = !!activeStarts[req.id]
           const done = !!rec

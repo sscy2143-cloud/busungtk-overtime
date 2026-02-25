@@ -13,46 +13,6 @@ interface EmployeeBalance {
   remaining_days: number
 }
 
-const DEMO_BALANCES: EmployeeBalance[] = [
-  { id: 'emp-1', name: '김철수', department: '냉동설비팀', total_days: 15, used_days: 5, remaining_days: 10 },
-  { id: 'emp-2', name: '이영희', department: '냉동설비팀', total_days: 15, used_days: 3, remaining_days: 12 },
-  { id: 'emp-3', name: '박민준', department: '시스템팀', total_days: 12, used_days: 2, remaining_days: 10 },
-  { id: 'emp-4', name: '최수진', department: '시스템팀', total_days: 12, used_days: 0, remaining_days: 12 },
-  { id: 'emp-5', name: '정다은', department: '영업팀', total_days: 15, used_days: 7, remaining_days: 8 },
-]
-
-const DEMO_PENDING: LeaveRequest[] = [
-  {
-    id: 'lv-1',
-    employee_id: 'emp-3',
-    employee: { id: 'emp-3', name: '박민준', department: '시스템팀', role: 'employee', email: 'park@bstk.kr', employee_type: 'office', hourly_wage: 13000, manager_id: null, is_active: true, created_at: '' },
-    type: 'annual',
-    start_date: '2026-03-03',
-    end_date: '2026-03-04',
-    days: 2,
-    reason: '개인 사유',
-    status: 'pending',
-    approved_by: null,
-    approved_at: null,
-    rejection_reason: null,
-    created_at: '2026-02-25T08:00:00',
-  },
-  {
-    id: 'lv-2',
-    employee_id: 'emp-5',
-    employee: { id: 'emp-5', name: '정다은', department: '영업팀', role: 'employee', email: 'jeong@bstk.kr', employee_type: 'office', hourly_wage: 12000, manager_id: null, is_active: true, created_at: '' },
-    type: 'half_am',
-    start_date: '2026-02-26',
-    end_date: '2026-02-26',
-    days: 0.5,
-    reason: '병원 진료',
-    status: 'pending',
-    approved_by: null,
-    approved_at: null,
-    rejection_reason: null,
-    created_at: '2026-02-25T11:00:00',
-  },
-]
 
 interface AdjustModal {
   open: boolean
@@ -64,8 +24,8 @@ interface AdjustModal {
 
 export function AdminLeavePage() {
   const [tab, setTab] = useState<'approvals' | 'balances'>('approvals')
-  const [requests, setRequests] = useState(DEMO_PENDING)
-  const [balances, setBalances] = useState(DEMO_BALANCES)
+  const [requests, setRequests] = useState<LeaveRequest[]>([])
+  const [balances, setBalances] = useState<EmployeeBalance[]>([])
   const [rejectModal, setRejectModal] = useState<{ open: boolean; id: string; reason: string }>({ open: false, id: '', reason: '' })
   const [adjustModal, setAdjustModal] = useState<AdjustModal>({ open: false, employeeId: '', employeeName: '', delta: 0, reason: '' })
 

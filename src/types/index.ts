@@ -129,3 +129,28 @@ export const WARNING_LEVEL_COLOR: Record<WarningLevel, string> = {
   warning: 'bg-danger-400',
   exceeded: 'bg-danger-600',
 }
+
+export type ExpenseCategory = 'meal' | 'transport' | 'supplies' | 'other'
+
+export interface Expense {
+  id: string
+  employee_id: string
+  employee?: Employee
+  date: string
+  category: ExpenseCategory
+  amount: number
+  description: string
+  receipt_url?: string
+  status: RequestStatus
+  approved_by: string | null
+  approved_at: string | null
+  rejection_reason: string | null
+  created_at: string
+}
+
+export const EXPENSE_CATEGORY_LABEL: Record<ExpenseCategory, string> = {
+  meal: '식비',
+  transport: '교통비',
+  supplies: '소모품/자재',
+  other: '기타',
+}
