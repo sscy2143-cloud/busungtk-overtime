@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, AlertTriangle, CalendarDays } from 'lucide-react'
 import type { LeaveType } from '../types'
 import { LEAVE_TYPE_LABEL } from '../types'
+import { useAuth } from '../contexts/AuthContext'
 
 const REMAINING_DAYS = 12
 
@@ -27,6 +28,7 @@ function countWeekdays(start: string, end: string): number {
 
 export function LeaveRequestPage() {
   const navigate = useNavigate()
+  const { employee } = useAuth()
   const [leaveType, setLeaveType] = useState<LeaveType>('annual')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
@@ -56,14 +58,34 @@ export function LeaveRequestPage() {
     e.preventDefault()
     if (!canSubmit) return
     setSubmitting(true)
-    console.log('휴가 신청:', {
+
+    const leaveData = {
       type: leaveType,
       start_date: startDate,
       end_date: isHalfDay ? startDate : (endDate || startDate),
       days: calculatedDays,
       reason,
-    })
-    await new Promise((r) => setTimeout(r, 500))
+    }
+    console.log('휴가 신청:', leaveData)
+
+    // 사장님에게 SMS 알림 발송
+    try {
+      await fetch('/api/notify-leave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employeeName: employee?.name ?? '직원',
+          leaveType: LEAVE_TYPE_LABEL[leaveType],
+          startDate,
+          endDate: isHalfDay ? startDate : (endDate || startDate),
+          days: calculatedDays,
+          reason,
+        }),
+      })
+    } catch (err) {
+      console.error('SMS 알림 발송 실패:', err)
+    }
+
     setSubmitting(false)
     navigate('/leave')
   }
