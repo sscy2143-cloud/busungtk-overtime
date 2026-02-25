@@ -10,7 +10,7 @@ interface AuthState {
   loading: boolean
   isDemo: boolean
   signInWithGoogle: () => Promise<void>
-  signInAsDemo: (password: string) => boolean
+  signInAsDemo: (password: string) => Promise<boolean>
   signOut: () => Promise<void>
 }
 
@@ -102,28 +102,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
   }
 
-  function signInAsDemo(password: string): boolean {
+  async function signInAsDemo(password: string): Promise<boolean> {
     if (password !== '6325') return false
-    const demoEmp = DEMO_EMPLOYEES.admin
-    setEmployee(demoEmp)
-    setUser({ id: demoEmp.id, email: demoEmp.email } as User)
+
+    if (isDemoMode) {
+      // 로컬 개발: env 변수 없으면 기존 데모 모드
+      const demoEmp = DEMO_EMPLOYEES.admin
+      setEmployee(demoEmp)
+      setUser({ id: demoEmp.id, email: demoEmp.email } as User)
+      setIsDemo(true)
+      setLoading(false)
+      return true
+    }
+
+    // 프로덕션: 실제 Supabase 인증
+    const { error } = await supabase.auth.signInWithPassword({
+      email: 'dev@busungtk.com',
+      password: 'busungtk6325',
+    })
+
+    if (error) {
+      console.error('[AuthContext] dev login error:', error.message)
+      return false
+    }
+
+    // onAuthStateChange가 세션을 감지하고 fetchEmployee를 호출함
     setIsDemo(true)
-    setLoading(false)
     return true
   }
 
   async function signOut() {
-    if (isDemo) {
-      setUser(null)
-      setEmployee(null)
-      setSession(null)
-      setIsDemo(false)
-      return
-    }
     await supabase.auth.signOut()
     setUser(null)
     setEmployee(null)
     setSession(null)
+    setIsDemo(false)
   }
 
   return (

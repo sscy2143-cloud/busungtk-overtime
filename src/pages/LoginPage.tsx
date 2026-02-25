@@ -24,10 +24,10 @@ export function LoginPage() {
     )
   }
 
-  function handleDemoLogin(e: React.FormEvent) {
+  async function handleDemoLogin(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    const success = signInAsDemo(password)
+    const success = await signInAsDemo(password)
     if (!success) {
       setError('비밀번호가 올바르지 않습니다')
       setPassword('')
