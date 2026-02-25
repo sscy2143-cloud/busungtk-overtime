@@ -79,29 +79,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (data) {
       setEmployee(data)
     } else {
-      // 첫 Google 로그인 → employees 자동 등록 (is_active: false)
+      // 첫 Google 로그인 → RPC로 자동 등록 (첫 사용자 = admin, 이후 = employee)
       const authUser = (await supabase.auth.getUser()).data.user
       if (authUser) {
         const meta = authUser.user_metadata ?? {}
-        const newEmp: Employee = {
-          id: userId,
-          name: meta.full_name || meta.name || authUser.email?.split('@')[0] || '사용자',
-          email: authUser.email ?? '',
-          avatar_url: meta.avatar_url,
-          department: '',
-          role: 'employee',
-          employee_type: 'office',
-          hourly_wage: 0,
-          manager_id: null,
-          is_active: false,
-          created_at: new Date().toISOString(),
-        }
-        const { data: inserted } = await supabase
-          .from('employees')
-          .insert(newEmp)
-          .select()
-          .single()
-        setEmployee(inserted ?? newEmp)
+        const { data: registered } = await supabase.rpc('register_employee', {
+          p_id: userId,
+          p_name: meta.full_name || meta.name || authUser.email?.split('@')[0] || '사용자',
+          p_email: authUser.email ?? '',
+          p_avatar_url: meta.avatar_url ?? null,
+        })
+        setEmployee(registered as Employee | null)
       }
     }
     setLoading(false)

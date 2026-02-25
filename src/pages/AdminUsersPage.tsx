@@ -4,6 +4,8 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import type { Employee, UserRole } from '../types'
 
+const ADMIN_KEY = '6325'
+
 const ROLE_LABEL: Record<UserRole, string> = {
   employee: '직원',
   manager: '인사담당',
@@ -25,18 +27,25 @@ interface EditModal {
 }
 
 export function AdminUsersPage() {
-  const { employee: currentUser } = useAuth()
+  const { employee: currentUser, isDemo } = useAuth()
   const [employees, setEmployees] = useState<Employee[]>([])
 
   useEffect(() => {
-    supabase
-      .from('employees')
-      .select('*')
-      .order('created_at', { ascending: true })
-      .then(({ data }) => {
-        if (data) setEmployees(data)
+    if (isDemo) {
+      // 개발자 모드: RPC로 조회 (RLS 우회)
+      supabase.rpc('list_all_employees', { p_admin_key: ADMIN_KEY }).then(({ data }) => {
+        if (data) setEmployees(data as Employee[])
       })
-  }, [])
+    } else {
+      supabase
+        .from('employees')
+        .select('*')
+        .order('created_at', { ascending: true })
+        .then(({ data }) => {
+          if (data) setEmployees(data)
+        })
+    }
+  }, [isDemo])
   const [editModal, setEditModal] = useState<EditModal>({
     open: false, employee: null, role: 'employee', department: '', isActive: true,
   })
@@ -54,10 +63,18 @@ export function AdminUsersPage() {
   async function saveEdit() {
     if (!editModal.employee) return
     const id = editModal.employee.id
-    const updates = { role: editModal.role, department: editModal.department, is_active: editModal.isActive }
-    await supabase.from('employees').update(updates).eq('id', id)
+    if (isDemo) {
+      await supabase.rpc('update_employee_admin', {
+        p_admin_key: ADMIN_KEY, p_id: id,
+        p_role: editModal.role, p_department: editModal.department, p_is_active: editModal.isActive,
+      })
+    } else {
+      await supabase.from('employees').update({
+        role: editModal.role, department: editModal.department, is_active: editModal.isActive,
+      }).eq('id', id)
+    }
     setEmployees((prev) =>
-      prev.map((e) => e.id === id ? { ...e, ...updates } : e),
+      prev.map((e) => e.id === id ? { ...e, role: editModal.role, department: editModal.department, is_active: editModal.isActive } : e),
     )
     setEditModal({ open: false, employee: null, role: 'employee', department: '', isActive: true })
   }
@@ -66,7 +83,13 @@ export function AdminUsersPage() {
     const emp = employees.find((e) => e.id === id)
     if (!emp) return
     const newActive = !emp.is_active
-    await supabase.from('employees').update({ is_active: newActive }).eq('id', id)
+    if (isDemo) {
+      await supabase.rpc('update_employee_admin', {
+        p_admin_key: ADMIN_KEY, p_id: id, p_is_active: newActive,
+      })
+    } else {
+      await supabase.from('employees').update({ is_active: newActive }).eq('id', id)
+    }
     setEmployees((prev) =>
       prev.map((e) => e.id === id ? { ...e, is_active: newActive } : e),
     )
