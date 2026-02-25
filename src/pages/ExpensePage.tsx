@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Receipt, Plus, ChevronUp } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../lib/supabase'
 import { StatusBadge } from '../components/common/StatusBadge'
 import type { Expense, ExpenseCategory, RequestStatus } from '../types'
 import { EXPENSE_CATEGORY_LABEL, REQUEST_STATUS_LABEL } from '../types'
@@ -35,6 +36,22 @@ export function ExpensePage() {
   const [submitting, setSubmitting] = useState(false)
   const [toast, setToast] = useState(false)
 
+  useEffect(() => {
+    if (!employee?.id) return
+    fetchExpenses()
+  }, [employee?.id])
+
+  async function fetchExpenses() {
+    const { data, error } = await supabase
+      .from('expenses')
+      .select('*')
+      .eq('employee_id', employee!.id)
+      .order('created_at', { ascending: false })
+    if (!error && data) {
+      setExpenses(data as Expense[])
+    }
+  }
+
   const filtered = filter === 'all'
     ? expenses
     : expenses.filter((e) => e.status === filter)
@@ -63,25 +80,27 @@ export function ExpensePage() {
     if (!amount || !description.trim()) return
     setSubmitting(true)
 
-    const newExpense: Expense = {
-      id: `exp-${Date.now()}`,
-      employee_id: employee?.id ?? '',
-      date,
-      category,
-      amount: Number(amount),
-      description: description.trim(),
-      status: 'pending',
-      approved_by: null,
-      approved_at: null,
-      rejection_reason: null,
-      created_at: new Date().toISOString(),
+    const { data, error } = await supabase
+      .from('expenses')
+      .insert({
+        employee_id: employee?.id ?? '',
+        date,
+        category,
+        amount: Number(amount),
+        description: description.trim(),
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('[ExpensePage] insert error:', error)
+      setSubmitting(false)
+      return
     }
 
-    // TODO: Supabase insert
-    console.log('[ExpensePage] submit:', newExpense)
-    await new Promise((r) => setTimeout(r, 500))
-
-    setExpenses((prev) => [newExpense, ...prev])
+    if (data) {
+      setExpenses((prev) => [data as Expense, ...prev])
+    }
     resetForm()
     setFormOpen(false)
     setSubmitting(false)

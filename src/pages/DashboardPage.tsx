@@ -72,7 +72,7 @@ export function DashboardPage() {
   const isAdmin = employee?.role === 'manager' || employee?.role === 'admin'
 
   const maxHours = 52
-  const [weeklyHours] = useState(0)
+  const [weeklyHours, setWeeklyHours] = useState(0)
   const [pendingApprovals, setPendingApprovals] = useState(0)
   const [recentRequests, setRecentRequests] = useState<{ id: string; type: OvertimeType; date: string; status: RequestStatus }[]>([])
   const [leave, setLeave] = useState({ total: 0, used: 0, remaining: 0 })
@@ -81,6 +81,36 @@ export function DashboardPage() {
     if (!employee?.id) return
 
     async function fetchData() {
+      // 금주 근무시간 계산
+      const now = new Date()
+      const day = now.getDay() // 0=Sun, 1=Mon...
+      const monday = new Date(now)
+      monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1))
+      const sunday = new Date(monday)
+      sunday.setDate(monday.getDate() + 6)
+      const weekStart = monday.toISOString().split('T')[0]
+      const weekEnd = sunday.toISOString().split('T')[0]
+
+      const { data: weekOt } = await supabase
+        .from('overtime_requests')
+        .select('planned_start, planned_end')
+        .eq('employee_id', employee!.id)
+        .eq('status', 'approved')
+        .gte('date', weekStart)
+        .lte('date', weekEnd)
+
+      if (weekOt) {
+        let totalHours = 0
+        for (const row of weekOt) {
+          const [sh, sm] = row.planned_start.split(':').map(Number)
+          const [eh, em] = row.planned_end.split(':').map(Number)
+          let mins = (eh * 60 + em) - (sh * 60 + sm)
+          if (mins < 0) mins += 24 * 60
+          totalHours += mins / 60
+        }
+        setWeeklyHours(totalHours)
+      }
+
       // 최근 제출 (본인)
       const { data: recent } = await supabase
         .from('overtime_requests')

@@ -12,15 +12,84 @@ interface TeamMember {
   warningLevel: WarningLevel
 }
 
+function getWeekRange(weekOffset: number): { start: string; end: string } {
+  const now = new Date()
+  const day = now.getDay() // 0=Sun, 1=Mon...
+  const monday = new Date(now)
+  monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1) + weekOffset * 7)
+  const sunday = new Date(monday)
+  sunday.setDate(monday.getDate() + 6)
+  return {
+    start: monday.toISOString().split('T')[0],
+    end: sunday.toISOString().split('T')[0],
+  }
+}
+
+function calcHours(start: string, end: string): number {
+  const [sh, sm] = start.split(':').map(Number)
+  const [eh, em] = end.split(':').map(Number)
+  let mins = (eh * 60 + em) - (sh * 60 + sm)
+  if (mins < 0) mins += 24 * 60
+  return mins / 60
+}
+
+function getWarningLevel(hours: number): WarningLevel {
+  if (hours > 52) return 'exceeded'
+  if (hours > 48) return 'warning'
+  if (hours > 40) return 'caution'
+  return 'normal'
+}
+
 export function AdminDashboardPage() {
   const navigate = useNavigate()
   const [week, setWeek] = useState<'this' | 'last'>('this')
-  const [thisWeek] = useState<TeamMember[]>([])
-  const [lastWeek] = useState<TeamMember[]>([])
+  const [thisWeek, setThisWeek] = useState<TeamMember[]>([])
+  const [lastWeek, setLastWeek] = useState<TeamMember[]>([])
   const members = week === 'this' ? thisWeek : lastWeek
 
   const [pendingOvertimeCount, setPendingOvertimeCount] = useState(0)
   const [pendingLeaveCount, setPendingLeaveCount] = useState(0)
+
+  async function fetchWeeklyData() {
+    const thisRange = getWeekRange(0)
+    const lastRange = getWeekRange(-1)
+
+    const [thisRes, lastRes] = await Promise.all([
+      supabase
+        .from('overtime_requests')
+        .select('planned_start, planned_end, employee:employees!overtime_requests_employee_id_fkey(name, department)')
+        .eq('status', 'approved')
+        .gte('date', thisRange.start)
+        .lte('date', thisRange.end),
+      supabase
+        .from('overtime_requests')
+        .select('planned_start, planned_end, employee:employees!overtime_requests_employee_id_fkey(name, department)')
+        .eq('status', 'approved')
+        .gte('date', lastRange.start)
+        .lte('date', lastRange.end),
+    ])
+
+    function groupByEmployee(data: any[]): TeamMember[] {
+      const map = new Map<string, { name: string; department: string; totalHours: number }>()
+      for (const row of data) {
+        const name = row.employee?.name ?? '알 수 없음'
+        const dept = row.employee?.department ?? ''
+        const hours = calcHours(row.planned_start, row.planned_end)
+        const existing = map.get(name)
+        if (existing) {
+          existing.totalHours += hours
+        } else {
+          map.set(name, { name, department: dept, totalHours: hours })
+        }
+      }
+      return Array.from(map.values())
+        .map((m) => ({ ...m, warningLevel: getWarningLevel(m.totalHours) }))
+        .sort((a, b) => b.totalHours - a.totalHours)
+    }
+
+    if (thisRes.data) setThisWeek(groupByEmployee(thisRes.data))
+    if (lastRes.data) setLastWeek(groupByEmployee(lastRes.data))
+  }
 
   useEffect(() => {
     async function fetchCounts() {
@@ -32,6 +101,7 @@ export function AdminDashboardPage() {
       setPendingLeaveCount(leaveRes.count ?? 0)
     }
     fetchCounts()
+    fetchWeeklyData()
   }, [])
 
   const approaching52Count = members.filter(
@@ -133,6 +203,11 @@ export function AdminDashboardPage() {
         </div>
 
         <TeamGaugeList members={members} />
+        {members.length === 0 && (
+          <div className="px-4 py-8 text-center">
+            <p className="text-sm text-gray-400">해당 기간 승인된 야근 데이터가 없습니다</p>
+          </div>
+        )}
       </div>
     </div>
   )
