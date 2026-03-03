@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Users, UserCheck, UserX, Shield, X, Trash2 } from 'lucide-react'
+import { Users, UserCheck, UserX, Shield, X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import type { Employee, UserRole } from '../types'
