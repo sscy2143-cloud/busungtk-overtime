@@ -1,17 +1,25 @@
-import { useState, useEffect } from 'react'
-import { Receipt, Plus, ChevronUp } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Receipt, Plus, ChevronUp, Upload, X, Image } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { StatusBadge } from '../components/common/StatusBadge'
-import type { Expense, ExpenseCategory, RequestStatus } from '../types'
-import { EXPENSE_CATEGORY_LABEL, REQUEST_STATUS_LABEL } from '../types'
+import type { Expense, ExpenseCategory, PaymentMethod, RequestStatus } from '../types'
+import { EXPENSE_CATEGORY_LABEL, PAYMENT_METHOD_LABEL, REQUEST_STATUS_LABEL } from '../types'
 
 const CATEGORIES: ExpenseCategory[] = ['meal', 'transport', 'supplies', 'other']
+const PAYMENT_METHODS: PaymentMethod[] = ['card', 'transfer', 'cash', 'other']
 
 const CATEGORY_COLOR: Record<ExpenseCategory, string> = {
   meal: 'bg-orange-50 text-orange-700',
   transport: 'bg-blue-50 text-blue-700',
   supplies: 'bg-green-50 text-green-700',
+  other: 'bg-gray-100 text-gray-600',
+}
+
+const PAYMENT_METHOD_COLOR: Record<PaymentMethod, string> = {
+  card: 'bg-indigo-50 text-indigo-700',
+  transfer: 'bg-teal-50 text-teal-700',
+  cash: 'bg-amber-50 text-amber-700',
   other: 'bg-gray-100 text-gray-600',
 }
 
@@ -31,10 +39,15 @@ export function ExpensePage() {
   // form state
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0])
   const [category, setCategory] = useState<ExpenseCategory>('meal')
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card')
   const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
+  const [receiptFile, setReceiptFile] = useState<File | null>(null)
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [toast, setToast] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!employee?.id) return
@@ -71,8 +84,51 @@ export function ExpensePage() {
   function resetForm() {
     setDate(new Date().toISOString().split('T')[0])
     setCategory('meal')
+    setPaymentMethod('card')
     setAmount('')
     setDescription('')
+    setReceiptFile(null)
+    setReceiptPreview(null)
+  }
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setReceiptFile(file)
+    // 이미지 미리보기
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader()
+      reader.onloadend = () => setReceiptPreview(reader.result as string)
+      reader.readAsDataURL(file)
+    } else {
+      setReceiptPreview(null)
+    }
+  }
+
+  function removeFile() {
+    setReceiptFile(null)
+    setReceiptPreview(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  async function uploadReceipt(file: File): Promise<string | null> {
+    const ext = file.name.split('.').pop() ?? 'jpg'
+    const fileName = `${employee?.id}/${Date.now()}.${ext}`
+
+    const { error } = await supabase.storage
+      .from('receipts')
+      .upload(fileName, file, { cacheControl: '3600', upsert: false })
+
+    if (error) {
+      console.error('[ExpensePage] upload error:', error)
+      return null
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('receipts')
+      .getPublicUrl(fileName)
+
+    return urlData?.publicUrl ?? null
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -80,14 +136,26 @@ export function ExpensePage() {
     if (!amount || !description.trim()) return
     setSubmitting(true)
 
+    let receiptUrl: string | undefined = undefined
+
+    // 파일 업로드
+    if (receiptFile) {
+      setUploading(true)
+      const url = await uploadReceipt(receiptFile)
+      setUploading(false)
+      if (url) receiptUrl = url
+    }
+
     const { data, error } = await supabase
       .from('expenses')
       .insert({
         employee_id: employee?.id ?? '',
         date,
         category,
+        payment_method: paymentMethod,
         amount: Number(amount),
         description: description.trim(),
+        ...(receiptUrl ? { receipt_url: receiptUrl } : {}),
       })
       .select()
       .single()
@@ -180,6 +248,27 @@ export function ExpensePage() {
             </div>
           </div>
 
+          {/* 결제방법 */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1.5">결제방법</label>
+            <div className="grid grid-cols-4 gap-2">
+              {PAYMENT_METHODS.map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setPaymentMethod(m)}
+                  className={`py-2 text-xs font-medium rounded-xl border transition-colors ${
+                    paymentMethod === m
+                      ? 'bg-primary-600 text-white border-primary-600'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-primary-300'
+                  }`}
+                >
+                  {PAYMENT_METHOD_LABEL[m]}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* 금액 */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">금액</label>
@@ -213,12 +302,56 @@ export function ExpensePage() {
             />
           </div>
 
+          {/* 증빙자료 업로드 */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1.5">증빙자료</label>
+            {receiptFile ? (
+              <div className="border border-gray-200 rounded-xl p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Image size={16} className="text-gray-400 shrink-0" />
+                    <span className="text-xs text-gray-700 truncate">{receiptFile.name}</span>
+                    <span className="text-xs text-gray-400 shrink-0">
+                      ({(receiptFile.size / 1024).toFixed(0)}KB)
+                    </span>
+                  </div>
+                  <button type="button" onClick={removeFile} className="text-gray-400 hover:text-danger-500 shrink-0 ml-2">
+                    <X size={16} />
+                  </button>
+                </div>
+                {receiptPreview && (
+                  <img
+                    src={receiptPreview}
+                    alt="증빙 미리보기"
+                    className="mt-2 rounded-lg max-h-40 object-contain w-full bg-gray-50"
+                  />
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-200 rounded-xl text-xs text-gray-500 hover:border-primary-300 hover:text-primary-600 transition-colors"
+              >
+                <Upload size={16} />
+                영수증/증빙 사진 첨부
+              </button>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,.pdf"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+          </div>
+
           <button
             type="submit"
-            disabled={submitting || !amount || !description.trim()}
+            disabled={submitting || uploading || !amount || !description.trim()}
             className="w-full py-2.5 bg-primary-600 text-white text-sm font-semibold rounded-xl hover:bg-primary-700 disabled:opacity-50 transition-colors"
           >
-            {submitting ? '제출 중...' : '경비 제출'}
+            {uploading ? '업로드 중...' : submitting ? '제출 중...' : '경비 제출'}
           </button>
         </form>
       )}
@@ -257,12 +390,28 @@ export function ExpensePage() {
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${CATEGORY_COLOR[exp.category]}`}>
                       {EXPENSE_CATEGORY_LABEL[exp.category]}
                     </span>
+                    {exp.payment_method && (
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${PAYMENT_METHOD_COLOR[exp.payment_method]}`}>
+                        {PAYMENT_METHOD_LABEL[exp.payment_method]}
+                      </span>
+                    )}
                     <span className="text-xs text-gray-400">
                       {new Date(exp.date).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}
                     </span>
                   </div>
                   <p className="text-sm font-semibold text-gray-900">{formatWon(exp.amount)}</p>
                   <p className="text-xs text-gray-500 mt-0.5 truncate">{exp.description}</p>
+                  {exp.receipt_url && (
+                    <a
+                      href={exp.receipt_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-primary-600 hover:underline mt-1"
+                    >
+                      <Image size={12} />
+                      증빙자료 보기
+                    </a>
+                  )}
                 </div>
                 <StatusBadge status={exp.status} />
               </div>

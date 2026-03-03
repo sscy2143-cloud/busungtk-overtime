@@ -29,6 +29,8 @@ export interface OvertimeRequest {
   planned_start: string
   planned_end: string
   reason: string
+  site_name?: string
+  work_details?: string
   status: RequestStatus
   is_retroactive: boolean
   group_id: string | null
@@ -73,6 +75,18 @@ export interface LeaveBalance {
   total_days: number
   used_days: number
   remaining_days: number
+  substitute_total: number
+  substitute_used: number
+}
+
+export interface SubstituteHistory {
+  id: string
+  employee_id: string
+  granted_days: number
+  reason: string
+  related_request_id: string | null
+  granted_by: string
+  created_at: string
 }
 
 export interface LeaveRequest {
@@ -99,6 +113,17 @@ export interface Notification {
   body: string
   reference_id: string | null
   is_read: boolean
+  created_at: string
+}
+
+export interface ApprovalHistory {
+  id: string
+  request_id: string
+  request_type: 'overtime' | 'leave'
+  from_status: RequestStatus
+  to_status: RequestStatus
+  changed_by: string
+  reason: string | null
   created_at: string
 }
 
@@ -131,6 +156,7 @@ export const WARNING_LEVEL_COLOR: Record<WarningLevel, string> = {
 }
 
 export type ExpenseCategory = 'meal' | 'transport' | 'supplies' | 'other'
+export type PaymentMethod = 'card' | 'transfer' | 'cash' | 'other'
 
 export interface Expense {
   id: string
@@ -141,6 +167,7 @@ export interface Expense {
   amount: number
   description: string
   receipt_url?: string
+  payment_method?: PaymentMethod
   status: RequestStatus
   approved_by: string | null
   approved_at: string | null
@@ -152,5 +179,12 @@ export const EXPENSE_CATEGORY_LABEL: Record<ExpenseCategory, string> = {
   meal: '식비',
   transport: '교통비',
   supplies: '소모품/자재',
+  other: '기타',
+}
+
+export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
+  card: '카드결제',
+  transfer: '계좌이체',
+  cash: '현금결제',
   other: '기타',
 }

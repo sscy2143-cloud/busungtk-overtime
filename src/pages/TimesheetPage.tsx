@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ChevronLeft, ChevronRight, Clock, AlertTriangle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Clock, Calendar, AlertTriangle } from 'lucide-react'
 import type { OvertimeRequest, TimeRecord } from '../types'
 import { OVERTIME_TYPE_LABEL } from '../types'
 import { StatusBadge } from '../components/common/StatusBadge'
@@ -10,7 +10,6 @@ interface TimesheetEntry {
   request: OvertimeRequest
   record: TimeRecord | null
 }
-
 
 const TYPE_COLOR: Record<string, string> = {
   extended: 'bg-blue-100 text-blue-700',
@@ -27,37 +26,39 @@ interface EditModalState {
 
 export function TimesheetPage() {
   const { employee } = useAuth()
-  const [dateOffset, setDateOffset] = useState(0)
-  const [activeStarts, setActiveStarts] = useState<Record<string, string>>({})
-  const [completedRecords, setCompletedRecords] = useState<Record<string, TimeRecord>>({})
+  // 월 오프셋 (0 = 이번 달, -1 = 지난 달, ...)
+  const [monthOffset, setMonthOffset] = useState(0)
   const [entries, setEntries] = useState<TimesheetEntry[]>([])
   const [editModal, setEditModal] = useState<EditModalState | null>(null)
 
-  // 날짜 계산
-  const baseDate = new Date()
-  baseDate.setDate(baseDate.getDate() + dateOffset)
-  const displayDate = baseDate.toLocaleDateString('ko-KR', {
-    year: 'numeric', month: 'long', day: 'numeric', weekday: 'short',
-  })
-  const isToday = dateOffset === 0
+  // 현재 표시 월 계산
+  const now = new Date()
+  const displayYear = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1).getFullYear()
+  const displayMonth = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1).getMonth()
+  const isCurrentMonth = monthOffset === 0
+
+  const monthLabel = `${displayYear}년 ${displayMonth + 1}월`
 
   useEffect(() => {
     if (!employee?.id) return
-    fetchEntries()
-  }, [employee?.id, dateOffset])
+    fetchMonthEntries()
+  }, [employee?.id, monthOffset])
 
-  async function fetchEntries() {
-    const targetDate = new Date()
-    targetDate.setDate(targetDate.getDate() + dateOffset)
-    const dateStr = targetDate.toISOString().split('T')[0]
+  async function fetchMonthEntries() {
+    // 해당 월의 시작/끝 날짜
+    const startDate = new Date(displayYear, displayMonth, 1)
+    const endDate = new Date(displayYear, displayMonth + 1, 0) // 해당 월 마지막 날
+    const startStr = startDate.toISOString().split('T')[0]
+    const endStr = endDate.toISOString().split('T')[0]
 
     const { data: requests } = await supabase
       .from('overtime_requests')
       .select('*')
       .eq('employee_id', employee!.id)
-      .eq('date', dateStr)
-      .eq('status', 'approved')
-      .order('planned_start', { ascending: true })
+      .gte('date', startStr)
+      .lte('date', endStr)
+      .in('status', ['approved', 'pending'])
+      .order('date', { ascending: false })
 
     if (requests) {
       const requestIds = requests.map((r: OvertimeRequest) => r.id)
@@ -77,76 +78,61 @@ export function TimesheetPage() {
         record: recordMap.get(req.id) || null,
       }))
       setEntries(newEntries)
-
-      const newCompleted: Record<string, TimeRecord> = {}
-      records.forEach((r) => { newCompleted[r.request_id] = r })
-      setCompletedRecords(newCompleted)
     }
   }
 
-  function nowTime() {
-    return new Date().toTimeString().slice(0, 5)
+  function formatMinutes(min: number) {
+    const h = Math.floor(min / 60)
+    const m = min % 60
+    if (h === 0) return `${m}분`
+    return m === 0 ? `${h}시간` : `${h}시간 ${m}분`
   }
 
-  function startWork(requestId: string) {
-    setActiveStarts((prev) => ({ ...prev, [requestId]: nowTime() }))
-  }
-
-  async function endWork(requestId: string, req: OvertimeRequest) {
-    const start = activeStarts[requestId]
-    if (!start) return
+  function calcMinutesFromTime(start: string, end: string): number {
     const [sh, sm] = start.split(':').map(Number)
-    const endTime = nowTime()
-    const [eh, em] = endTime.split(':').map(Number)
-    let totalMin = (eh * 60 + em) - (sh * 60 + sm)
-    if (totalMin < 0) totalMin += 24 * 60
+    const [eh, em] = end.split(':').map(Number)
+    let mins = (eh * 60 + em) - (sh * 60 + sm)
+    if (mins < 0) mins += 24 * 60
+    return mins
+  }
 
-    const rec: TimeRecord = {
-      id: `rec-${requestId}`,
-      request_id: requestId,
-      employee_id: employee?.id ?? 'me',
-      actual_start: start,
-      actual_end: endTime,
-      total_minutes: totalMin,
-      extended_minutes: req.type === 'extended' ? totalMin : 0,
-      night_minutes: req.type === 'night' ? totalMin : 0,
-      holiday_minutes: req.type === 'holiday' ? totalMin : 0,
-      is_manually_edited: false,
-      edit_reason: null,
-      created_at: new Date().toISOString(),
-    }
+  // 월 총 야근 시간 계산 (승인된 건만)
+  const approvedEntries = entries.filter(e => e.request.status === 'approved')
+  const totalMonthMinutes = approvedEntries.reduce((sum, e) => {
+    if (e.record) return sum + e.record.total_minutes
+    return sum + calcMinutesFromTime(e.request.planned_start, e.request.planned_end)
+  }, 0)
 
-    const { data, error } = await supabase.from('time_records').insert({
-      request_id: requestId,
-      employee_id: employee?.id,
-      actual_start: start,
-      actual_end: endTime,
-      total_minutes: totalMin,
-      extended_minutes: req.type === 'extended' ? totalMin : 0,
-      night_minutes: req.type === 'night' ? totalMin : 0,
-      holiday_minutes: req.type === 'holiday' ? totalMin : 0,
-      is_manually_edited: false,
-    }).select().single()
+  const totalExtMinutes = approvedEntries.reduce((sum, e) => {
+    if (e.record) return sum + e.record.extended_minutes
+    if (e.request.type === 'extended') return sum + calcMinutesFromTime(e.request.planned_start, e.request.planned_end)
+    return sum
+  }, 0)
 
-    if (!error && data) {
-      setCompletedRecords((prev) => ({ ...prev, [requestId]: data as TimeRecord }))
-    } else {
-      setCompletedRecords((prev) => ({ ...prev, [requestId]: rec }))
-    }
+  const totalNightMinutes = approvedEntries.reduce((sum, e) => {
+    if (e.record) return sum + e.record.night_minutes
+    if (e.request.type === 'night') return sum + calcMinutesFromTime(e.request.planned_start, e.request.planned_end)
+    return sum
+  }, 0)
 
-    setActiveStarts((prev) => {
-      const next = { ...prev }
-      delete next[requestId]
-      return next
-    })
+  const totalHolidayMinutes = approvedEntries.reduce((sum, e) => {
+    if (e.record) return sum + e.record.holiday_minutes
+    if (e.request.type === 'holiday') return sum + calcMinutesFromTime(e.request.planned_start, e.request.planned_end)
+    return sum
+  }, 0)
+
+  function formatDateKr(dateStr: string) {
+    const d = new Date(dateStr)
+    return d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', weekday: 'short' })
   }
 
   function openEditModal(requestId: string) {
-    const rec = completedRecords[requestId]
+    const entry = entries.find(e => e.request.id === requestId)
+    const rec = entry?.record
     setEditModal({
       requestId,
-      startVal: rec?.actual_start ?? '',
-      endVal: rec?.actual_end ?? '',
+      startVal: rec?.actual_start ?? entry?.request.planned_start ?? '',
+      endVal: rec?.actual_end ?? entry?.request.planned_end ?? '',
       editReason: '',
     })
   }
@@ -155,12 +141,10 @@ export function TimesheetPage() {
     if (!editModal) return
     if (!editModal.editReason.trim()) return
     const { requestId, startVal, endVal, editReason } = editModal
-    const [sh, sm] = startVal.split(':').map(Number)
-    const [eh, em] = endVal.split(':').map(Number)
-    let totalMin = (eh * 60 + em) - (sh * 60 + sm)
-    if (totalMin < 0) totalMin += 24 * 60
+    const totalMin = calcMinutesFromTime(startVal, endVal)
 
-    const existingRec = completedRecords[requestId]
+    const entry = entries.find(e => e.request.id === requestId)
+    const existingRec = entry?.record
 
     if (existingRec && existingRec.id && !existingRec.id.startsWith('rec-')) {
       const { error } = await supabase.from('time_records').update({
@@ -175,65 +159,32 @@ export function TimesheetPage() {
       }).eq('id', existingRec.id)
 
       if (!error) {
-        setCompletedRecords((prev) => ({
-          ...prev,
-          [requestId]: { ...prev[requestId], actual_start: startVal, actual_end: endVal, total_minutes: totalMin, extended_minutes: totalMin, night_minutes: 0, holiday_minutes: 0, is_manually_edited: true, edit_reason: editReason },
-        }))
+        fetchMonthEntries()
       }
-    } else {
-      setCompletedRecords((prev) => ({
-        ...prev,
-        [requestId]: {
-          ...(prev[requestId] ?? {}),
-          id: prev[requestId]?.id ?? `rec-${requestId}`,
-          request_id: requestId,
-          employee_id: employee?.id ?? 'me',
-          actual_start: startVal,
-          actual_end: endVal,
-          total_minutes: totalMin,
-          extended_minutes: totalMin,
-          night_minutes: 0,
-          holiday_minutes: 0,
-          is_manually_edited: true,
-          edit_reason: editReason,
-          created_at: prev[requestId]?.created_at ?? new Date().toISOString(),
-        },
-      }))
     }
     setEditModal(null)
   }
 
-  function formatMinutes(min: number) {
-    const h = Math.floor(min / 60)
-    const m = min % 60
-    if (h === 0) return `${m}분`
-    return m === 0 ? `${h}시간` : `${h}시간 ${m}분`
-  }
-
-  // 오늘 합계
-  const totalExt = Object.values(completedRecords).reduce((s, r) => s + r.extended_minutes, 0)
-  const totalNight = Object.values(completedRecords).reduce((s, r) => s + r.night_minutes, 0)
-
   return (
     <div className="max-w-lg mx-auto px-4 py-6 pb-24">
-      {/* 헤더 + 날짜 네비 */}
+      {/* 헤더 + 월 네비 */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-bold text-gray-900">근무 기록</h1>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setDateOffset((v) => v - 1)}
+            onClick={() => setMonthOffset((v) => v - 1)}
             className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
           >
             <ChevronLeft size={18} />
           </button>
-          <span className="text-sm font-medium text-gray-700 min-w-36 text-center">
-            {isToday ? (
-              <span className="text-primary-600">오늘</span>
-            ) : displayDate}
+          <span className="text-sm font-medium text-gray-700 min-w-28 text-center">
+            {isCurrentMonth ? (
+              <span className="text-primary-600">이번 달</span>
+            ) : monthLabel}
           </span>
           <button
-            onClick={() => setDateOffset((v) => v + 1)}
-            disabled={dateOffset >= 0}
+            onClick={() => setMonthOffset((v) => v + 1)}
+            disabled={monthOffset >= 0}
             className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 disabled:opacity-30"
           >
             <ChevronRight size={18} />
@@ -241,106 +192,109 @@ export function TimesheetPage() {
         </div>
       </div>
 
-      {/* 승인된 신청 목록 */}
-      <div className="space-y-4 mb-6">
-        {entries.map(({ request: req }) => {
-          const rec = completedRecords[req.id]
-          const inProgress = !!activeStarts[req.id]
-          const done = !!rec
-
-          return (
-            <div key={req.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-              {/* 신청 정보 헤더 */}
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLOR[req.type]}`}>
-                    {OVERTIME_TYPE_LABEL[req.type]}
-                  </span>
-                  <span className="text-sm text-gray-500 flex items-center gap-1">
-                    <Clock size={13} />
-                    {req.planned_start} ~ {req.planned_end}
-                  </span>
-                </div>
-                <StatusBadge status={req.status} />
-              </div>
-              <p className="text-xs text-gray-400 mb-4 truncate">{req.reason}</p>
-
-              {/* 기록 영역 */}
-              {done ? (
-                <div className="space-y-2">
-                  <div className="bg-success-50 rounded-xl p-3 flex items-center justify-between">
-                    <div className="text-sm">
-                      <span className="text-gray-500">실제 근무: </span>
-                      <span className="font-semibold text-gray-800">
-                        {rec.actual_start} ~ {rec.actual_end}
-                      </span>
-                      <span className="ml-2 text-success-600 font-medium">
-                        ({formatMinutes(rec.total_minutes)})
-                      </span>
-                    </div>
-                    {rec.is_manually_edited && (
-                      <span className="text-xs text-warning-500 flex items-center gap-1">
-                        <AlertTriangle size={12} />
-                        수동
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => openEditModal(req.id)}
-                    className="text-xs text-primary-600 hover:underline"
-                  >
-                    시간 수정
-                  </button>
-                </div>
-              ) : inProgress ? (
-                <div className="space-y-2">
-                  <div className="bg-blue-50 rounded-xl p-3 text-sm">
-                    <span className="text-gray-500">시작 시각: </span>
-                    <span className="font-semibold text-gray-800">{activeStarts[req.id]}</span>
-                    <span className="ml-2 text-blue-500 animate-pulse">진행 중...</span>
-                  </div>
-                  <button
-                    onClick={() => endWork(req.id, req)}
-                    className="w-full py-2.5 bg-danger-500 text-white text-sm font-semibold rounded-xl hover:bg-danger-600 transition-colors"
-                  >
-                    종료
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => startWork(req.id)}
-                  className="w-full py-2.5 bg-primary-600 text-white text-sm font-semibold rounded-xl hover:bg-primary-700 transition-colors"
-                >
-                  시작
-                </button>
-              )}
-            </div>
-          )
-        })}
-      </div>
-
-      {/* 오늘 합계 */}
-      <div className="bg-gray-900 rounded-2xl p-4 text-white">
-        <p className="text-xs text-gray-400 mb-2">오늘 합계</p>
+      {/* 월 총 야근 시간 요약 카드 */}
+      <div className="bg-gray-900 rounded-2xl p-5 text-white mb-6">
+        <div className="flex items-center gap-2 mb-3">
+          <Calendar size={16} className="text-gray-400" />
+          <p className="text-xs text-gray-400">{monthLabel} 야근 합계</p>
+        </div>
+        <p className="text-3xl font-black text-primary-400 mb-3">
+          {(totalMonthMinutes / 60).toFixed(1)}h
+        </p>
         <div className="flex gap-4">
           <div>
             <span className="text-xs text-gray-400">연장</span>
-            <p className="text-lg font-bold">{(totalExt / 60).toFixed(1)}h</p>
+            <p className="text-sm font-bold">{(totalExtMinutes / 60).toFixed(1)}h</p>
           </div>
           <div className="w-px bg-gray-700" />
           <div>
             <span className="text-xs text-gray-400">야간</span>
-            <p className="text-lg font-bold">{(totalNight / 60).toFixed(1)}h</p>
+            <p className="text-sm font-bold">{(totalNightMinutes / 60).toFixed(1)}h</p>
           </div>
           <div className="w-px bg-gray-700" />
           <div>
-            <span className="text-xs text-gray-400">합계</span>
-            <p className="text-lg font-bold text-primary-400">
-              {((totalExt + totalNight) / 60).toFixed(1)}h
-            </p>
+            <span className="text-xs text-gray-400">휴일</span>
+            <p className="text-sm font-bold">{(totalHolidayMinutes / 60).toFixed(1)}h</p>
+          </div>
+          <div className="w-px bg-gray-700" />
+          <div>
+            <span className="text-xs text-gray-400">건수</span>
+            <p className="text-sm font-bold">{approvedEntries.length}건</p>
           </div>
         </div>
       </div>
+
+      {/* 해당 월 신청 건 목록 */}
+      {entries.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
+          <Clock className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+          <p className="text-sm font-medium text-gray-500 mb-1">이 달의 야근 기록이 없습니다</p>
+          <p className="text-xs text-gray-400">승인된 야근 신청이 여기에 표시됩니다</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {entries.map(({ request: req, record: rec }) => {
+            const minutes = rec
+              ? rec.total_minutes
+              : calcMinutesFromTime(req.planned_start, req.planned_end)
+
+            return (
+              <div key={req.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+                {/* 날짜 + 유형 + 상태 */}
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-gray-800">
+                      {formatDateKr(req.date)}
+                    </span>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLOR[req.type]}`}>
+                      {OVERTIME_TYPE_LABEL[req.type]}
+                    </span>
+                  </div>
+                  <StatusBadge status={req.status} />
+                </div>
+
+                {/* 시간 정보 */}
+                <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-1">
+                  <Clock size={13} className="text-gray-400" />
+                  <span>계획: {req.planned_start} ~ {req.planned_end}</span>
+                  <span className="text-gray-300">|</span>
+                  <span className="font-medium text-gray-700">{formatMinutes(minutes)}</span>
+                </div>
+
+                {/* 실제 기록 (있는 경우) */}
+                {rec && (
+                  <div className="flex items-center justify-between mt-2">
+                    <div className="bg-success-50 rounded-lg px-3 py-1.5 text-xs">
+                      <span className="text-gray-500">실제: </span>
+                      <span className="font-semibold text-gray-800">
+                        {rec.actual_start} ~ {rec.actual_end}
+                      </span>
+                      <span className="ml-1.5 text-success-600 font-medium">
+                        ({formatMinutes(rec.total_minutes)})
+                      </span>
+                      {rec.is_manually_edited && (
+                        <span className="ml-1.5 text-warning-500 inline-flex items-center gap-0.5">
+                          <AlertTriangle size={10} />
+                          수동
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => openEditModal(req.id)}
+                      className="text-xs text-primary-600 hover:underline shrink-0 ml-2"
+                    >
+                      수정
+                    </button>
+                  </div>
+                )}
+
+                {/* 사유 */}
+                <p className="text-xs text-gray-400 mt-1.5 truncate">{req.reason}</p>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* 수동 수정 모달 */}
       {editModal && (

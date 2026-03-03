@@ -71,6 +71,8 @@ export function RequestPage() {
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
   const [reason, setReason] = useState('')
+  const [siteName, setSiteName] = useState('')
+  const [workDetails, setWorkDetails] = useState('')
   const [forceHoliday, setForceHoliday] = useState(false)
   const [groupOpen, setGroupOpen] = useState(false)
   const [groupIds, setGroupIds] = useState<string[]>([])
@@ -121,6 +123,8 @@ export function RequestPage() {
       planned_start: payload.planned_start,
       planned_end: payload.planned_end,
       reason: payload.reason,
+      site_name: siteName.trim() || null,
+      work_details: workDetails.trim() || null,
       is_retroactive: payload.is_retroactive,
       created_by: payload.employee_id,
       group_id: groupId,
@@ -130,6 +134,26 @@ export function RequestPage() {
       console.error('[RequestPage] insert error:', error)
       setSubmitting(false)
       return
+    }
+
+    // 노션 캘린더 연동 (실패해도 제출은 완료)
+    try {
+      await fetch('/api/notify-overtime-notion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employeeName: employee?.name ?? '',
+          date: payload.date,
+          startTime: payload.planned_start,
+          endTime: payload.planned_end,
+          overtimeType: payload.type,
+          siteName: siteName.trim(),
+          workDetails: workDetails.trim(),
+          reason: payload.reason,
+        }),
+      })
+    } catch (notionErr) {
+      console.warn('[RequestPage] Notion notify failed (non-blocking):', notionErr)
     }
 
     setSubmitting(false)
@@ -292,6 +316,34 @@ export function RequestPage() {
           </div>
         )}
 
+        {/* 현장명 */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            현장명
+          </label>
+          <input
+            type="text"
+            value={siteName}
+            onChange={(e) => setSiteName(e.target.value)}
+            placeholder="현장명을 입력하세요 (예: 강남 현장, 본사)"
+            className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-400"
+          />
+        </div>
+
+        {/* 작업내용 상세 */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            작업내용 상세
+          </label>
+          <textarea
+            value={workDetails}
+            onChange={(e) => setWorkDetails(e.target.value)}
+            rows={2}
+            placeholder="수행한 작업 내용을 상세히 입력하세요"
+            className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-400 resize-none"
+          />
+        </div>
+
         {/* 사유 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -301,7 +353,7 @@ export function RequestPage() {
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={3}
-            placeholder="야근 내용을 입력하세요 (업무 내용, 시간 등)"
+            placeholder="야근 사유를 입력하세요"
             required
             className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-400 resize-none"
           />

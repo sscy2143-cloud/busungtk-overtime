@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Plus, Minus, Trash2 } from 'lucide-react'
+import { X, Plus, Minus, Trash2, RefreshCw } from 'lucide-react'
 import { StatusBadge } from '../components/common/StatusBadge'
 import type { LeaveRequest } from '../types'
 import { LEAVE_TYPE_LABEL } from '../types'
@@ -15,6 +15,8 @@ interface EmployeeBalance {
   total_days: number
   used_days: number
   remaining_days: number
+  substitute_total: number
+  substitute_used: number
 }
 
 interface AdjustModal {
@@ -22,6 +24,14 @@ interface AdjustModal {
   employeeId: string
   employeeName: string
   delta: number
+  reason: string
+}
+
+interface SubstituteGrantModal {
+  open: boolean
+  employeeId: string
+  employeeName: string
+  days: number
   reason: string
 }
 
@@ -34,6 +44,7 @@ export function AdminLeavePage() {
   const [rejectModal, setRejectModal] = useState<{ open: boolean; id: string; reason: string }>({ open: false, id: '', reason: '' })
   const [adjustModal, setAdjustModal] = useState<AdjustModal>({ open: false, employeeId: '', employeeName: '', delta: 0, reason: '' })
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; id: string; employeeName: string; days: number; status: string }>({ open: false, id: '', employeeName: '', days: 0, status: '' })
+  const [subGrantModal, setSubGrantModal] = useState<SubstituteGrantModal>({ open: false, employeeId: '', employeeName: '', days: 1, reason: '' })
 
   const currentYear = new Date().getFullYear()
 
@@ -61,7 +72,12 @@ export function AdminLeavePage() {
 
     const { data, error } = await supabase.rpc('list_employee_balances', params)
     if (!error && data) {
-      setBalances(data as EmployeeBalance[])
+      // RPC 결과에 substitute 컬럼이 없을 수 있으므로 기본값 설정
+      setBalances((data as EmployeeBalance[]).map((b) => ({
+        ...b,
+        substitute_total: b.substitute_total ?? 0,
+        substitute_used: b.substitute_used ?? 0,
+      })))
     }
     setBalancesLoading(false)
   }
@@ -197,6 +213,44 @@ export function AdminLeavePage() {
     setAdjustModal({ open: false, employeeId: '', employeeName: '', delta: 0, reason: '' })
   }
 
+  // 대체휴가 부여
+  function openSubstituteGrant(emp: EmployeeBalance) {
+    setSubGrantModal({ open: true, employeeId: emp.id, employeeName: emp.name, days: 1, reason: '' })
+  }
+
+  async function confirmSubstituteGrant() {
+    const { employeeId, days, reason } = subGrantModal
+    if (!reason.trim() || days <= 0) return
+
+    // substitute_history에 기록
+    await supabase.from('substitute_history').insert({
+      employee_id: employeeId,
+      granted_days: days,
+      reason: reason.trim(),
+      granted_by: employee?.id ?? '',
+    })
+
+    // leave_balances.substitute_total 업데이트
+    const target = balances.find((b) => b.id === employeeId)
+    if (target) {
+      await supabase
+        .from('leave_balances')
+        .update({ substitute_total: (target.substitute_total ?? 0) + days })
+        .eq('employee_id', employeeId)
+        .eq('year', currentYear)
+
+      setBalances((prev) =>
+        prev.map((b) =>
+          b.id === employeeId
+            ? { ...b, substitute_total: (b.substitute_total ?? 0) + days }
+            : b,
+        ),
+      )
+    }
+
+    setSubGrantModal({ open: false, employeeId: '', employeeName: '', days: 1, reason: '' })
+  }
+
   const LEAVE_TYPE_COLOR: Record<string, string> = {
     annual: 'bg-primary-50 text-primary-700',
     half_am: 'bg-purple-50 text-purple-700',
@@ -316,38 +370,53 @@ export function AdminLeavePage() {
               활성 직원이 없습니다. 사용자 관리에서 직원을 먼저 등록해주세요.
             </p>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">이름</th>
-                  <th className="text-center px-2 py-3 text-xs font-semibold text-gray-500">총</th>
-                  <th className="text-center px-2 py-3 text-xs font-semibold text-gray-500">사용</th>
-                  <th className="text-center px-2 py-3 text-xs font-semibold text-gray-500">잔여</th>
-                  <th className="text-center px-2 py-3 text-xs font-semibold text-gray-500">조정</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {balances.map((b) => (
-                  <tr key={b.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <p className="font-semibold text-gray-900 text-sm">{b.name}</p>
-                      <p className="text-xs text-gray-400">{b.department}</p>
-                    </td>
-                    <td className="px-2 py-3 text-center text-sm text-gray-700">{b.total_days}일</td>
-                    <td className="px-2 py-3 text-center text-sm text-warning-600 font-medium">{b.used_days}일</td>
-                    <td className="px-2 py-3 text-center text-sm text-primary-600 font-bold">{b.remaining_days}일</td>
-                    <td className="px-2 py-3 text-center">
-                      <button
-                        onClick={() => openAdjust(b)}
-                        className="text-xs text-gray-500 border border-gray-200 px-2 py-1 rounded-lg hover:border-primary-400 hover:text-primary-600 transition-colors"
-                      >
-                        조정
-                      </button>
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">이름</th>
+                    <th className="text-center px-2 py-3 text-xs font-semibold text-gray-500">연차</th>
+                    <th className="text-center px-2 py-3 text-xs font-semibold text-gray-500">사용</th>
+                    <th className="text-center px-2 py-3 text-xs font-semibold text-gray-500">잔여</th>
+                    <th className="text-center px-2 py-3 text-xs font-semibold text-teal-600">대체</th>
+                    <th className="text-center px-2 py-3 text-xs font-semibold text-gray-500">조정</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {balances.map((b) => (
+                    <tr key={b.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-gray-900 text-sm">{b.name}</p>
+                        <p className="text-xs text-gray-400">{b.department}</p>
+                      </td>
+                      <td className="px-2 py-3 text-center text-sm text-gray-700">{b.total_days}일</td>
+                      <td className="px-2 py-3 text-center text-sm text-warning-600 font-medium">{b.used_days}일</td>
+                      <td className="px-2 py-3 text-center text-sm text-primary-600 font-bold">{b.remaining_days}일</td>
+                      <td className="px-2 py-3 text-center text-sm text-teal-600 font-bold">
+                        {(b.substitute_total ?? 0) - (b.substitute_used ?? 0)}일
+                      </td>
+                      <td className="px-2 py-3 text-center">
+                        <div className="flex gap-1 justify-center">
+                          <button
+                            onClick={() => openAdjust(b)}
+                            className="text-xs text-gray-500 border border-gray-200 px-2 py-1 rounded-lg hover:border-primary-400 hover:text-primary-600 transition-colors"
+                          >
+                            연차
+                          </button>
+                          <button
+                            onClick={() => openSubstituteGrant(b)}
+                            className="text-xs text-teal-600 border border-teal-200 px-2 py-1 rounded-lg hover:border-teal-400 hover:bg-teal-50 transition-colors flex items-center gap-0.5"
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                            대체
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}
@@ -485,6 +554,79 @@ export function AdminLeavePage() {
                 className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-600 rounded-xl hover:bg-primary-700 disabled:opacity-40 transition-colors"
               >
                 저장
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 대체휴가 부여 모달 */}
+      {subGrantModal.open && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setSubGrantModal((p) => ({ ...p, open: false }))} />
+          <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                <RefreshCw className="w-4 h-4 text-teal-600" />
+                대체휴가 부여
+              </h3>
+              <button onClick={() => setSubGrantModal((p) => ({ ...p, open: false }))}>
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              <span className="font-semibold">{subGrantModal.employeeName}</span>에게 대체휴가를 부여합니다
+            </p>
+
+            {/* 일수 입력 */}
+            <div className="flex items-center justify-center gap-4 mb-4">
+              <button
+                type="button"
+                onClick={() => setSubGrantModal((p) => ({ ...p, days: Math.max(0.5, p.days - 0.5) }))}
+                className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
+              >
+                <Minus className="w-4 h-4 text-gray-600" />
+              </button>
+              <div className="text-center">
+                <span className="text-3xl font-black text-teal-600">
+                  +{subGrantModal.days}
+                </span>
+                <p className="text-xs text-gray-400 mt-0.5">일</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSubGrantModal((p) => ({ ...p, days: p.days + 0.5 }))}
+                className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
+              >
+                <Plus className="w-4 h-4 text-gray-600" />
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                부여 사유 <span className="text-danger-500">*</span>
+              </label>
+              <textarea
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
+                rows={2}
+                placeholder="부여 사유를 입력하세요 (예: 2/15 휴일근무 대체)"
+                value={subGrantModal.reason}
+                onChange={(e) => setSubGrantModal((p) => ({ ...p, reason: e.target.value }))}
+              />
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => setSubGrantModal((p) => ({ ...p, open: false }))}
+                className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={confirmSubstituteGrant}
+                disabled={subGrantModal.days <= 0 || !subGrantModal.reason.trim()}
+                className="flex-1 py-2.5 text-sm font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 disabled:opacity-40 transition-colors"
+              >
+                부여
               </button>
             </div>
           </div>

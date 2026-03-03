@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, CalendarDays, Pencil, X } from 'lucide-react'
+import { Plus, CalendarDays, Pencil, X, RefreshCw } from 'lucide-react'
 import { StatusBadge } from '../components/common/StatusBadge'
-import type { LeaveRequest, LeaveType } from '../types'
+import type { LeaveRequest, LeaveType, SubstituteHistory } from '../types'
 import { LEAVE_TYPE_LABEL } from '../types'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -19,12 +19,16 @@ const LEAVE_TYPE_COLOR: Record<string, string> = {
 export function LeavePage() {
   const navigate = useNavigate()
   const { employee } = useAuth()
-  const [balance, setBalance] = useState({ total_days: 0, used_days: 0, remaining_days: 0 })
+  const [balance, setBalance] = useState({
+    total_days: 0, used_days: 0, remaining_days: 0,
+    substitute_total: 0, substitute_used: 0,
+  })
   const [requests, setRequests] = useState<LeaveRequest[]>([])
   const [editModal, setEditModal] = useState<{
     open: boolean; id: string; type: LeaveType; start_date: string; end_date: string; reason: string
   }>({ open: false, id: '', type: 'annual', start_date: '', end_date: '', reason: '' })
   const [cancelModal, setCancelModal] = useState<{ open: boolean; id: string }>({ open: false, id: '' })
+  const [subHistoryModal, setSubHistoryModal] = useState<{ open: boolean; entries: SubstituteHistory[] }>({ open: false, entries: [] })
 
   useEffect(() => {
     if (!employee?.id) return
@@ -36,12 +40,18 @@ export function LeavePage() {
     const currentYear = new Date().getFullYear()
     const { data } = await supabase
       .from('leave_balances')
-      .select('total_days, used_days, remaining_days')
+      .select('total_days, used_days, remaining_days, substitute_total, substitute_used')
       .eq('employee_id', employee!.id)
       .eq('year', currentYear)
       .single()
     if (data) {
-      setBalance({ total_days: data.total_days, used_days: data.used_days, remaining_days: data.remaining_days })
+      setBalance({
+        total_days: data.total_days,
+        used_days: data.used_days,
+        remaining_days: data.remaining_days,
+        substitute_total: data.substitute_total ?? 0,
+        substitute_used: data.substitute_used ?? 0,
+      })
     }
   }
 
@@ -56,8 +66,18 @@ export function LeavePage() {
     }
   }
 
-  const { total_days, used_days, remaining_days } = balance
+  const { total_days, used_days, remaining_days, substitute_total, substitute_used } = balance
   const usedPct = total_days > 0 ? Math.round((used_days / total_days) * 100) : 0
+  const substituteRemaining = substitute_total - substitute_used
+
+  async function openSubstituteHistory() {
+    const { data } = await supabase
+      .from('substitute_history')
+      .select('*')
+      .eq('employee_id', employee!.id)
+      .order('created_at', { ascending: false })
+    setSubHistoryModal({ open: true, entries: (data ?? []) as SubstituteHistory[] })
+  }
 
   function openEditModal(req: LeaveRequest) {
     setEditModal({ open: true, id: req.id, type: req.type, start_date: req.start_date, end_date: req.end_date, reason: req.reason })
@@ -146,6 +166,37 @@ export function LeavePage() {
               <p className="text-xs text-gray-400 mt-0.5">{label}</p>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* 대체휴가 카드 */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <RefreshCw className="w-5 h-5 text-teal-600" />
+            <h2 className="text-sm font-semibold text-gray-700">대체휴가</h2>
+          </div>
+          <button
+            onClick={openSubstituteHistory}
+            className="text-xs text-primary-600 hover:underline"
+          >
+            부여 이력 보기
+          </button>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2">
+          <div className="text-center">
+            <p className="text-lg font-bold text-gray-700">{substitute_total}일</p>
+            <p className="text-xs text-gray-400 mt-0.5">총 부여</p>
+          </div>
+          <div className="text-center">
+            <p className="text-lg font-bold text-warning-600">{substitute_used}일</p>
+            <p className="text-xs text-gray-400 mt-0.5">사용</p>
+          </div>
+          <div className="text-center">
+            <p className="text-lg font-bold text-teal-600">{substituteRemaining}일</p>
+            <p className="text-xs text-gray-400 mt-0.5">잔여</p>
+          </div>
         </div>
       </div>
 
@@ -290,6 +341,51 @@ export function LeavePage() {
                 취소하기
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 대체휴가 부여 이력 모달 */}
+      {subHistoryModal.open && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setSubHistoryModal({ open: false, entries: [] })} />
+          <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl max-h-[70vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                <RefreshCw className="w-4 h-4 text-teal-600" />
+                대체휴가 부여 이력
+              </h3>
+              <button onClick={() => setSubHistoryModal({ open: false, entries: [] })}>
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            {subHistoryModal.entries.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-6">부여 이력이 없습니다</p>
+            ) : (
+              <div className="space-y-3">
+                {subHistoryModal.entries.map((entry) => (
+                  <div key={entry.id} className="bg-gray-50 rounded-xl p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-semibold text-teal-700">+{entry.granted_days}일</span>
+                      <span className="text-xs text-gray-400">
+                        {new Date(entry.created_at).toLocaleDateString('ko-KR', {
+                          year: 'numeric', month: 'short', day: 'numeric',
+                        })}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-600">{entry.reason}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button
+              onClick={() => setSubHistoryModal({ open: false, entries: [] })}
+              className="w-full mt-4 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+            >
+              닫기
+            </button>
           </div>
         </div>
       )}

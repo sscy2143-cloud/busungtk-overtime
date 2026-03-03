@@ -1,4 +1,4 @@
-import { Users, Clock, AlertTriangle } from 'lucide-react'
+import { Users, Clock, AlertTriangle, RotateCcw, History } from 'lucide-react'
 import { StatusBadge } from '../common/StatusBadge'
 import type { OvertimeRequest, LeaveRequest } from '../../types'
 import { OVERTIME_TYPE_LABEL, LEAVE_TYPE_LABEL } from '../../types'
@@ -9,6 +9,8 @@ interface ApprovalCardProps {
   onApprove: (id: string) => void
   onReject: (id: string) => void
   onEditTime?: (id: string) => void
+  onRevokeApproval?: (id: string) => void
+  onViewHistory?: (id: string) => void
   canApprove?: boolean
   checked?: boolean
   onCheck?: (id: string, checked: boolean) => void
@@ -25,6 +27,8 @@ export function ApprovalCard({
   onApprove,
   onReject,
   onEditTime,
+  onRevokeApproval,
+  onViewHistory,
   canApprove = true,
   checked = false,
   onCheck,
@@ -125,7 +129,7 @@ export function ApprovalCard({
         <p className="text-xs text-gray-500 line-clamp-2">{request.reason}</p>
       </div>
 
-      {/* 액션 버튼 - 대표(admin)만 표시 */}
+      {/* 액션 버튼 - pending 상태: 대표(admin)만 표시 */}
       {request.status === 'pending' && canApprove && (
         <div className="flex gap-2 mt-3 ml-12">
           {isOvertime && onEditTime && (
@@ -148,6 +152,30 @@ export function ApprovalCard({
           >
             반려
           </button>
+        </div>
+      )}
+
+      {/* 승인된 건: 승인 취소 + 이력 보기 버튼 */}
+      {request.status === 'approved' && canApprove && (
+        <div className="flex gap-2 mt-3 ml-12">
+          {onRevokeApproval && (
+            <button
+              onClick={() => onRevokeApproval(request.id)}
+              className="flex-1 py-1.5 text-xs font-semibold bg-white text-warning-600 border border-warning-300 rounded-lg hover:bg-warning-50 transition-colors flex items-center justify-center gap-1"
+            >
+              <RotateCcw className="w-3 h-3" />
+              승인 취소
+            </button>
+          )}
+          {onViewHistory && (
+            <button
+              onClick={() => onViewHistory(request.id)}
+              className="flex-1 py-1.5 text-xs font-semibold bg-white text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-1"
+            >
+              <History className="w-3 h-3" />
+              이력 보기
+            </button>
+          )}
         </div>
       )}
 

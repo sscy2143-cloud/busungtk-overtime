@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { CheckSquare, X, Clock } from 'lucide-react'
+import { CheckSquare, X, Clock, History } from 'lucide-react'
 import { ApprovalCard } from '../components/admin/ApprovalCard'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
-import type { OvertimeRequest, LeaveRequest } from '../types'
+import type { OvertimeRequest, LeaveRequest, ApprovalHistory } from '../types'
+import { REQUEST_STATUS_LABEL } from '../types'
 
 
 interface RejectModalState {
@@ -19,6 +20,18 @@ interface TimeEditModalState {
   end: string
 }
 
+interface RevokeModalState {
+  open: boolean
+  id: string
+  reason: string
+}
+
+interface HistoryModalState {
+  open: boolean
+  requestId: string
+  entries: ApprovalHistory[]
+}
+
 export function AdminApprovalsPage() {
   const { employee } = useAuth()
   const isAdminRole = employee?.role === 'admin'
@@ -29,6 +42,8 @@ export function AdminApprovalsPage() {
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set())
   const [rejectModal, setRejectModal] = useState<RejectModalState>({ open: false, id: '', reason: '' })
   const [timeEditModal, setTimeEditModal] = useState<TimeEditModalState>({ open: false, id: '', start: '', end: '' })
+  const [revokeModal, setRevokeModal] = useState<RevokeModalState>({ open: false, id: '', reason: '' })
+  const [historyModal, setHistoryModal] = useState<HistoryModalState>({ open: false, requestId: '', entries: [] })
 
   useEffect(() => {
     fetchOvertimes()
@@ -57,6 +72,24 @@ export function AdminApprovalsPage() {
     }
   }
 
+  // 승인/번복 이력 기록
+  async function recordHistory(
+    requestId: string,
+    requestType: 'overtime' | 'leave',
+    fromStatus: string,
+    toStatus: string,
+    reason: string | null,
+  ) {
+    await supabase.from('approval_history').insert({
+      request_id: requestId,
+      request_type: requestType,
+      from_status: fromStatus,
+      to_status: toStatus,
+      changed_by: employee?.id ?? '',
+      reason,
+    })
+  }
+
   async function handleApprove(id: string) {
     const table = tab === 'overtime' ? 'overtime_requests' : 'leave_requests'
     const { error } = await supabase
@@ -68,6 +101,8 @@ export function AdminApprovalsPage() {
       console.error('[Approve] error:', error)
       return
     }
+
+    await recordHistory(id, tab, 'pending', 'approved', null)
 
     if (tab === 'overtime') {
       setOvertimes((prev) => prev.map((r) => r.id === id ? { ...r, status: 'approved' } : r))
@@ -93,6 +128,8 @@ export function AdminApprovalsPage() {
       console.error('[Reject] error:', error)
       return
     }
+
+    await recordHistory(id, tab, 'pending', 'rejected', reason)
 
     if (tab === 'overtime') {
       setOvertimes((prev) => prev.map((r) => r.id === id ? { ...r, status: 'rejected', rejection_reason: reason } : r))
@@ -120,6 +157,7 @@ export function AdminApprovalsPage() {
         .from(table)
         .update({ status: 'approved', approved_by: employee?.id, approved_at: new Date().toISOString() })
         .eq('id', id)
+      await recordHistory(id, tab, 'pending', 'approved', null)
     }
 
     if (tab === 'overtime') {
@@ -148,14 +186,76 @@ export function AdminApprovalsPage() {
       return
     }
 
+    await recordHistory(id, 'overtime', 'pending', 'approved', `시간 수정: ${start} ~ ${end}`)
+
     setOvertimes((prev) =>
       prev.map((r) => r.id === id ? { ...r, planned_start: start, planned_end: end, status: 'approved' } : r),
     )
     setTimeEditModal({ open: false, id: '', start: '', end: '' })
   }
 
+  // 승인 취소 (번복)
+  function openRevokeModal(id: string) {
+    setRevokeModal({ open: true, id, reason: '' })
+  }
+
+  async function confirmRevoke() {
+    const { id, reason } = revokeModal
+    if (!reason.trim()) return
+
+    const table = tab === 'overtime' ? 'overtime_requests' : 'leave_requests'
+    const { error } = await supabase
+      .from(table)
+      .update({
+        status: 'pending',
+        approved_by: null,
+        approved_at: null,
+      })
+      .eq('id', id)
+
+    if (error) {
+      console.error('[Revoke] error:', error)
+      return
+    }
+
+    await recordHistory(id, tab, 'approved', 'pending', reason)
+
+    if (tab === 'overtime') {
+      setOvertimes((prev) => prev.map((r) =>
+        r.id === id ? { ...r, status: 'pending', approved_by: null, approved_at: null } : r,
+      ))
+    } else {
+      setLeaves((prev) => prev.map((r) =>
+        r.id === id ? { ...r, status: 'pending', approved_by: null, approved_at: null } : r,
+      ))
+    }
+    setRevokeModal({ open: false, id: '', reason: '' })
+  }
+
+  // 이력 조회
+  async function openHistoryModal(id: string) {
+    const { data } = await supabase
+      .from('approval_history')
+      .select('*')
+      .eq('request_id', id)
+      .order('created_at', { ascending: true })
+
+    setHistoryModal({
+      open: true,
+      requestId: id,
+      entries: (data ?? []) as ApprovalHistory[],
+    })
+  }
+
   const pendingOvertimes = overtimes.filter((r) => r.status === 'pending')
   const pendingLeaves = leaves.filter((r) => r.status === 'pending')
+
+  const STATUS_COLOR: Record<string, string> = {
+    pending: 'text-warning-600',
+    approved: 'text-success-600',
+    rejected: 'text-danger-600',
+    cancelled: 'text-gray-500',
+  }
 
   return (
     <div className="space-y-5">
@@ -221,6 +321,8 @@ export function AdminApprovalsPage() {
                 onApprove={handleApprove}
                 onReject={openReject}
                 onEditTime={isAdminRole ? openTimeEdit : undefined}
+                onRevokeApproval={isAdminRole ? openRevokeModal : undefined}
+                onViewHistory={openHistoryModal}
                 checked={checkedIds.has(req.id)}
                 onCheck={req.status === 'pending' && isAdminRole ? handleCheck : undefined}
                 weeklyHours={req.weeklyHours}
@@ -241,6 +343,8 @@ export function AdminApprovalsPage() {
                 canApprove={isAdminRole}
                 onApprove={handleApprove}
                 onReject={openReject}
+                onRevokeApproval={isAdminRole ? openRevokeModal : undefined}
+                onViewHistory={openHistoryModal}
                 checked={checkedIds.has(req.id)}
                 onCheck={req.status === 'pending' && isAdminRole ? handleCheck : undefined}
               />
@@ -288,6 +392,47 @@ export function AdminApprovalsPage() {
           </div>
         </div>
       )}
+
+      {/* 승인 취소(번복) 모달 */}
+      {revokeModal.open && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setRevokeModal({ open: false, id: '', reason: '' })} />
+          <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-gray-900">승인 취소</h3>
+              <button onClick={() => setRevokeModal({ open: false, id: '', reason: '' })}>
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-600 mb-3">
+              승인을 취소하면 해당 건이 <span className="font-semibold text-warning-600">대기 상태</span>로 되돌아갑니다.
+            </p>
+            <textarea
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
+              rows={3}
+              placeholder="승인 취소 사유를 입력하세요 (필수)"
+              value={revokeModal.reason}
+              onChange={(e) => setRevokeModal((prev) => ({ ...prev, reason: e.target.value }))}
+            />
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => setRevokeModal({ open: false, id: '', reason: '' })}
+                className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={confirmRevoke}
+                disabled={!revokeModal.reason.trim()}
+                className="flex-1 py-2.5 text-sm font-semibold text-white bg-warning-500 rounded-xl hover:bg-warning-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                승인 취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 시간 수정 모달 (대표 전용) */}
       {timeEditModal.open && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
@@ -339,6 +484,72 @@ export function AdminApprovalsPage() {
                 수정 후 승인
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 이력 조회 모달 */}
+      {historyModal.open && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setHistoryModal({ open: false, requestId: '', entries: [] })} />
+          <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl max-h-[70vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                <History className="w-4 h-4" />
+                승인 이력
+              </h3>
+              <button onClick={() => setHistoryModal({ open: false, requestId: '', entries: [] })}>
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            {historyModal.entries.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-6">이력이 없습니다</p>
+            ) : (
+              <div className="space-y-3">
+                {historyModal.entries.map((entry, i) => (
+                  <div key={entry.id} className="relative pl-6">
+                    {/* 타임라인 라인 */}
+                    {i < historyModal.entries.length - 1 && (
+                      <div className="absolute left-[7px] top-5 bottom-0 w-px bg-gray-200" />
+                    )}
+                    {/* 타임라인 도트 */}
+                    <div className={`absolute left-0 top-1 w-4 h-4 rounded-full border-2 bg-white ${
+                      entry.to_status === 'approved' ? 'border-success-500' :
+                      entry.to_status === 'rejected' ? 'border-danger-500' :
+                      'border-warning-500'
+                    }`} />
+                    <div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className={`font-semibold ${STATUS_COLOR[entry.from_status] ?? 'text-gray-600'}`}>
+                          {REQUEST_STATUS_LABEL[entry.from_status as keyof typeof REQUEST_STATUS_LABEL] ?? entry.from_status}
+                        </span>
+                        <span className="text-gray-400">→</span>
+                        <span className={`font-semibold ${STATUS_COLOR[entry.to_status] ?? 'text-gray-600'}`}>
+                          {REQUEST_STATUS_LABEL[entry.to_status as keyof typeof REQUEST_STATUS_LABEL] ?? entry.to_status}
+                        </span>
+                      </div>
+                      {entry.reason && (
+                        <p className="text-xs text-gray-500 mt-0.5">{entry.reason}</p>
+                      )}
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {new Date(entry.created_at).toLocaleString('ko-KR', {
+                          year: 'numeric', month: 'short', day: 'numeric',
+                          hour: '2-digit', minute: '2-digit',
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button
+              onClick={() => setHistoryModal({ open: false, requestId: '', entries: [] })}
+              className="w-full mt-4 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+            >
+              닫기
+            </button>
           </div>
         </div>
       )}
