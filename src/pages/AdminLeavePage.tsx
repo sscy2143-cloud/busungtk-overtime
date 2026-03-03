@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Plus, Minus } from 'lucide-react'
+import { X, Plus, Minus, Trash2 } from 'lucide-react'
 import { StatusBadge } from '../components/common/StatusBadge'
 import type { LeaveRequest } from '../types'
 import { LEAVE_TYPE_LABEL } from '../types'
@@ -33,12 +33,13 @@ export function AdminLeavePage() {
   const [balancesLoading, setBalancesLoading] = useState(false)
   const [rejectModal, setRejectModal] = useState<{ open: boolean; id: string; reason: string }>({ open: false, id: '', reason: '' })
   const [adjustModal, setAdjustModal] = useState<AdjustModal>({ open: false, employeeId: '', employeeName: '', delta: 0, reason: '' })
+  const [deleteModal, setDeleteModal] = useState<{ open: boolean; id: string; employeeName: string; days: number; status: string }>({ open: false, id: '', employeeName: '', days: 0, status: '' })
 
   const currentYear = new Date().getFullYear()
 
   useEffect(() => {
-    loadBalances()
     fetchLeaveRequests()
+    loadBalances()
   }, [])
 
   async function fetchLeaveRequests() {
@@ -66,14 +67,41 @@ export function AdminLeavePage() {
   }
 
   async function handleApprove(id: string) {
-    const { error } = await supabase
+    const req = requests.find((r) => r.id === id)
+    if (!req) return
+
+    const { error: reqErr } = await supabase
       .from('leave_requests')
-      .update({ status: 'approved', approved_by: employee?.id, approved_at: new Date().toISOString() })
+      .update({
+        status: 'approved',
+        approved_by: employee?.id ?? null,
+        approved_at: new Date().toISOString(),
+      })
       .eq('id', id)
 
-    if (!error) {
-      setRequests((prev) => prev.map((r) => r.id === id ? { ...r, status: 'approved' } : r))
+    if (reqErr) {
+      console.error('승인 실패:', reqErr)
+      return
     }
+
+    // leave_balances.used_days 증가
+    const { data: bal } = await supabase
+      .from('leave_balances')
+      .select('used_days')
+      .eq('employee_id', req.employee_id)
+      .eq('year', currentYear)
+      .single()
+
+    if (bal) {
+      await supabase
+        .from('leave_balances')
+        .update({ used_days: Number(bal.used_days) + Number(req.days) })
+        .eq('employee_id', req.employee_id)
+        .eq('year', currentYear)
+    }
+
+    setRequests((prev) => prev.map((r) => r.id === id ? { ...r, status: 'approved' } : r))
+    loadBalances()
   }
 
   function openReject(id: string) {
@@ -90,6 +118,36 @@ export function AdminLeavePage() {
       setRequests((prev) => prev.map((r) => r.id === rejectModal.id ? { ...r, status: 'rejected', rejection_reason: rejectModal.reason } : r))
     }
     setRejectModal({ open: false, id: '', reason: '' })
+  }
+
+  async function confirmDelete() {
+    const { id, status, days } = deleteModal
+    const req = requests.find((r) => r.id === id)
+
+    // 승인 상태였던 건 삭제 시 used_days 차감 (잔여 복원)
+    if (status === 'approved' && req) {
+      const { data: bal } = await supabase
+        .from('leave_balances')
+        .select('used_days')
+        .eq('employee_id', req.employee_id)
+        .eq('year', currentYear)
+        .single()
+
+      if (bal) {
+        await supabase
+          .from('leave_balances')
+          .update({ used_days: Math.max(0, Number(bal.used_days) - Number(days)) })
+          .eq('employee_id', req.employee_id)
+          .eq('year', currentYear)
+      }
+    }
+
+    const { error } = await supabase.from('leave_requests').delete().eq('id', id)
+    if (!error) {
+      setRequests((prev) => prev.filter((r) => r.id !== id))
+      loadBalances()
+    }
+    setDeleteModal({ open: false, id: '', employeeName: '', days: 0, status: '' })
   }
 
   function openAdjust(emp: EmployeeBalance) {
@@ -215,22 +273,31 @@ export function AdminLeavePage() {
                 <StatusBadge status={req.status} />
               </div>
 
-              {req.status === 'pending' && (
-                <div className="flex gap-2 mt-3">
-                  <button
-                    onClick={() => handleApprove(req.id)}
-                    className="flex-1 py-1.5 text-xs font-semibold bg-success-500 text-white rounded-lg hover:bg-success-600 transition-colors"
-                  >
-                    승인
-                  </button>
-                  <button
-                    onClick={() => openReject(req.id)}
-                    className="flex-1 py-1.5 text-xs font-semibold bg-white text-danger-600 border border-danger-300 rounded-lg hover:bg-danger-50 transition-colors"
-                  >
-                    반려
-                  </button>
-                </div>
-              )}
+              <div className="flex gap-2 mt-3">
+                {req.status === 'pending' && (
+                  <>
+                    <button
+                      onClick={() => handleApprove(req.id)}
+                      className="flex-1 py-1.5 text-xs font-semibold bg-success-500 text-white rounded-lg hover:bg-success-600 transition-colors"
+                    >
+                      승인
+                    </button>
+                    <button
+                      onClick={() => openReject(req.id)}
+                      className="flex-1 py-1.5 text-xs font-semibold bg-white text-danger-600 border border-danger-300 rounded-lg hover:bg-danger-50 transition-colors"
+                    >
+                      반려
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={() => setDeleteModal({ open: true, id: req.id, employeeName: req.employee?.name ?? '', days: req.days, status: req.status })}
+                  className={`py-1.5 text-xs font-semibold text-danger-600 border border-danger-300 rounded-lg hover:bg-danger-50 transition-colors flex items-center justify-center gap-1 ${req.status === 'pending' ? 'px-3' : 'flex-1'}`}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  삭제
+                </button>
+              </div>
             </div>
           ))}
           {requests.length === 0 && (
@@ -316,6 +383,43 @@ export function AdminLeavePage() {
                 className="flex-1 py-2.5 text-sm font-semibold text-white bg-danger-500 rounded-xl hover:bg-danger-600 disabled:opacity-40 transition-colors"
               >
                 반려
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 삭제 확인 모달 */}
+      {deleteModal.open && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setDeleteModal((p) => ({ ...p, open: false }))} />
+          <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-gray-900">휴가 신청 삭제</h3>
+              <button onClick={() => setDeleteModal((p) => ({ ...p, open: false }))}>
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-600 mb-1">
+              <span className="font-semibold">{deleteModal.employeeName}</span>의 휴가 신청({deleteModal.days}일)을 삭제하시겠습니까?
+            </p>
+            {deleteModal.status === 'approved' && (
+              <p className="text-xs text-warning-600 bg-warning-50 rounded-lg px-3 py-2 mt-2">
+                승인된 건이므로 삭제 시 잔여 연차가 복원됩니다.
+              </p>
+            )}
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => setDeleteModal((p) => ({ ...p, open: false }))}
+                className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="flex-1 py-2.5 text-sm font-semibold text-white bg-danger-500 rounded-xl hover:bg-danger-600 transition-colors"
+              >
+                삭제
               </button>
             </div>
           </div>

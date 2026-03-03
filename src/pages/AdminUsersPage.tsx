@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Users, UserCheck, UserX, Shield, X } from 'lucide-react'
+import { Users, UserCheck, UserX, Shield, X, Trash2 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import type { Employee, UserRole } from '../types'
@@ -50,6 +50,7 @@ export function AdminUsersPage() {
   const [editModal, setEditModal] = useState<EditModal>({
     open: false, employee: null, name: '', role: 'employee', department: '', isActive: true,
   })
+  const [deleteModal, setDeleteModal] = useState<{ open: boolean; id: string; name: string }>({ open: false, id: '', name: '' })
 
   function openEdit(emp: Employee) {
     setEditModal({
@@ -95,6 +96,20 @@ export function AdminUsersPage() {
     setEmployees((prev) =>
       prev.map((e) => e.id === id ? { ...e, is_active: newActive } : e),
     )
+  }
+
+  async function confirmDelete() {
+    const { id } = deleteModal
+    if (isDemo) {
+      // 데모 모드: 삭제 RPC 없으므로 비활성화 처리
+      await supabase.rpc('update_employee_admin', {
+        p_admin_key: ADMIN_KEY, p_id: id, p_is_active: false,
+      })
+    } else {
+      await supabase.from('employees').delete().eq('id', id)
+    }
+    setEmployees((prev) => prev.filter((e) => e.id !== id))
+    setDeleteModal({ open: false, id: '', name: '' })
   }
 
   const activeCount = employees.filter((e) => e.is_active).length
@@ -177,13 +192,22 @@ export function AdminUsersPage() {
                     </button>
                   </td>
                   <td className="px-3 py-3 text-center">
-                    <button
-                      onClick={() => openEdit(emp)}
-                      disabled={emp.id === currentUser?.id}
-                      className="text-xs text-primary-600 hover:text-primary-700 font-medium disabled:text-gray-300 disabled:cursor-not-allowed"
-                    >
-                      수정
-                    </button>
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => openEdit(emp)}
+                        disabled={emp.id === currentUser?.id}
+                        className="text-xs text-primary-600 hover:text-primary-700 font-medium disabled:text-gray-300 disabled:cursor-not-allowed"
+                      >
+                        수정
+                      </button>
+                      <button
+                        onClick={() => setDeleteModal({ open: true, id: emp.id, name: emp.name })}
+                        disabled={emp.id === currentUser?.id}
+                        className="text-xs text-danger-600 hover:text-danger-700 font-medium disabled:text-gray-300 disabled:cursor-not-allowed"
+                      >
+                        삭제
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -275,6 +299,41 @@ export function AdminUsersPage() {
                 className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-600 rounded-xl hover:bg-primary-700 transition-colors"
               >
                 저장
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 삭제 확인 모달 */}
+      {deleteModal.open && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setDeleteModal({ open: false, id: '', name: '' })} />
+          <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-gray-900">사용자 삭제</h3>
+              <button onClick={() => setDeleteModal({ open: false, id: '', name: '' })}>
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-600 mb-2">
+              <span className="font-semibold">{deleteModal.name}</span> 사용자를 삭제하시겠습니까?
+            </p>
+            <p className="text-xs text-danger-600 bg-danger-50 rounded-lg px-3 py-2">
+              삭제된 사용자의 관련 데이터(야근, 휴가, 경비 등)도 함께 삭제됩니다.
+            </p>
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => setDeleteModal({ open: false, id: '', name: '' })}
+                className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="flex-1 py-2.5 text-sm font-semibold text-white bg-danger-500 rounded-xl hover:bg-danger-600 transition-colors"
+              >
+                삭제
               </button>
             </div>
           </div>
