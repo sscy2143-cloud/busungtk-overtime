@@ -23,7 +23,8 @@ interface AdjustModal {
   open: boolean
   employeeId: string
   employeeName: string
-  delta: number
+  currentTotal: number
+  newTotal: number
   reason: string
 }
 
@@ -45,7 +46,7 @@ export function AdminLeavePage() {
   const [balances, setBalances] = useState<EmployeeBalance[]>([])
   const [balancesLoading, setBalancesLoading] = useState(false)
   const [rejectModal, setRejectModal] = useState<{ open: boolean; id: string; reason: string }>({ open: false, id: '', reason: '' })
-  const [adjustModal, setAdjustModal] = useState<AdjustModal>({ open: false, employeeId: '', employeeName: '', delta: 0, reason: '' })
+  const [adjustModal, setAdjustModal] = useState<AdjustModal>({ open: false, employeeId: '', employeeName: '', currentTotal: 0, newTotal: 0, reason: '' })
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; id: string; employeeName: string; days: number; status: string }>({ open: false, id: '', employeeName: '', days: 0, status: '' })
   const [subGrantModal, setSubGrantModal] = useState<SubstituteGrantModal>({ open: false, employeeId: '', employeeName: '', unit: 'hours', value: 1, reason: '' })
 
@@ -170,11 +171,12 @@ export function AdminLeavePage() {
   }
 
   function openAdjust(emp: EmployeeBalance) {
-    setAdjustModal({ open: true, employeeId: emp.id, employeeName: emp.name, delta: 0, reason: '' })
+    setAdjustModal({ open: true, employeeId: emp.id, employeeName: emp.name, currentTotal: emp.total_days, newTotal: emp.total_days, reason: '' })
   }
 
   async function confirmAdjust() {
-    const { employeeId, delta, reason } = adjustModal
+    const { employeeId, currentTotal, newTotal, reason } = adjustModal
+    const delta = newTotal - currentTotal
 
     const params = isDemo
       ? { p_admin_key: ADMIN_KEY, p_employee_id: employeeId, p_year: currentYear, p_delta: delta, p_reason: reason }
@@ -213,7 +215,7 @@ export function AdminLeavePage() {
       )
     }
 
-    setAdjustModal({ open: false, employeeId: '', employeeName: '', delta: 0, reason: '' })
+    setAdjustModal({ open: false, employeeId: '', employeeName: '', currentTotal: 0, newTotal: 0, reason: '' })
   }
 
   // 대체휴가 부여
@@ -514,32 +516,38 @@ export function AdminLeavePage() {
               </button>
             </div>
             <p className="text-sm text-gray-600 mb-4">
-              <span className="font-semibold">{adjustModal.employeeName}</span>의 잔여 연차를 조정합니다
+              <span className="font-semibold">{adjustModal.employeeName}</span>의 총 연차 일수를 설정합니다
             </p>
 
-            {/* +/- 입력 */}
-            <div className="flex items-center justify-center gap-4 mb-4">
+            {/* 총 연차 입력 */}
+            <div className="flex items-center justify-center gap-4 mb-2">
               <button
                 type="button"
-                onClick={() => setAdjustModal((p) => ({ ...p, delta: p.delta - 1 }))}
+                onClick={() => setAdjustModal((p) => ({ ...p, newTotal: Math.max(0, p.newTotal - 1) }))}
                 className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
               >
                 <Minus className="w-4 h-4 text-gray-600" />
               </button>
               <div className="text-center">
-                <span className={`text-3xl font-black ${adjustModal.delta > 0 ? 'text-primary-600' : adjustModal.delta < 0 ? 'text-danger-600' : 'text-gray-400'}`}>
-                  {adjustModal.delta > 0 ? '+' : ''}{adjustModal.delta}
+                <span className="text-3xl font-black text-primary-600">
+                  {adjustModal.newTotal}
                 </span>
                 <p className="text-xs text-gray-400 mt-0.5">일</p>
               </div>
               <button
                 type="button"
-                onClick={() => setAdjustModal((p) => ({ ...p, delta: p.delta + 1 }))}
+                onClick={() => setAdjustModal((p) => ({ ...p, newTotal: p.newTotal + 1 }))}
                 className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
               >
                 <Plus className="w-4 h-4 text-gray-600" />
               </button>
             </div>
+            {adjustModal.newTotal !== adjustModal.currentTotal && (
+              <p className="text-xs text-center text-gray-400 mb-4">
+                기존 {adjustModal.currentTotal}일 → {adjustModal.newTotal}일 ({adjustModal.newTotal - adjustModal.currentTotal > 0 ? '+' : ''}{adjustModal.newTotal - adjustModal.currentTotal}일)
+              </p>
+            )}
+            {adjustModal.newTotal === adjustModal.currentTotal && <div className="mb-4" />}
 
             <textarea
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
@@ -557,7 +565,7 @@ export function AdminLeavePage() {
               </button>
               <button
                 onClick={confirmAdjust}
-                disabled={adjustModal.delta === 0 || !adjustModal.reason.trim()}
+                disabled={adjustModal.newTotal === adjustModal.currentTotal || !adjustModal.reason.trim()}
                 className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-600 rounded-xl hover:bg-primary-700 disabled:opacity-40 transition-colors"
               >
                 저장
