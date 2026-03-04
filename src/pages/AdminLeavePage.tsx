@@ -27,11 +27,14 @@ interface AdjustModal {
   reason: string
 }
 
+type SubstituteUnit = 'days' | 'hours'
+
 interface SubstituteGrantModal {
   open: boolean
   employeeId: string
   employeeName: string
-  days: number
+  unit: SubstituteUnit
+  value: number
   reason: string
 }
 
@@ -44,7 +47,7 @@ export function AdminLeavePage() {
   const [rejectModal, setRejectModal] = useState<{ open: boolean; id: string; reason: string }>({ open: false, id: '', reason: '' })
   const [adjustModal, setAdjustModal] = useState<AdjustModal>({ open: false, employeeId: '', employeeName: '', delta: 0, reason: '' })
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; id: string; employeeName: string; days: number; status: string }>({ open: false, id: '', employeeName: '', days: 0, status: '' })
-  const [subGrantModal, setSubGrantModal] = useState<SubstituteGrantModal>({ open: false, employeeId: '', employeeName: '', days: 1, reason: '' })
+  const [subGrantModal, setSubGrantModal] = useState<SubstituteGrantModal>({ open: false, employeeId: '', employeeName: '', unit: 'hours', value: 1, reason: '' })
 
   const currentYear = new Date().getFullYear()
 
@@ -215,18 +218,22 @@ export function AdminLeavePage() {
 
   // 대체휴가 부여
   function openSubstituteGrant(emp: EmployeeBalance) {
-    setSubGrantModal({ open: true, employeeId: emp.id, employeeName: emp.name, days: 1, reason: '' })
+    setSubGrantModal({ open: true, employeeId: emp.id, employeeName: emp.name, unit: 'hours', value: 1, reason: '' })
   }
 
   async function confirmSubstituteGrant() {
-    const { employeeId, days, reason } = subGrantModal
-    if (!reason.trim() || days <= 0) return
+    const { employeeId, unit, value, reason } = subGrantModal
+    if (!reason.trim() || value <= 0) return
+
+    // 시간→일 변환 (8시간 = 1일)
+    const grantedDays = unit === 'hours' ? value / 8 : value
+    const displayText = unit === 'hours' ? `${value}시간` : `${value}일`
 
     // substitute_history에 기록
     await supabase.from('substitute_history').insert({
       employee_id: employeeId,
-      granted_days: days,
-      reason: reason.trim(),
+      granted_days: grantedDays,
+      reason: `${reason.trim()} (${displayText})`,
       granted_by: employee?.id ?? '',
     })
 
@@ -235,20 +242,20 @@ export function AdminLeavePage() {
     if (target) {
       await supabase
         .from('leave_balances')
-        .update({ substitute_total: (target.substitute_total ?? 0) + days })
+        .update({ substitute_total: (target.substitute_total ?? 0) + grantedDays })
         .eq('employee_id', employeeId)
         .eq('year', currentYear)
 
       setBalances((prev) =>
         prev.map((b) =>
           b.id === employeeId
-            ? { ...b, substitute_total: (b.substitute_total ?? 0) + days }
+            ? { ...b, substitute_total: (b.substitute_total ?? 0) + grantedDays }
             : b,
         ),
       )
     }
 
-    setSubGrantModal({ open: false, employeeId: '', employeeName: '', days: 1, reason: '' })
+    setSubGrantModal({ open: false, employeeId: '', employeeName: '', unit: 'hours', value: 1, reason: '' })
   }
 
   const LEAVE_TYPE_COLOR: Record<string, string> = {
@@ -578,29 +585,67 @@ export function AdminLeavePage() {
               <span className="font-semibold">{subGrantModal.employeeName}</span>에게 대체휴가를 부여합니다
             </p>
 
-            {/* 일수 입력 */}
-            <div className="flex items-center justify-center gap-4 mb-4">
+            {/* 단위 선택 (시간/일) */}
+            <div className="flex bg-gray-100 rounded-xl p-1 gap-1 mb-4">
               <button
                 type="button"
-                onClick={() => setSubGrantModal((p) => ({ ...p, days: Math.max(0.5, p.days - 0.5) }))}
+                onClick={() => setSubGrantModal((p) => ({ ...p, unit: 'hours', value: 1 }))}
+                className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-colors ${
+                  subGrantModal.unit === 'hours' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-500'
+                }`}
+              >
+                시간
+              </button>
+              <button
+                type="button"
+                onClick={() => setSubGrantModal((p) => ({ ...p, unit: 'days', value: 0.5 }))}
+                className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-colors ${
+                  subGrantModal.unit === 'days' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-500'
+                }`}
+              >
+                일
+              </button>
+            </div>
+
+            {/* 수량 입력 */}
+            <div className="flex items-center justify-center gap-4 mb-2">
+              <button
+                type="button"
+                onClick={() => setSubGrantModal((p) => ({
+                  ...p,
+                  value: Math.max(p.unit === 'hours' ? 1 : 0.5, p.value - (p.unit === 'hours' ? 1 : 0.5)),
+                }))}
                 className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
               >
                 <Minus className="w-4 h-4 text-gray-600" />
               </button>
               <div className="text-center">
                 <span className="text-3xl font-black text-teal-600">
-                  +{subGrantModal.days}
+                  +{subGrantModal.value}
                 </span>
-                <p className="text-xs text-gray-400 mt-0.5">일</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {subGrantModal.unit === 'hours' ? '시간' : '일'}
+                </p>
               </div>
               <button
                 type="button"
-                onClick={() => setSubGrantModal((p) => ({ ...p, days: p.days + 0.5 }))}
+                onClick={() => setSubGrantModal((p) => ({
+                  ...p,
+                  value: p.value + (p.unit === 'hours' ? 1 : 0.5),
+                }))}
                 className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
               >
                 <Plus className="w-4 h-4 text-gray-600" />
               </button>
             </div>
+
+            {/* 변환 안내 */}
+            {subGrantModal.unit === 'hours' && (
+              <p className="text-xs text-center text-gray-400 mb-4">
+                = {(subGrantModal.value / 8).toFixed(1)}일 (8시간 = 1일)
+              </p>
+            )}
+            {subGrantModal.unit === 'days' && <div className="mb-4" />}
 
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">
@@ -623,7 +668,7 @@ export function AdminLeavePage() {
               </button>
               <button
                 onClick={confirmSubstituteGrant}
-                disabled={subGrantModal.days <= 0 || !subGrantModal.reason.trim()}
+                disabled={subGrantModal.value <= 0 || !subGrantModal.reason.trim()}
                 className="flex-1 py-2.5 text-sm font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 disabled:opacity-40 transition-colors"
               >
                 부여
