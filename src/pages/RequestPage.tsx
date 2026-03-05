@@ -99,7 +99,7 @@ export function RequestPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!date || !startTime || !endTime || !reason.trim() || !breakdown) return
+    if (!date || !startTime || !endTime || !siteName.trim() || !workDetails.trim() || !breakdown) return
     setSubmitting(true)
 
     const payload = {
@@ -259,7 +259,6 @@ export function RequestPage() {
               </select>
             </div>
           </div>
-          <p className="text-xs text-gray-400 mt-1.5">종료가 시작보다 이르면 익일로 계산됩니다</p>
         </div>
 
         {/* 자동 분류 결과 */}
@@ -319,13 +318,14 @@ export function RequestPage() {
         {/* 현장명 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            현장명
+            현장명 <span className="text-danger-500">*</span>
           </label>
           <input
             type="text"
             value={siteName}
             onChange={(e) => setSiteName(e.target.value)}
-            placeholder="현장명을 입력하세요 (예: 강남 현장, 본사)"
+            placeholder="현장명을 입력하세요 (예: 폴라리스 홀, R5)"
+            required
             className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-400"
           />
         </div>
@@ -333,28 +333,28 @@ export function RequestPage() {
         {/* 작업내용 상세 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            작업내용 상세
+            작업내용 상세 <span className="text-danger-500">*</span>
           </label>
           <textarea
             value={workDetails}
             onChange={(e) => setWorkDetails(e.target.value)}
             rows={2}
-            placeholder="수행한 작업 내용을 상세히 입력하세요"
+            placeholder="수행한 작업 내용을 상세히 입력하세요 (예: 야외 워크인냉장고 콤프고장으로 교체 작업진행)"
+            required
             className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-400 resize-none"
           />
         </div>
 
-        {/* 사유 */}
+        {/* 기타 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            사유 <span className="text-danger-500">*</span>
+            기타
           </label>
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            rows={3}
-            placeholder="야근 사유를 입력하세요"
-            required
+            rows={2}
+            placeholder="추가 메모가 있으면 입력하세요"
             className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-400 resize-none"
           />
         </div>

@@ -128,10 +128,14 @@ export function calculateOvertimeBreakdown(
   // 종료가 시작보다 이르면 익일(+24h)
   if (endMin <= startMin) endMin += 24 * 60
 
-  const totalMinutes = endMin - startMin
-  if (totalMinutes <= 0) {
+  const rawMinutes = endMin - startMin
+  if (rawMinutes <= 0) {
     return emptyBreakdown(isHoliday)
   }
+
+  // 근로기준법 제54조: 4시간 초과 시 30분, 8시간 초과 시 1시간 휴게 차감
+  const breakMinutes = rawMinutes > 480 ? 60 : rawMinutes > 240 ? 30 : 0
+  const totalMinutes = rawMinutes - breakMinutes
 
   // 분 단위로 순회하며 분류
   let extendedMinutes = 0
@@ -142,7 +146,9 @@ export function calculateOvertimeBreakdown(
   let holidayOvertimeNightMinutes = 0
   let holidayDayMinutesSoFar = 0 // 휴일 비야간 누적 (8h 기준 판단용)
 
-  for (let m = startMin; m < endMin; m++) {
+  // 휴게시간은 근무 종료 전에 사용한다고 가정 → 실제 계산 범위를 줄임
+  const effectiveEndMin = endMin - breakMinutes
+  for (let m = startMin; m < effectiveEndMin; m++) {
     const hourOfDay = (m % (24 * 60)) / 60
     const hour = Math.floor(hourOfDay)
     const isNight = hour >= 22 || hour < 6

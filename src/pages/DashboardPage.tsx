@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FilePlus, CalendarPlus, AlertCircle } from 'lucide-react'
+import { FilePlus, CalendarPlus, AlertCircle, Clock } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { StatusBadge } from '../components/common/StatusBadge'
@@ -251,13 +251,13 @@ export function DashboardPage() {
       </div>
 
       {/* 빠른 액션 */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <button
           onClick={() => navigate('/request')}
           className="flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white font-semibold text-sm py-3.5 rounded-xl transition-colors shadow-sm"
         >
           <FilePlus size={18} />
-          야근 제출
+          연장근무 신청
         </button>
         <button
           onClick={() => navigate('/leave/request')}
@@ -265,6 +265,13 @@ export function DashboardPage() {
         >
           <CalendarPlus size={18} />
           휴가 신청
+        </button>
+        <button
+          onClick={() => navigate('/timesheet')}
+          className="flex items-center justify-center gap-2 bg-white hover:bg-gray-50 active:bg-gray-100 text-gray-700 font-semibold text-sm py-3.5 rounded-xl border border-gray-200 transition-colors shadow-sm"
+        >
+          <Clock size={18} />
+          근무 기록
         </button>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Home, FileText, Clock, MoreHorizontal, Shield, Calendar, Bell, Settings, X, DollarSign, Receipt } from 'lucide-react'
+import { Home, FileText, MoreHorizontal, Shield, Calendar, Bell, Settings, X, DollarSign, Receipt } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 
 export function BottomNav() {
@@ -38,7 +38,7 @@ export function BottomNav() {
             onClick={() => { navigate('/leave'); setMoreOpen(false) }}
           >
             <Calendar size={18} className="text-primary-500" />
-            휴가 관리
+            연차 관리
           </button>
           <button
             className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
@@ -55,13 +55,22 @@ export function BottomNav() {
             경비 제출
           </button>
           {isAdmin && (
-            <button
-              className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
-              onClick={() => { navigate('/admin/payroll'); setMoreOpen(false) }}
-            >
-              <DollarSign size={18} className="text-primary-500" />
-              급여 계산
-            </button>
+            <>
+              <button
+                className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+                onClick={() => { navigate('/admin/expenses'); setMoreOpen(false) }}
+              >
+                <Receipt size={18} className="text-primary-500" />
+                경비 관리
+              </button>
+              <button
+                className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+                onClick={() => { navigate('/admin/payroll'); setMoreOpen(false) }}
+              >
+                <DollarSign size={18} className="text-primary-500" />
+                급여 계산
+              </button>
+            </>
           )}
           <button
             className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
@@ -83,11 +92,6 @@ export function BottomNav() {
         <NavLink to="/requests" className={navItemClass}>
           <FileText size={20} />
           <span>제출</span>
-        </NavLink>
-
-        <NavLink to="/timesheet" className={navItemClass}>
-          <Clock size={20} />
-          <span>기록</span>
         </NavLink>
 
         {isAdmin && (

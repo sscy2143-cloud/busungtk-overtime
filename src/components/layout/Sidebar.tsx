@@ -3,7 +3,6 @@ import {
   LayoutDashboard,
   FilePlus,
   FileText,
-  Clock,
   Calendar,
   Shield,
   CheckSquare,
@@ -36,18 +35,18 @@ export function Sidebar() {
 
   const mainNav: NavItem[] = [
     { to: '/', label: '대시보드', icon: <LayoutDashboard size={18} /> },
-    { to: '/request', label: '야근 제출', icon: <FilePlus size={18} /> },
+    { to: '/request', label: '연장근무 신청', icon: <FilePlus size={18} /> },
     { to: '/requests', label: '내 제출 목록', icon: <FileText size={18} /> },
-    { to: '/timesheet', label: '근무 기록', icon: <Clock size={18} /> },
-    { to: '/leave', label: '휴가 관리', icon: <Calendar size={18} /> },
+    { to: '/leave', label: '연차 관리', icon: <Calendar size={18} /> },
     { to: '/expenses', label: '경비 제출', icon: <Receipt size={18} /> },
   ]
 
   const adminNav: NavItem[] = [
     { to: '/admin', label: '관리자 대시보드', icon: <Shield size={18} /> },
-    { to: '/admin/approvals', label: '승인 관리', icon: <CheckSquare size={18} /> },
-    { to: '/admin/leave', label: '휴가 승인', icon: <CalendarCheck size={18} /> },
-    { to: '/admin/leave-types', label: '휴가 종류 관리', icon: <Settings size={18} /> },
+    { to: '/admin/approvals', label: '야근 관리', icon: <CheckSquare size={18} /> },
+    { to: '/admin/leave', label: '휴가 관리', icon: <CalendarCheck size={18} /> },
+    { to: '/admin/leave-types', label: '휴가 종류 설정', icon: <Settings size={18} /> },
+    { to: '/admin/expenses', label: '경비 관리', icon: <Receipt size={18} /> },
     { to: '/admin/payroll', label: '급여 계산', icon: <DollarSign size={18} /> },
   ]
 

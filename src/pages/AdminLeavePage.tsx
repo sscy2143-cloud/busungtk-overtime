@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Plus, Minus, Trash2, RefreshCw } from 'lucide-react'
+import { X, Plus, Minus, Trash2, RefreshCw, FileText } from 'lucide-react'
 import { StatusBadge } from '../components/common/StatusBadge'
 import type { LeaveRequest } from '../types'
 import { LEAVE_TYPE_LABEL } from '../types'
@@ -49,12 +49,14 @@ export function AdminLeavePage() {
   const [adjustModal, setAdjustModal] = useState<AdjustModal>({ open: false, employeeId: '', employeeName: '', currentTotal: 0, newTotal: 0, reason: '' })
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; id: string; employeeName: string; days: number; status: string }>({ open: false, id: '', employeeName: '', days: 0, status: '' })
   const [subGrantModal, setSubGrantModal] = useState<SubstituteGrantModal>({ open: false, employeeId: '', employeeName: '', unit: 'hours', value: 1, reason: '' })
+  const [adjustLogs, setAdjustLogs] = useState<Record<string, { reason: string; delta: number; date: string }[]>>({})
 
   const currentYear = new Date().getFullYear()
 
   useEffect(() => {
     fetchLeaveRequests()
     loadBalances()
+    loadAdjustLogs()
   }, [])
 
   async function fetchLeaveRequests() {
@@ -84,6 +86,29 @@ export function AdminLeavePage() {
       })))
     }
     setBalancesLoading(false)
+  }
+
+  async function loadAdjustLogs() {
+    const { data } = await supabase
+      .from('ot_audit_logs')
+      .select('*')
+      .eq('action', 'leave_adjust')
+      .order('created_at', { ascending: false })
+      .limit(100)
+
+    if (data) {
+      const grouped: Record<string, { reason: string; delta: number; date: string }[]> = {}
+      for (const log of data) {
+        const empId = log.target_id
+        if (!grouped[empId]) grouped[empId] = []
+        grouped[empId].push({
+          reason: log.payload?.reason ?? '',
+          delta: log.payload?.delta ?? 0,
+          date: new Date(log.created_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }),
+        })
+      }
+      setAdjustLogs(grouped)
+    }
   }
 
   async function handleApprove(id: string) {
@@ -214,6 +239,20 @@ export function AdminLeavePage() {
         ),
       )
     }
+
+    // 조정 로그 저장
+    const logEntry = { reason, delta, date: new Date().toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }) }
+    setAdjustLogs((prev) => ({
+      ...prev,
+      [employeeId]: [logEntry, ...(prev[employeeId] ?? [])],
+    }))
+    await supabase.from('ot_audit_logs').insert({
+      actor_id: employee?.id ?? null,
+      action: 'leave_adjust',
+      target_type: 'leave_balance',
+      target_id: employeeId,
+      payload: { reason, delta, year: currentYear, newTotal },
+    })
 
     setAdjustModal({ open: false, employeeId: '', employeeName: '', currentTotal: 0, newTotal: 0, reason: '' })
   }
@@ -397,12 +436,23 @@ export function AdminLeavePage() {
                       <td className="px-4 py-3">
                         <p className="font-semibold text-gray-900 text-sm">{b.name}</p>
                         <p className="text-xs text-gray-400">{b.department}</p>
+                        {adjustLogs[b.id]?.[0] && (
+                          <p className="text-xs text-primary-500 mt-0.5 flex items-center gap-0.5">
+                            <FileText className="w-3 h-3 shrink-0" />
+                            <span className="truncate">{adjustLogs[b.id][0].reason}</span>
+                            <span className="text-gray-300 shrink-0">({adjustLogs[b.id][0].date})</span>
+                          </p>
+                        )}
                       </td>
                       <td className="px-2 py-3 text-center text-sm text-gray-700">{b.total_days}일</td>
                       <td className="px-2 py-3 text-center text-sm text-warning-600 font-medium">{b.used_days}일</td>
                       <td className="px-2 py-3 text-center text-sm text-primary-600 font-bold">{b.remaining_days}일</td>
                       <td className="px-2 py-3 text-center text-sm text-teal-600 font-bold">
-                        {(b.substitute_total ?? 0) - (b.substitute_used ?? 0)}일
+                        {(() => {
+                          const days = (b.substitute_total ?? 0) - (b.substitute_used ?? 0)
+                          const hours = Math.round(days * 8 * 10) / 10
+                          return <>{days}일 <span className="text-xs font-normal text-teal-400">({hours}h)</span></>
+                        })()}
                       </td>
                       <td className="px-2 py-3 text-center">
                         <div className="flex gap-1 justify-center">
