@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Clock, AlertTriangle, CalendarOff, ChevronRight } from 'lucide-react'
+import { Clock, AlertTriangle, CalendarOff, ChevronRight, ChevronLeft } from 'lucide-react'
 import { TeamGaugeList } from '../components/admin/TeamGaugeList'
 import { supabase } from '../lib/supabase'
 import type { WarningLevel } from '../types'
@@ -25,6 +25,13 @@ function getWeekRange(weekOffset: number): { start: string; end: string } {
   }
 }
 
+function getMonthRange(year: number, month: number): { start: string; end: string } {
+  const start = `${year}-${String(month).padStart(2, '0')}-01`
+  const lastDay = new Date(year, month, 0).getDate()
+  const end = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+  return { start, end }
+}
+
 function calcHours(start: string, end: string): number {
   const [sh, sm] = start.split(':').map(Number)
   const [eh, em] = end.split(':').map(Number)
@@ -42,53 +49,76 @@ function getWarningLevel(hours: number): WarningLevel {
 
 export function AdminDashboardPage() {
   const navigate = useNavigate()
-  const [week, setWeek] = useState<'this' | 'last'>('this')
+  const [mode, setMode] = useState<'this' | 'month'>('this')
   const [thisWeek, setThisWeek] = useState<TeamMember[]>([])
-  const [lastWeek, setLastWeek] = useState<TeamMember[]>([])
-  const members = week === 'this' ? thisWeek : lastWeek
+  const [monthData, setMonthData] = useState<TeamMember[]>([])
+  const [weeklyBreakdown, setWeeklyBreakdown] = useState<{ label: string; hours: number }[]>([])
+
+  const now = new Date()
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear())
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1)
+
+  const members = mode === 'this' ? thisWeek : monthData
 
   const [pendingOvertimeCount, setPendingOvertimeCount] = useState(0)
   const [pendingLeaveCount, setPendingLeaveCount] = useState(0)
 
+  function groupByEmployee(data: any[], monthly = false): TeamMember[] {
+    const map = new Map<string, { name: string; department: string; totalHours: number }>()
+    for (const row of data) {
+      const name = row.employee?.name ?? '알 수 없음'
+      const dept = row.employee?.department ?? ''
+      const hours = calcHours(row.planned_start, row.planned_end)
+      const existing = map.get(name)
+      if (existing) {
+        existing.totalHours += hours
+      } else {
+        map.set(name, { name, department: dept, totalHours: hours })
+      }
+    }
+    return Array.from(map.values())
+      .map((m) => ({ ...m, warningLevel: monthly ? 'normal' as const : getWarningLevel(m.totalHours) }))
+      .sort((a, b) => b.totalHours - a.totalHours)
+  }
+
   async function fetchWeeklyData() {
     const thisRange = getWeekRange(0)
-    const lastRange = getWeekRange(-1)
+    const { data } = await supabase
+      .from('overtime_requests')
+      .select('planned_start, planned_end, employee:employees!overtime_requests_employee_id_fkey(name, department)')
+      .eq('status', 'approved')
+      .gte('date', thisRange.start)
+      .lte('date', thisRange.end)
+    if (data) setThisWeek(groupByEmployee(data))
+  }
 
-    const [thisRes, lastRes] = await Promise.all([
-      supabase
-        .from('overtime_requests')
-        .select('planned_start, planned_end, employee:employees!overtime_requests_employee_id_fkey(name, department)')
-        .eq('status', 'approved')
-        .gte('date', thisRange.start)
-        .lte('date', thisRange.end),
-      supabase
-        .from('overtime_requests')
-        .select('planned_start, planned_end, employee:employees!overtime_requests_employee_id_fkey(name, department)')
-        .eq('status', 'approved')
-        .gte('date', lastRange.start)
-        .lte('date', lastRange.end),
-    ])
+  async function fetchMonthData(year: number, month: number) {
+    const range = getMonthRange(year, month)
+    const { data } = await supabase
+      .from('overtime_requests')
+      .select('date, planned_start, planned_end, employee:employees!overtime_requests_employee_id_fkey(name, department)')
+      .eq('status', 'approved')
+      .gte('date', range.start)
+      .lte('date', range.end)
+    if (data) {
+      setMonthData(groupByEmployee(data, true))
 
-    function groupByEmployee(data: any[]): TeamMember[] {
-      const map = new Map<string, { name: string; department: string; totalHours: number }>()
+      // 주차별 합계 (1일~7일=1주차, 8~14=2주차, ...)
+      const weekMap = new Map<number, number>()
       for (const row of data) {
-        const name = row.employee?.name ?? '알 수 없음'
-        const dept = row.employee?.department ?? ''
+        const day = parseInt(row.date.split('-')[2], 10)
+        const week = Math.ceil(day / 7)
         const hours = calcHours(row.planned_start, row.planned_end)
-        const existing = map.get(name)
-        if (existing) {
-          existing.totalHours += hours
-        } else {
-          map.set(name, { name, department: dept, totalHours: hours })
-        }
+        weekMap.set(week, (weekMap.get(week) ?? 0) + hours)
       }
-      return Array.from(map.values())
-        .map((m) => ({ ...m, warningLevel: getWarningLevel(m.totalHours) }))
-        .sort((a, b) => b.totalHours - a.totalHours)
+      const lastDay = new Date(year, month, 0).getDate()
+      const totalWeeks = Math.ceil(lastDay / 7)
+      const breakdown = Array.from({ length: totalWeeks }, (_, i) => ({
+        label: `${i + 1}주차`,
+        hours: weekMap.get(i + 1) ?? 0,
+      }))
+      setWeeklyBreakdown(breakdown)
     }
-
-    if (thisRes.data) setThisWeek(groupByEmployee(thisRes.data))
-    if (lastRes.data) setLastWeek(groupByEmployee(lastRes.data))
   }
 
   useEffect(() => {
@@ -104,7 +134,22 @@ export function AdminDashboardPage() {
     fetchWeeklyData()
   }, [])
 
-  const approaching52Count = members.filter(
+  useEffect(() => {
+    if (mode === 'month') fetchMonthData(selectedYear, selectedMonth)
+  }, [mode, selectedYear, selectedMonth])
+
+  function prevMonth() {
+    if (selectedMonth === 1) { setSelectedYear(y => y - 1); setSelectedMonth(12) }
+    else setSelectedMonth(m => m - 1)
+  }
+  function nextMonth() {
+    const isCurrentMonth = selectedYear === now.getFullYear() && selectedMonth === now.getMonth() + 1
+    if (isCurrentMonth) return
+    if (selectedMonth === 12) { setSelectedYear(y => y + 1); setSelectedMonth(1) }
+    else setSelectedMonth(m => m + 1)
+  }
+
+  const approaching52Count = thisWeek.filter(
     (m) => m.warningLevel === 'warning' || m.warningLevel === 'exceeded',
   ).length
 
@@ -158,54 +203,100 @@ export function AdminDashboardPage() {
         </button>
       </div>
 
-      {/* 팀원별 주간 근무시간 */}
+      {/* 팀원별 근무시간 */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        {/* 헤더 + 주차 토글 */}
+        {/* 헤더 + 탭 */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-          <h2 className="text-sm font-semibold text-gray-900">팀원별 주간 근무시간</h2>
+          <h2 className="text-sm font-semibold text-gray-900">
+            {mode === 'month' ? '팀원별 월간 연장근무' : '팀원별 금주 연장근무'}
+          </h2>
           <div className="flex bg-gray-100 rounded-lg p-0.5 gap-0.5">
             <button
-              onClick={() => setWeek('this')}
+              onClick={() => setMode('this')}
               className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                week === 'this'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
+                mode === 'this' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               금주
             </button>
             <button
-              onClick={() => setWeek('last')}
+              onClick={() => setMode('month')}
               className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                week === 'last'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
+                mode === 'month' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              지난주
+              월별
             </button>
           </div>
         </div>
 
-        {/* 게이지 범례 */}
-        <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 border-b border-gray-100">
-          {[
-            { color: 'bg-success-500', label: '정상 (~40h)' },
-            { color: 'bg-warning-500', label: '주의 (40~48h)' },
-            { color: 'bg-orange-400', label: '경고 (48~52h)' },
-            { color: 'bg-danger-600', label: '초과 (52h+)' },
-          ].map(({ color, label }) => (
-            <div key={label} className="flex items-center gap-1">
-              <div className={`w-2.5 h-2.5 rounded-full ${color}`} />
-              <span className="text-xs text-gray-500">{label}</span>
-            </div>
-          ))}
-        </div>
+        {/* 월 선택 네비게이션 (월별 모드일 때만) */}
+        {mode === 'month' && (
+          <div className="flex items-center justify-center gap-4 px-4 py-2 bg-gray-50 border-b border-gray-100">
+            <button onClick={prevMonth} className="p-1 rounded hover:bg-gray-200 transition-colors">
+              <ChevronLeft className="w-4 h-4 text-gray-600" />
+            </button>
+            <span className="text-sm font-medium text-gray-700 min-w-[90px] text-center">
+              {selectedYear}년 {selectedMonth}월
+            </span>
+            <button
+              onClick={nextMonth}
+              disabled={selectedYear === now.getFullYear() && selectedMonth === now.getMonth() + 1}
+              className="p-1 rounded hover:bg-gray-200 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <ChevronRight className="w-4 h-4 text-gray-600" />
+            </button>
+          </div>
+        )}
+
+        {/* 게이지 범례 (주간 모드만) */}
+        {mode !== 'month' && (
+          <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 border-b border-gray-100">
+            {[
+              { color: 'bg-success-500', label: '정상 (~40h)' },
+              { color: 'bg-warning-500', label: '주의 (40~48h)' },
+              { color: 'bg-orange-400', label: '경고 (48~52h)' },
+              { color: 'bg-danger-600', label: '초과 (52h+)' },
+            ].map(({ color, label }) => (
+              <div key={label} className="flex items-center gap-1">
+                <div className={`w-2.5 h-2.5 rounded-full ${color}`} />
+                <span className="text-xs text-gray-500">{label}</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         <TeamGaugeList members={members} />
         {members.length === 0 && (
           <div className="px-4 py-8 text-center">
             <p className="text-sm text-gray-400">해당 기간 승인된 야근 데이터가 없습니다</p>
+          </div>
+        )}
+
+        {/* 주차별 시간 분포 (월별 모드만) */}
+        {mode === 'month' && weeklyBreakdown.length > 0 && (
+          <div className="px-4 py-4 border-t border-gray-100">
+            <p className="text-xs font-semibold text-gray-500 mb-3">주차별 야근 합계</p>
+            <div className="space-y-2">
+              {weeklyBreakdown.map(({ label, hours }) => {
+                const maxHours = Math.max(...weeklyBreakdown.map((w) => w.hours), 1)
+                const pct = (hours / maxHours) * 100
+                return (
+                  <div key={label} className="flex items-center gap-3">
+                    <span className="text-xs text-gray-500 w-10 shrink-0">{label}</span>
+                    <div className="flex-1 bg-gray-100 rounded-full h-2">
+                      <div
+                        className="bg-primary-500 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <span className="text-xs font-medium text-gray-700 w-12 text-right shrink-0">
+                      {hours.toFixed(1)}h
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )}
       </div>

@@ -144,7 +144,7 @@ export const LEAVE_TYPE_LABEL: Record<LeaveType, string> = {
   annual: '연차',
   half_am: '오전반차',
   half_pm: '오후반차',
-  special: '특별휴가',
+  special: '기타',
   sick: '병가',
 }
 

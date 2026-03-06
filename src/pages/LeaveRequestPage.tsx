@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ChevronLeft, AlertTriangle, CalendarDays } from 'lucide-react'
 import type { LeaveType } from '../types'
 import { LEAVE_TYPE_LABEL } from '../types'
@@ -7,9 +7,18 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 
 
-const LEAVE_TYPES: LeaveType[] = ['annual', 'half_am', 'half_pm', 'special', 'sick']
+const LEAVE_TYPES: LeaveType[] = ['annual', 'half_am', 'half_pm', 'sick', 'special']
 
 const HALF_DAY_TYPES: LeaveType[] = ['half_am', 'half_pm']
+
+const OTHER_SUBTYPES: { label: string; days: number }[] = [
+  { label: '본인/배우자의 조부모·외조부모·형제자매 사망', days: 2 },
+  { label: '본인/배우자의 부모·배우자 사망', days: 3 },
+  { label: '본인 결혼', days: 5 },
+  { label: '건강검진', days: 0.5 },
+  { label: '예비군/민방위 훈련', days: 1 },
+  { label: '배우자 출산', days: 3 },
+]
 
 function countWeekdays(start: string, end: string): number {
   if (!start || !end) return 0
@@ -28,6 +37,7 @@ function countWeekdays(start: string, end: string): number {
 
 export function LeaveRequestPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { employee } = useAuth()
   const [remainingDays, setRemainingDays] = useState(0)
 
@@ -46,23 +56,27 @@ export function LeaveRequestPage() {
     fetchBalance()
   }, [employee?.id])
 
-  const [leaveType, setLeaveType] = useState<LeaveType>('annual')
+  const [leaveType, setLeaveType] = useState<LeaveType>((searchParams.get('type') as LeaveType) || 'annual')
+  const [otherSubType, setOtherSubType] = useState(OTHER_SUBTYPES[0].label)
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [reason, setReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   const isHalfDay = HALF_DAY_TYPES.includes(leaveType)
+  const isOther = leaveType === 'special'
+  const otherSubInfo = OTHER_SUBTYPES.find((s) => s.label === otherSubType) ?? OTHER_SUBTYPES[0]
 
   const calculatedDays = useMemo(() => {
     if (isHalfDay) return 0.5
+    if (isOther) return otherSubInfo.days
     if (!startDate) return 0
     const end = endDate || startDate
     return countWeekdays(startDate, end)
-  }, [isHalfDay, startDate, endDate])
+  }, [isHalfDay, isOther, otherSubInfo, startDate, endDate])
 
-  const isOverLimit = calculatedDays > remainingDays
-  const canSubmit = reason.trim().length > 0 && startDate && calculatedDays > 0 && !isOverLimit
+  const isOverLimit = !isOther && calculatedDays > remainingDays
+  const canSubmit = startDate && calculatedDays > 0 && !isOverLimit && (isOther || reason.trim().length > 0)
 
   function handleLeaveTypeChange(type: LeaveType) {
     setLeaveType(type)
@@ -76,14 +90,17 @@ export function LeaveRequestPage() {
     if (!canSubmit) return
     setSubmitting(true)
 
+    const finalReason = isOther ? otherSubType + (reason.trim() ? ` / ${reason.trim()}` : '') : reason.trim()
+    const finalEnd = isHalfDay ? startDate : (endDate || startDate)
+
     // DB에 휴가 신청 저장
     const { error } = await supabase.from('leave_requests').insert({
       employee_id: employee?.id ?? '',
       type: leaveType,
       start_date: startDate,
-      end_date: isHalfDay ? startDate : (endDate || startDate),
+      end_date: finalEnd,
       days: calculatedDays,
-      reason: reason.trim(),
+      reason: finalReason,
     })
 
     if (error) {
@@ -99,11 +116,11 @@ export function LeaveRequestPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           employeeName: employee?.name ?? '직원',
-          leaveType: LEAVE_TYPE_LABEL[leaveType],
+          leaveType: isOther ? otherSubType : LEAVE_TYPE_LABEL[leaveType],
           startDate,
-          endDate: isHalfDay ? startDate : (endDate || startDate),
+          endDate: finalEnd,
           days: calculatedDays,
-          reason,
+          reason: finalReason,
         }),
       })
     } catch (err) {
@@ -137,34 +154,44 @@ export function LeaveRequestPage() {
             <CalendarDays className="w-4 h-4 text-primary-600" />
             휴가 유형
           </label>
-          <div className="grid grid-cols-2 gap-2 mt-3">
+          <select
+            value={leaveType}
+            onChange={(e) => handleLeaveTypeChange(e.target.value as LeaveType)}
+            className="w-full mt-2 px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
+          >
             {LEAVE_TYPES.map((type) => (
-              <button
-                key={type}
-                type="button"
-                onClick={() => handleLeaveTypeChange(type)}
-                className={`py-2.5 px-3 rounded-xl text-sm font-medium border transition-colors ${
-                  leaveType === type
-                    ? 'bg-primary-600 text-white border-primary-600'
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-primary-300 hover:text-primary-600'
-                }`}
-              >
-                {LEAVE_TYPE_LABEL[type]}
-                {HALF_DAY_TYPES.includes(type) && (
-                  <span className="ml-1 text-xs opacity-70">(0.5일)</span>
-                )}
-              </button>
+              <option key={type} value={type}>
+                {LEAVE_TYPE_LABEL[type]}{HALF_DAY_TYPES.includes(type) ? ' (0.5일)' : ''}
+              </option>
             ))}
-          </div>
+          </select>
+
+          {/* 기타 세부 유형 */}
+          {isOther && (
+            <div className="mt-3">
+              <label className="text-xs text-gray-500 mb-1 block">세부 유형</label>
+              <select
+                value={otherSubType}
+                onChange={(e) => setOtherSubType(e.target.value)}
+                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
+              >
+                {OTHER_SUBTYPES.map((s) => (
+                  <option key={s.label} value={s.label}>
+                    {s.label} ({s.days}일)
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* 날짜 선택 */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
           <p className="text-sm font-semibold text-gray-700">날짜 선택</p>
 
-          {isHalfDay ? (
+          {(isHalfDay || isOther) ? (
             <div>
-              <label className="text-xs text-gray-500 mb-1 block">날짜</label>
+              <label className="text-xs text-gray-500 mb-1 block">시작일</label>
               <input
                 type="date"
                 value={startDate}
@@ -172,7 +199,8 @@ export function LeaveRequestPage() {
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-400"
                 required
               />
-              <p className="text-xs text-gray-400 mt-1.5">반차는 0.5일 차감됩니다</p>
+              {isHalfDay && <p className="text-xs text-gray-400 mt-1.5">반차는 0.5일 차감됩니다</p>}
+              {isOther && <p className="text-xs text-gray-400 mt-1.5">일수는 {otherSubInfo.days}일 자동 적용됩니다</p>}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3">
@@ -228,7 +256,8 @@ export function LeaveRequestPage() {
         {/* 사유 */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
           <label className="text-sm font-semibold text-gray-700 mb-2 block">
-            사유 <span className="text-danger-500">*</span>
+            사유 {!isOther && <span className="text-danger-500">*</span>}
+            {isOther && <span className="text-gray-400 text-xs font-normal ml-1">(선택)</span>}
           </label>
           <textarea
             value={reason}

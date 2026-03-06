@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { CheckSquare, X, Clock, History } from 'lucide-react'
 import { ApprovalCard } from '../components/admin/ApprovalCard'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
-import type { OvertimeRequest, LeaveRequest, ApprovalHistory } from '../types'
+import type { OvertimeRequest, ApprovalHistory } from '../types'
 import { REQUEST_STATUS_LABEL } from '../types'
 
 
@@ -35,10 +36,12 @@ interface HistoryModalState {
 export function AdminApprovalsPage() {
   const { employee } = useAuth()
   const isAdminRole = employee?.role === 'admin'
+  const [searchParams] = useSearchParams()
 
-  const [tab, setTab] = useState<'overtime' | 'leave'>('overtime')
+  const [selectedEmployee, setSelectedEmployee] = useState<string | null>(
+    searchParams.get('employee')
+  )
   const [overtimes, setOvertimes] = useState<(OvertimeRequest & { weeklyHours: number })[]>([])
-  const [leaves, setLeaves] = useState<LeaveRequest[]>([])
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set())
   const [rejectModal, setRejectModal] = useState<RejectModalState>({ open: false, id: '', reason: '' })
   const [timeEditModal, setTimeEditModal] = useState<TimeEditModalState>({ open: false, id: '', start: '', end: '' })
@@ -47,7 +50,6 @@ export function AdminApprovalsPage() {
 
   useEffect(() => {
     fetchOvertimes()
-    fetchLeaves()
   }, [])
 
   async function fetchOvertimes() {
@@ -58,17 +60,6 @@ export function AdminApprovalsPage() {
 
     if (!error && data) {
       setOvertimes(data.map((r) => ({ ...r, weeklyHours: 0 })) as (OvertimeRequest & { weeklyHours: number })[])
-    }
-  }
-
-  async function fetchLeaves() {
-    const { data, error } = await supabase
-      .from('leave_requests')
-      .select('*, employee:employees!leave_requests_employee_id_fkey(id, name, department)')
-      .order('created_at', { ascending: false })
-
-    if (!error && data) {
-      setLeaves(data as LeaveRequest[])
     }
   }
 
@@ -91,9 +82,8 @@ export function AdminApprovalsPage() {
   }
 
   async function handleApprove(id: string) {
-    const table = tab === 'overtime' ? 'overtime_requests' : 'leave_requests'
     const { error } = await supabase
-      .from(table)
+      .from('overtime_requests')
       .update({ status: 'approved', approved_by: employee?.id, approved_at: new Date().toISOString() })
       .eq('id', id)
 
@@ -102,13 +92,8 @@ export function AdminApprovalsPage() {
       return
     }
 
-    await recordHistory(id, tab, 'pending', 'approved', null)
-
-    if (tab === 'overtime') {
-      setOvertimes((prev) => prev.map((r) => r.id === id ? { ...r, status: 'approved' } : r))
-    } else {
-      setLeaves((prev) => prev.map((r) => r.id === id ? { ...r, status: 'approved' } : r))
-    }
+    await recordHistory(id, 'overtime', 'pending', 'approved', null)
+    setOvertimes((prev) => prev.map((r) => r.id === id ? { ...r, status: 'approved' } : r))
     setCheckedIds((prev) => { const s = new Set(prev); s.delete(id); return s })
   }
 
@@ -118,9 +103,8 @@ export function AdminApprovalsPage() {
 
   async function confirmReject() {
     const { id, reason } = rejectModal
-    const table = tab === 'overtime' ? 'overtime_requests' : 'leave_requests'
     const { error } = await supabase
-      .from(table)
+      .from('overtime_requests')
       .update({ status: 'rejected', rejection_reason: reason })
       .eq('id', id)
 
@@ -129,13 +113,8 @@ export function AdminApprovalsPage() {
       return
     }
 
-    await recordHistory(id, tab, 'pending', 'rejected', reason)
-
-    if (tab === 'overtime') {
-      setOvertimes((prev) => prev.map((r) => r.id === id ? { ...r, status: 'rejected', rejection_reason: reason } : r))
-    } else {
-      setLeaves((prev) => prev.map((r) => r.id === id ? { ...r, status: 'rejected', rejection_reason: reason } : r))
-    }
+    await recordHistory(id, 'overtime', 'pending', 'rejected', reason)
+    setOvertimes((prev) => prev.map((r) => r.id === id ? { ...r, status: 'rejected', rejection_reason: reason } : r))
     setCheckedIds((prev) => { const s = new Set(prev); s.delete(id); return s })
     setRejectModal({ open: false, id: '', reason: '' })
   }
@@ -150,21 +129,16 @@ export function AdminApprovalsPage() {
 
   async function handleBulkApprove() {
     const ids = Array.from(checkedIds)
-    const table = tab === 'overtime' ? 'overtime_requests' : 'leave_requests'
 
     for (const id of ids) {
       await supabase
-        .from(table)
+        .from('overtime_requests')
         .update({ status: 'approved', approved_by: employee?.id, approved_at: new Date().toISOString() })
         .eq('id', id)
-      await recordHistory(id, tab, 'pending', 'approved', null)
+      await recordHistory(id, 'overtime', 'pending', 'approved', null)
     }
 
-    if (tab === 'overtime') {
-      setOvertimes((prev) => prev.map((r) => checkedIds.has(r.id) ? { ...r, status: 'approved' } : r))
-    } else {
-      setLeaves((prev) => prev.map((r) => checkedIds.has(r.id) ? { ...r, status: 'approved' } : r))
-    }
+    setOvertimes((prev) => prev.map((r) => checkedIds.has(r.id) ? { ...r, status: 'approved' } : r))
     setCheckedIds(new Set())
   }
 
@@ -203,9 +177,8 @@ export function AdminApprovalsPage() {
     const { id, reason } = revokeModal
     if (!reason.trim()) return
 
-    const table = tab === 'overtime' ? 'overtime_requests' : 'leave_requests'
     const { error } = await supabase
-      .from(table)
+      .from('overtime_requests')
       .update({
         status: 'pending',
         approved_by: null,
@@ -218,17 +191,10 @@ export function AdminApprovalsPage() {
       return
     }
 
-    await recordHistory(id, tab, 'approved', 'pending', reason)
-
-    if (tab === 'overtime') {
-      setOvertimes((prev) => prev.map((r) =>
-        r.id === id ? { ...r, status: 'pending', approved_by: null, approved_at: null } : r,
-      ))
-    } else {
-      setLeaves((prev) => prev.map((r) =>
-        r.id === id ? { ...r, status: 'pending', approved_by: null, approved_at: null } : r,
-      ))
-    }
+    await recordHistory(id, 'overtime', 'approved', 'pending', reason)
+    setOvertimes((prev) => prev.map((r) =>
+      r.id === id ? { ...r, status: 'pending', approved_by: null, approved_at: null } : r,
+    ))
     setRevokeModal({ open: false, id: '', reason: '' })
   }
 
@@ -247,8 +213,11 @@ export function AdminApprovalsPage() {
     })
   }
 
-  const pendingOvertimes = overtimes.filter((r) => r.status === 'pending')
-  const pendingLeaves = leaves.filter((r) => r.status === 'pending')
+  const employees = Array.from(
+    new Map(overtimes.map(r => [r.employee_id, (r.employee as any)?.name ?? r.employee_id])).entries()
+  ).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+
+  const filteredOvertimes = selectedEmployee ? overtimes.filter(r => r.employee_id === selectedEmployee) : overtimes
 
   const STATUS_COLOR: Record<string, string> = {
     pending: 'text-warning-600',
@@ -260,39 +229,38 @@ export function AdminApprovalsPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">승인 관리</h1>
-        <p className="text-sm text-gray-500 mt-0.5">야근·휴가 신청을 검토하고 처리하세요</p>
+        <h1 className="text-xl font-bold text-gray-900">야근 승인 관리</h1>
+        <p className="text-sm text-gray-500 mt-0.5">야근 신청을 검토하고 처리하세요</p>
       </div>
 
-      {/* 탭 */}
-      <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
-        <button
-          onClick={() => { setTab('overtime'); setCheckedIds(new Set()) }}
-          className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-colors ${
-            tab === 'overtime' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
-          }`}
-        >
-          야근 승인
-          {pendingOvertimes.length > 0 && (
-            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 text-xs bg-warning-500 text-white rounded-full">
-              {pendingOvertimes.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => { setTab('leave'); setCheckedIds(new Set()) }}
-          className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-colors ${
-            tab === 'leave' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
-          }`}
-        >
-          휴가 승인
-          {pendingLeaves.length > 0 && (
-            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 text-xs bg-primary-600 text-white rounded-full">
-              {pendingLeaves.length}
-            </span>
-          )}
-        </button>
-      </div>
+      {/* 직원 필터 */}
+      {employees.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+          <button
+            onClick={() => setSelectedEmployee(null)}
+            className={`shrink-0 px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+              selectedEmployee === null
+                ? 'bg-gray-800 text-white border-gray-800'
+                : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'
+            }`}
+          >
+            전체
+          </button>
+          {employees.map(({ id, name }) => (
+            <button
+              key={id}
+              onClick={() => setSelectedEmployee(selectedEmployee === id ? null : id)}
+              className={`shrink-0 px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+                selectedEmployee === id
+                  ? 'bg-primary-600 text-white border-primary-600'
+                  : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'
+              }`}
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* 일괄 승인 바 (대표만) */}
       {isAdminRole && checkedIds.size > 0 && (
@@ -310,49 +278,24 @@ export function AdminApprovalsPage() {
 
       {/* 목록 */}
       <div className="space-y-3">
-        {tab === 'overtime' && (
-          <>
-            {overtimes.map((req) => (
-              <ApprovalCard
-                key={req.id}
-                request={req}
-                type="overtime"
-                canApprove={isAdminRole}
-                onApprove={handleApprove}
-                onReject={openReject}
-                onEditTime={isAdminRole ? openTimeEdit : undefined}
-                onRevokeApproval={isAdminRole ? openRevokeModal : undefined}
-                onViewHistory={openHistoryModal}
-                checked={checkedIds.has(req.id)}
-                onCheck={req.status === 'pending' && isAdminRole ? handleCheck : undefined}
-                weeklyHours={req.weeklyHours}
-              />
-            ))}
-            {overtimes.length === 0 && (
-              <p className="text-center text-sm text-gray-400 py-10">대기 중인 야근 제출이 없습니다</p>
-            )}
-          </>
-        )}
-        {tab === 'leave' && (
-          <>
-            {leaves.map((req) => (
-              <ApprovalCard
-                key={req.id}
-                request={req}
-                type="leave"
-                canApprove={isAdminRole}
-                onApprove={handleApprove}
-                onReject={openReject}
-                onRevokeApproval={isAdminRole ? openRevokeModal : undefined}
-                onViewHistory={openHistoryModal}
-                checked={checkedIds.has(req.id)}
-                onCheck={req.status === 'pending' && isAdminRole ? handleCheck : undefined}
-              />
-            ))}
-            {leaves.length === 0 && (
-              <p className="text-center text-sm text-gray-400 py-10">대기 중인 휴가 신청이 없습니다</p>
-            )}
-          </>
+        {filteredOvertimes.map((req) => (
+          <ApprovalCard
+            key={req.id}
+            request={req}
+            type="overtime"
+            canApprove={isAdminRole}
+            onApprove={handleApprove}
+            onReject={openReject}
+            onEditTime={isAdminRole ? openTimeEdit : undefined}
+            onRevokeApproval={isAdminRole ? openRevokeModal : undefined}
+            onViewHistory={openHistoryModal}
+            checked={checkedIds.has(req.id)}
+            onCheck={req.status === 'pending' && isAdminRole ? handleCheck : undefined}
+            weeklyHours={req.weeklyHours}
+          />
+        ))}
+        {filteredOvertimes.length === 0 && (
+          <p className="text-center text-sm text-gray-400 py-10">야근 제출 내역이 없습니다</p>
         )}
       </div>
 

@@ -1,7 +1,7 @@
+import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard,
-  FilePlus,
   FileText,
   Calendar,
   Shield,
@@ -11,7 +11,10 @@ import {
   Users,
   DollarSign,
   Receipt,
+  ChevronDown,
   Settings,
+  FolderOpen,
+  Archive,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -25,6 +28,8 @@ export function Sidebar() {
   const { employee, signOut } = useAuth()
   const isAdmin = employee?.role === 'manager' || employee?.role === 'admin'
   const isSuperAdmin = employee?.role === 'admin'
+  const [leaveOpen, setLeaveOpen] = useState(true)
+  const [etcOpen, setEtcOpen] = useState(true)
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
@@ -33,19 +38,26 @@ export function Sidebar() {
         : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
     }`
 
+  const subNavLinkClass = ({ isActive }: { isActive: boolean }) =>
+    `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+      isActive
+        ? 'bg-primary-50 text-primary-700'
+        : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
+    }`
+
   const mainNav: NavItem[] = [
     { to: '/', label: '대시보드', icon: <LayoutDashboard size={18} /> },
-    { to: '/request', label: '연장근무 신청', icon: <FilePlus size={18} /> },
-    { to: '/requests', label: '내 제출 목록', icon: <FileText size={18} /> },
-    { to: '/leave', label: '연차 관리', icon: <Calendar size={18} /> },
+    { to: '/requests', label: '근무 관리', icon: <FileText size={18} /> },
+    { to: '/leave', label: '휴가 관리', icon: <Calendar size={18} /> },
     { to: '/expenses', label: '경비 제출', icon: <Receipt size={18} /> },
   ]
 
-  const adminNav: NavItem[] = [
+  const adminNavBefore: NavItem[] = [
     { to: '/admin', label: '관리자 대시보드', icon: <Shield size={18} /> },
-    { to: '/admin/approvals', label: '야근 관리', icon: <CheckSquare size={18} /> },
-    { to: '/admin/leave', label: '휴가 관리', icon: <CalendarCheck size={18} /> },
-    { to: '/admin/leave-types', label: '휴가 종류 설정', icon: <Settings size={18} /> },
+    { to: '/admin/overtime', label: '야근 관리', icon: <CheckSquare size={18} /> },
+  ]
+
+  const adminNavAfter: NavItem[] = [
     { to: '/admin/expenses', label: '경비 관리', icon: <Receipt size={18} /> },
     { to: '/admin/payroll', label: '급여 계산', icon: <DollarSign size={18} /> },
   ]
@@ -75,12 +87,74 @@ export function Sidebar() {
             <div className="mt-4 mb-2 px-3">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">관리자</p>
             </div>
-            {adminNav.map((item) => (
+            {adminNavBefore.map((item) => (
               <NavLink key={item.to} to={item.to} className={navLinkClass}>
                 {item.icon}
                 {item.label}
               </NavLink>
             ))}
+
+            {/* 휴가 관리 (접히는 그룹) */}
+            <div>
+              <button
+                onClick={() => setLeaveOpen(o => !o)}
+                className="flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <CalendarCheck size={18} />
+                  휴가 관리
+                </div>
+                <ChevronDown
+                  size={14}
+                  className={`transition-transform duration-200 ${leaveOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+              {leaveOpen && (
+                <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-100 pl-3">
+                  <NavLink to="/admin/leave" end className={subNavLinkClass}>
+                    <CalendarCheck size={16} />
+                    휴가 현황
+                  </NavLink>
+                  <NavLink to="/admin/leave-types" className={subNavLinkClass}>
+                    <Settings size={16} />
+                    종류 설정
+                  </NavLink>
+                </div>
+              )}
+            </div>
+
+            {adminNavAfter.map((item) => (
+              <NavLink key={item.to} to={item.to} className={navLinkClass}>
+                {item.icon}
+                {item.label}
+              </NavLink>
+            ))}
+
+            {/* 기타 (접히는 그룹) */}
+            <div>
+              <button
+                onClick={() => setEtcOpen(o => !o)}
+                className="flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <Archive size={18} />
+                  기타
+                </div>
+                <ChevronDown
+                  size={14}
+                  className={`transition-transform duration-200 ${etcOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+              {etcOpen && (
+                <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-100 pl-3">
+                  <NavLink to="/admin/documents" className={subNavLinkClass}>
+                    <FolderOpen size={16} />
+                    자료실
+                  </NavLink>
+                </div>
+              )}
+            </div>
+
             {isSuperAdmin && (
               <>
                 <div className="mt-4 mb-2 px-3">

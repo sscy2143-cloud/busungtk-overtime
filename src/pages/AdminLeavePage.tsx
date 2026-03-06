@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Plus, Minus, Trash2, RefreshCw, FileText } from 'lucide-react'
-import { StatusBadge } from '../components/common/StatusBadge'
+import { X, Plus, Minus, Trash2, RefreshCw, FileText, Clock, CheckSquare, AlertTriangle, Calendar } from 'lucide-react'
 import type { LeaveRequest } from '../types'
 import { LEAVE_TYPE_LABEL } from '../types'
 import { supabase } from '../lib/supabase'
@@ -41,7 +40,6 @@ interface SubstituteGrantModal {
 
 export function AdminLeavePage() {
   const { isDemo, employee } = useAuth()
-  const [tab, setTab] = useState<'approvals' | 'balances'>('approvals')
   const [requests, setRequests] = useState<LeaveRequest[]>([])
   const [balances, setBalances] = useState<EmployeeBalance[]>([])
   const [balancesLoading, setBalancesLoading] = useState(false)
@@ -307,178 +305,217 @@ export function AdminLeavePage() {
     sick: 'bg-orange-50 text-orange-700',
   }
 
+  const pendingRequests = requests.filter(r => r.status === 'pending')
+  const thisMonthPrefix = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
+  const thisMonthApproved = requests.filter(r => r.status === 'approved' && r.start_date?.startsWith(thisMonthPrefix)).length
+  const lowRemainingEmployees = balances.filter(b => b.remaining_days <= 5)
+  const avgRemaining = balances.length > 0
+    ? (balances.reduce((s, b) => s + b.remaining_days, 0) / balances.length).toFixed(1)
+    : '-'
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
+      {/* 헤더 */}
       <div>
         <h1 className="text-xl font-bold text-gray-900">휴가 관리</h1>
-        <p className="text-sm text-gray-500 mt-0.5">휴가 승인 및 잔여 현황 관리</p>
+        <p className="text-sm text-gray-500 mt-0.5">팀 휴가 현황을 한눈에 파악하세요</p>
       </div>
 
-      {/* 탭 */}
-      <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
-        <button
-          onClick={() => setTab('approvals')}
-          className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-colors ${
-            tab === 'approvals' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
-          }`}
-        >
-          승인 관리
-          {requests.filter((r) => r.status === 'pending').length > 0 && (
-            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 text-xs bg-warning-500 text-white rounded-full">
-              {requests.filter((r) => r.status === 'pending').length}
-            </span>
+      {/* 상단: KPI + 대기 목록 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+        {/* 좌: 주요 지표 */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-700">현황 요약</h2>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-warning-50 rounded-xl p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Clock className="w-4 h-4 text-warning-500" />
+                <span className="text-xs text-warning-600 font-medium">승인 대기</span>
+              </div>
+              <p className="text-2xl font-bold text-warning-700">{pendingRequests.length}<span className="text-sm ml-1">건</span></p>
+            </div>
+            <div className="bg-success-50 rounded-xl p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <CheckSquare className="w-4 h-4 text-success-500" />
+                <span className="text-xs text-success-600 font-medium">이번달 승인</span>
+              </div>
+              <p className="text-2xl font-bold text-success-700">{thisMonthApproved}<span className="text-sm ml-1">건</span></p>
+            </div>
+            <div className={`rounded-xl p-3 ${lowRemainingEmployees.length > 0 ? 'bg-danger-50' : 'bg-gray-50'}`}>
+              <div className="flex items-center gap-2 mb-1">
+                <AlertTriangle className={`w-4 h-4 ${lowRemainingEmployees.length > 0 ? 'text-danger-500' : 'text-gray-400'}`} />
+                <span className={`text-xs font-medium ${lowRemainingEmployees.length > 0 ? 'text-danger-600' : 'text-gray-500'}`}>잔여 5일 이하</span>
+              </div>
+              <p className={`text-2xl font-bold ${lowRemainingEmployees.length > 0 ? 'text-danger-700' : 'text-gray-400'}`}>
+                {lowRemainingEmployees.length}<span className="text-sm ml-1">명</span>
+              </p>
+            </div>
+            <div className="bg-blue-50 rounded-xl p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Calendar className="w-4 h-4 text-blue-500" />
+                <span className="text-xs text-blue-600 font-medium">평균 잔여</span>
+              </div>
+              <p className="text-2xl font-bold text-blue-700">{avgRemaining}<span className="text-sm ml-1">일</span></p>
+            </div>
+          </div>
+
+          {/* 잔여 5일 이하 직원 목록 */}
+          {lowRemainingEmployees.length > 0 && (
+            <div className="border-t border-gray-100 pt-3">
+              <p className="text-xs font-semibold text-danger-600 mb-2">⚠ 잔여 연차 부족 직원</p>
+              <div className="space-y-1">
+                {lowRemainingEmployees.map(emp => (
+                  <div key={emp.id} className="flex items-center justify-between text-xs bg-danger-50 rounded-lg px-3 py-1.5">
+                    <span className="text-gray-700 font-medium">{emp.name}</span>
+                    <span className={`font-bold ${emp.remaining_days <= 0 ? 'text-danger-700' : 'text-warning-600'}`}>
+                      잔여 {emp.remaining_days}일
+                      {emp.remaining_days <= 0 && <span className="ml-1">소진</span>}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
-        </button>
-        <button
-          onClick={() => setTab('balances')}
-          className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-colors ${
-            tab === 'balances' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
-          }`}
-        >
-          직원별 잔여 현황
-        </button>
-      </div>
+        </div>
 
-      {/* 승인 관리 탭 */}
-      {tab === 'approvals' && (
-        <div className="space-y-3">
-          {requests.map((req) => (
-            <div
-              key={req.id}
-              className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 rounded-full bg-primary-100 flex items-center justify-center shrink-0">
-                    <span className="text-sm font-bold text-primary-700">
+        {/* 우: 승인 대기 목록 */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+          <div className="px-4 py-3 border-b border-gray-100 shrink-0">
+            <h2 className="text-sm font-semibold text-gray-900">승인 대기중</h2>
+          </div>
+          {pendingRequests.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center py-10">
+              <p className="text-sm text-gray-400">대기중인 건이 없습니다</p>
+            </div>
+          ) : (
+            <div className="overflow-y-auto flex-1 max-h-[320px] divide-y divide-gray-50">
+              {pendingRequests.map(req => (
+                <div key={req.id} className="px-4 py-3 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center shrink-0">
+                    <span className="text-xs font-bold text-primary-700">
                       {req.employee?.name?.charAt(0) ?? '?'}
                     </span>
                   </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-semibold text-gray-900">{req.employee?.name}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-sm font-medium text-gray-800">{req.employee?.name ?? '-'}</span>
                       <span className="text-xs text-gray-400">{req.employee?.department}</span>
                     </div>
-                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${LEAVE_TYPE_COLOR[req.type]}`}>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${LEAVE_TYPE_COLOR[req.type]}`}>
                         {LEAVE_TYPE_LABEL[req.type]}
                       </span>
-                      <span className="text-xs text-gray-400">
-                        {req.start_date}
-                        {req.start_date !== req.end_date && ` ~ ${req.end_date}`}
-                        <span className="ml-1">({req.days}일)</span>
+                      <span className="text-xs text-gray-500">
+                        {req.start_date}{req.start_date !== req.end_date ? ` ~ ${req.end_date}` : ''} ({req.days}일)
                       </span>
                     </div>
-                    <p className="text-xs text-gray-500 mt-1 truncate">{req.reason}</p>
+                    {req.reason && <p className="text-xs text-gray-400 truncate mt-0.5">{req.reason}</p>}
                   </div>
-                </div>
-                <StatusBadge status={req.status} />
-              </div>
-
-              <div className="flex gap-2 mt-3">
-                {req.status === 'pending' && (
-                  <>
+                  <div className="flex gap-1.5 shrink-0">
                     <button
                       onClick={() => handleApprove(req.id)}
-                      className="flex-1 py-1.5 text-xs font-semibold bg-success-500 text-white rounded-lg hover:bg-success-600 transition-colors"
+                      className="px-2.5 py-1.5 text-xs font-semibold text-white bg-success-500 rounded-lg hover:bg-success-600 transition-colors"
                     >
                       승인
                     </button>
                     <button
                       onClick={() => openReject(req.id)}
-                      className="flex-1 py-1.5 text-xs font-semibold bg-white text-danger-600 border border-danger-300 rounded-lg hover:bg-danger-50 transition-colors"
+                      className="px-2.5 py-1.5 text-xs font-semibold text-danger-600 border border-danger-300 rounded-lg hover:bg-danger-50 transition-colors"
                     >
                       반려
                     </button>
-                  </>
-                )}
-                <button
-                  onClick={() => setDeleteModal({ open: true, id: req.id, employeeName: req.employee?.name ?? '', days: req.days, status: req.status })}
-                  className={`py-1.5 text-xs font-semibold text-danger-600 border border-danger-300 rounded-lg hover:bg-danger-50 transition-colors flex items-center justify-center gap-1 ${req.status === 'pending' ? 'px-3' : 'flex-1'}`}
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  삭제
-                </button>
-              </div>
+                    <button
+                      onClick={() => setDeleteModal({ open: true, id: req.id, employeeName: req.employee?.name ?? '', days: req.days, status: req.status })}
+                      className="p-1.5 text-danger-400 hover:text-danger-600 hover:bg-danger-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-          {requests.length === 0 && (
-            <p className="text-center text-sm text-gray-400 py-10">대기 중인 휴가 신청이 없습니다</p>
           )}
         </div>
-      )}
+      </div>
 
-      {/* 직원별 잔여 현황 탭 */}
-      {tab === 'balances' && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          {balancesLoading ? (
-            <p className="text-center text-sm text-gray-400 py-10">불러오는 중...</p>
-          ) : balances.length === 0 ? (
-            <p className="text-center text-sm text-gray-400 py-10">
-              활성 직원이 없습니다. 사용자 관리에서 직원을 먼저 등록해주세요.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-100">
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">이름</th>
-                    <th className="text-center px-2 py-3 text-xs font-semibold text-gray-500">연차</th>
-                    <th className="text-center px-2 py-3 text-xs font-semibold text-gray-500">사용</th>
-                    <th className="text-center px-2 py-3 text-xs font-semibold text-gray-500">잔여</th>
-                    <th className="text-center px-2 py-3 text-xs font-semibold text-teal-600">대체</th>
-                    <th className="text-center px-2 py-3 text-xs font-semibold text-gray-500">조정</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {balances.map((b) => (
-                    <tr key={b.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3">
-                        <p className="font-semibold text-gray-900 text-sm">{b.name}</p>
-                        <p className="text-xs text-gray-400">{b.department}</p>
-                        {adjustLogs[b.id]?.[0] && (
-                          <p className="text-xs text-primary-500 mt-0.5 flex items-center gap-0.5">
-                            <FileText className="w-3 h-3 shrink-0" />
-                            <span className="truncate">{adjustLogs[b.id][0].reason}</span>
-                            <span className="text-gray-300 shrink-0">({adjustLogs[b.id][0].date})</span>
-                          </p>
-                        )}
-                      </td>
-                      <td className="px-2 py-3 text-center text-sm text-gray-700">{b.total_days}일</td>
-                      <td className="px-2 py-3 text-center text-sm text-warning-600 font-medium">{b.used_days}일</td>
-                      <td className="px-2 py-3 text-center text-sm text-primary-600 font-bold">{b.remaining_days}일</td>
-                      <td className="px-2 py-3 text-center text-sm text-teal-600 font-bold">
-                        {(() => {
-                          const days = (b.substitute_total ?? 0) - (b.substitute_used ?? 0)
-                          const hours = Math.round(days * 8 * 10) / 10
-                          return <>{days}일 <span className="text-xs font-normal text-teal-400">({hours}h)</span></>
-                        })()}
-                      </td>
-                      <td className="px-2 py-3 text-center">
-                        <div className="flex gap-1 justify-center">
-                          <button
-                            onClick={() => openAdjust(b)}
-                            className="text-xs text-gray-500 border border-gray-200 px-2 py-1 rounded-lg hover:border-primary-400 hover:text-primary-600 transition-colors"
-                          >
-                            연차
-                          </button>
-                          <button
-                            onClick={() => openSubstituteGrant(b)}
-                            className="text-xs text-teal-600 border border-teal-200 px-2 py-1 rounded-lg hover:border-teal-400 hover:bg-teal-50 transition-colors flex items-center gap-0.5"
-                          >
-                            <RefreshCw className="w-3 h-3" />
-                            대체
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+      {/* 직원별 연차 현황 */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-100">
+          <h2 className="text-sm font-semibold text-gray-900">
+            직원별 연차 현황
+            <span className="text-xs font-normal text-gray-400 ml-2">{currentYear}년</span>
+          </h2>
         </div>
-      )}
+        {balancesLoading ? (
+          <p className="text-center text-sm text-gray-400 py-10">불러오는 중...</p>
+        ) : balances.length === 0 ? (
+          <p className="text-center text-sm text-gray-400 py-10">
+            활성 직원이 없습니다. 사용자 관리에서 직원을 먼저 등록해주세요.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">이름</th>
+                  <th className="text-center px-2 py-3 text-xs font-semibold text-gray-500">연차</th>
+                  <th className="text-center px-2 py-3 text-xs font-semibold text-gray-500">사용</th>
+                  <th className="text-center px-2 py-3 text-xs font-semibold text-gray-500">잔여</th>
+                  <th className="text-center px-2 py-3 text-xs font-semibold text-teal-600">대체</th>
+                  <th className="text-center px-2 py-3 text-xs font-semibold text-gray-500">조정</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {balances.map((b) => (
+                  <tr key={b.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <p className="font-semibold text-gray-900 text-sm">{b.name}</p>
+                      <p className="text-xs text-gray-400">{b.department}</p>
+                      {adjustLogs[b.id]?.[0] && (
+                        <p className="text-xs text-primary-500 mt-0.5 flex items-center gap-0.5">
+                          <FileText className="w-3 h-3 shrink-0" />
+                          <span className="truncate">{adjustLogs[b.id][0].reason}</span>
+                          <span className="text-gray-300 shrink-0">({adjustLogs[b.id][0].date})</span>
+                        </p>
+                      )}
+                    </td>
+                    <td className="px-2 py-3 text-center text-sm text-gray-700">{b.total_days}일</td>
+                    <td className="px-2 py-3 text-center text-sm text-warning-600 font-medium">{b.used_days}일</td>
+                    <td className={`px-2 py-3 text-center text-sm font-bold ${b.remaining_days <= 5 ? 'text-danger-600' : 'text-primary-600'}`}>
+                      {b.remaining_days}일
+                    </td>
+                    <td className="px-2 py-3 text-center text-sm text-teal-600 font-bold">
+                      {(() => {
+                        const days = (b.substitute_total ?? 0) - (b.substitute_used ?? 0)
+                        const hours = Math.round(days * 8 * 10) / 10
+                        return <>{days}일 <span className="text-xs font-normal text-teal-400">({hours}h)</span></>
+                      })()}
+                    </td>
+                    <td className="px-2 py-3 text-center">
+                      <div className="flex gap-1 justify-center">
+                        <button
+                          onClick={() => openAdjust(b)}
+                          className="text-xs text-gray-500 border border-gray-200 px-2 py-1 rounded-lg hover:border-primary-400 hover:text-primary-600 transition-colors"
+                        >
+                          연차
+                        </button>
+                        <button
+                          onClick={() => openSubstituteGrant(b)}
+                          className="text-xs text-teal-600 border border-teal-200 px-2 py-1 rounded-lg hover:border-teal-400 hover:bg-teal-50 transition-colors flex items-center gap-0.5"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          대체
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* 반려 모달 */}
       {rejectModal.open && (
