@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Home, FileText, MoreHorizontal, Shield, Calendar, Bell, Settings, X, DollarSign, Receipt } from 'lucide-react'
+import { Home, FileText, MoreHorizontal, Shield, Calendar, Bell, Settings, X, DollarSign, Receipt, UserSquare2, Banknote } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 
 export function BottomNav() {
@@ -56,6 +56,20 @@ export function BottomNav() {
           </button>
           {isAdmin && (
             <>
+              <button
+                className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+                onClick={() => { navigate('/admin/overtime/employees'); setMoreOpen(false) }}
+              >
+                <UserSquare2 size={18} className="text-primary-500" />
+                직원별 현황
+              </button>
+              <button
+                className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+                onClick={() => { navigate('/admin/overtime/pay'); setMoreOpen(false) }}
+              >
+                <Banknote size={18} className="text-primary-500" />
+                연장근무수당
+              </button>
               <button
                 className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
                 onClick={() => { navigate('/admin/expenses'); setMoreOpen(false) }}

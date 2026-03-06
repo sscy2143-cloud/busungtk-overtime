@@ -15,6 +15,10 @@ import {
   Settings,
   FolderOpen,
   Archive,
+  Clock,
+  UserSquare2,
+  Banknote,
+  Contact,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -28,6 +32,7 @@ export function Sidebar() {
   const { employee, signOut } = useAuth()
   const isAdmin = employee?.role === 'manager' || employee?.role === 'admin'
   const isSuperAdmin = employee?.role === 'admin'
+  const [overtimeOpen, setOvertimeOpen] = useState(true)
   const [leaveOpen, setLeaveOpen] = useState(true)
   const [etcOpen, setEtcOpen] = useState(true)
 
@@ -54,7 +59,7 @@ export function Sidebar() {
 
   const adminNavBefore: NavItem[] = [
     { to: '/admin', label: '관리자 대시보드', icon: <Shield size={18} /> },
-    { to: '/admin/overtime', label: '야근 관리', icon: <CheckSquare size={18} /> },
+    { to: '/admin/employees', label: '사원현황', icon: <Contact size={18} /> },
   ]
 
   const adminNavAfter: NavItem[] = [
@@ -93,6 +98,43 @@ export function Sidebar() {
                 {item.label}
               </NavLink>
             ))}
+
+            {/* 야근 관리 (접히는 그룹) */}
+            <div>
+              <button
+                onClick={() => setOvertimeOpen(o => !o)}
+                className="flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <CheckSquare size={18} />
+                  야근 관리
+                </div>
+                <ChevronDown
+                  size={14}
+                  className={`transition-transform duration-200 ${overtimeOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+              {overtimeOpen && (
+                <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-100 pl-3">
+                  <NavLink to="/admin/overtime" end className={subNavLinkClass}>
+                    <Clock size={16} />
+                    대시보드
+                  </NavLink>
+                  <NavLink to="/admin/approvals" className={subNavLinkClass}>
+                    <CheckSquare size={16} />
+                    승인 관리
+                  </NavLink>
+                  <NavLink to="/admin/overtime/employees" className={subNavLinkClass}>
+                    <UserSquare2 size={16} />
+                    직원별 현황
+                  </NavLink>
+                  <NavLink to="/admin/overtime/pay" className={subNavLinkClass}>
+                    <Banknote size={16} />
+                    연장근무수당
+                  </NavLink>
+                </div>
+              )}
+            </div>
 
             {/* 휴가 관리 (접히는 그룹) */}
             <div>

@@ -260,11 +260,11 @@ export function getPayMultiplier(
   }
 }
 
-/** 주간 누적 시간에 따른 경고 레벨 */
+/** 주간 연장근무 시간에 따른 경고 레벨 (법정 최대 12시간 기준) */
 export function getWarningLevel(totalWeeklyHours: number) {
-  if (totalWeeklyHours >= 52) return 'exceeded' as const
-  if (totalWeeklyHours >= 50) return 'warning' as const
-  if (totalWeeklyHours >= 48) return 'caution' as const
+  if (totalWeeklyHours >= 12) return 'exceeded' as const
+  if (totalWeeklyHours >= 10) return 'warning' as const
+  if (totalWeeklyHours >= 8) return 'caution' as const
   return 'normal' as const
 }
 

@@ -41,9 +41,9 @@ function calcHours(start: string, end: string): number {
 }
 
 function getWarningLevel(hours: number): WarningLevel {
-  if (hours > 52) return 'exceeded'
-  if (hours > 48) return 'warning'
-  if (hours > 40) return 'caution'
+  if (hours >= 12) return 'exceeded'   // 법정 주 연장근무 한도 초과
+  if (hours >= 10) return 'warning'
+  if (hours >= 8) return 'caution'
   return 'normal'
 }
 
@@ -253,10 +253,10 @@ export function AdminDashboardPage() {
         {mode !== 'month' && (
           <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 border-b border-gray-100">
             {[
-              { color: 'bg-success-500', label: '정상 (~40h)' },
-              { color: 'bg-warning-500', label: '주의 (40~48h)' },
-              { color: 'bg-orange-400', label: '경고 (48~52h)' },
-              { color: 'bg-danger-600', label: '초과 (52h+)' },
+              { color: 'bg-success-500', label: '정상 (~8h)' },
+              { color: 'bg-warning-500', label: '주의 (8~10h)' },
+              { color: 'bg-orange-400', label: '경고 (10~12h)' },
+              { color: 'bg-danger-600', label: '초과 (12h+)' },
             ].map(({ color, label }) => (
               <div key={label} className="flex items-center gap-1">
                 <div className={`w-2.5 h-2.5 rounded-full ${color}`} />

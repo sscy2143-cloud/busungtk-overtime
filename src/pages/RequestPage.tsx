@@ -90,7 +90,7 @@ export function RequestPage() {
     return calculateOvertimeBreakdown(date, startTime, endTime, forceHoliday)
   }, [date, startTime, endTime, forceHoliday])
 
-  const isOverWeekly = currentWeeklyHours >= 48
+  const isOverWeekly = currentWeeklyHours >= 12
 
   function showToast() {
     setToast(true)
@@ -170,11 +170,11 @@ export function RequestPage() {
         <WeeklyGauge currentHours={currentWeeklyHours} />
       </div>
 
-      {/* 48h 초과 경고 */}
+      {/* 주간 연장근무 한도 경고 */}
       {isOverWeekly && (
         <div className="flex items-start gap-2 bg-warning-50 border border-warning-400 rounded-xl px-4 py-3 mb-6 text-sm text-warning-500">
           <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-          <span>이번 주 누적 근무시간이 <strong>48시간</strong>을 초과했습니다. 추가 승인이 필요할 수 있습니다.</span>
+          <span>이번 주 연장근무가 <strong>12시간</strong>을 초과했습니다. 법정 한도를 확인하세요.</span>
         </div>
       )}
 
@@ -229,6 +229,16 @@ export function RequestPage() {
               근무 시간
             </span>
           </label>
+          {/* 휴게시간 법적 고지 */}
+          <div className="mt-2 mb-3 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5 text-xs text-blue-700 space-y-1">
+            <p className="font-semibold">📋 근로기준법 제54조 (휴게시간)</p>
+            <ul className="space-y-0.5 text-blue-600 pl-1">
+              <li>· 4시간 근무 시 <strong>30분 이상</strong> 휴게 보장</li>
+              <li>· 8시간 근무 시 <strong>1시간 이상</strong> 휴게 보장</li>
+            </ul>
+            <p className="text-blue-500 pt-0.5">실제 근무 시간을 입력해 주세요. 휴게시간은 위 기준에 따라 자동 차감됩니다.</p>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-gray-400 mb-1 block">시작</label>

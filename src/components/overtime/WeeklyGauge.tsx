@@ -3,15 +3,17 @@ interface WeeklyGaugeProps {
   maxHours?: number
 }
 
-export function WeeklyGauge({ currentHours, maxHours = 52 }: WeeklyGaugeProps) {
+export function WeeklyGauge({ currentHours, maxHours = 12 }: WeeklyGaugeProps) {
   const pct = Math.min((currentHours / maxHours) * 100, 100)
 
   const barColor =
-    currentHours >= 48
+    currentHours >= 12
       ? 'bg-danger-500'
-      : currentHours >= 40
+      : currentHours >= 10
         ? 'bg-warning-500'
-        : 'bg-success-500'
+        : currentHours >= 8
+          ? 'bg-warning-400'
+          : 'bg-success-500'
 
   const marker = (h: number, label: string) => {
     const left = (h / maxHours) * 100
@@ -27,13 +29,11 @@ export function WeeklyGauge({ currentHours, maxHours = 52 }: WeeklyGaugeProps) {
     )
   }
 
-  const extraHours = Math.max(currentHours - 40, 0)
-
   return (
     <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
       <div className="flex items-baseline gap-1 mb-3">
         <span className="text-3xl font-bold text-gray-900">{currentHours.toFixed(1)}</span>
-        <span className="text-sm text-gray-400">h / {maxHours}h</span>
+        <span className="text-sm text-gray-400">h / {maxHours}h (주간 연장)</span>
       </div>
 
       {/* 프로그레스 바 */}
@@ -46,21 +46,19 @@ export function WeeklyGauge({ currentHours, maxHours = 52 }: WeeklyGaugeProps) {
         </div>
         {/* 마커 */}
         <div className="relative mt-0">
-          {marker(40, '40h')}
-          {marker(48, '48h')}
-          {marker(52, '52h')}
+          {marker(8, '8h')}
+          {marker(10, '10h')}
+          {marker(12, '12h')}
         </div>
       </div>
 
       {/* 요약 텍스트 */}
       <p className="text-xs text-gray-500 mt-4">
-        정규 <span className="font-semibold text-gray-700">40h</span>
-        {' '}+{' '}연장{' '}
-        <span className="font-semibold text-gray-700">{extraHours.toFixed(1)}h</span>
-        {' '}={' '}총{' '}
+        이번 주 연장근무{' '}
         <span className={`font-bold ${barColor.replace('bg-', 'text-')}`}>
           {currentHours.toFixed(1)}h
         </span>
+        {currentHours >= 12 && <span className="text-danger-500 ml-1">(법정 한도 초과)</span>}
       </p>
     </div>
   )

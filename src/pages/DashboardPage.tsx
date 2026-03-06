@@ -14,20 +14,20 @@ function WeeklyGauge({ hours, max }: { hours: number; max: number }) {
 
   // 구간별 색상
   const barColor =
-    hours <= 40 ? 'bg-success-500' :
-    hours <= 48 ? 'bg-warning-500' :
-    hours <= 52 ? 'bg-danger-400' :
-    'bg-danger-600'
+    hours >= 12 ? 'bg-danger-600' :
+    hours >= 10 ? 'bg-danger-400' :
+    hours >= 8 ? 'bg-warning-500' :
+    'bg-success-500'
 
   const labelColor =
-    hours <= 40 ? 'text-success-600' :
-    hours <= 48 ? 'text-warning-500' :
-    'text-danger-600'
+    hours >= 12 ? 'text-danger-600' :
+    hours >= 8 ? 'text-warning-500' :
+    'text-success-600'
 
   // 구간 마커 위치 (%)
   const markers = [
-    { pct: (40 / max) * 100, label: '40h' },
-    { pct: (48 / max) * 100, label: '48h' },
+    { pct: (8 / max) * 100, label: '8h' },
+    { pct: (10 / max) * 100, label: '10h' },
   ]
 
   return (
@@ -36,7 +36,7 @@ function WeeklyGauge({ hours, max }: { hours: number; max: number }) {
         <span className={`text-4xl font-bold tabular-nums ${labelColor}`}>
           {hours.toFixed(1)}
         </span>
-        <span className="text-sm text-gray-400 font-medium">/ {max}시간</span>
+        <span className="text-sm text-gray-400 font-medium">/ {max}시간 (주간 연장)</span>
       </div>
 
       {/* 바 */}
@@ -58,8 +58,8 @@ function WeeklyGauge({ hours, max }: { hours: number; max: number }) {
       {/* 구간 레이블 */}
       <div className="flex justify-between mt-1.5 text-xs text-gray-400">
         <span>0h</span>
-        <span>40h</span>
-        <span>48h</span>
+        <span>8h</span>
+        <span>10h</span>
         <span>{max}h</span>
       </div>
     </div>
@@ -71,7 +71,7 @@ export function DashboardPage() {
   const navigate = useNavigate()
   const isAdmin = employee?.role === 'manager' || employee?.role === 'admin'
 
-  const maxHours = 52
+  const maxHours = 12
   const [weeklyHours, setWeeklyHours] = useState(0)
   const [pendingApprovals, setPendingApprovals] = useState(0)
   const [recentRequests, setRecentRequests] = useState<{ id: string; type: OvertimeType; date: string; status: RequestStatus }[]>([])
@@ -180,13 +180,13 @@ export function DashboardPage() {
 
         {/* 카드 1: 금주 근무시간 */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-          <h2 className="text-sm font-semibold text-gray-500 mb-4">금주 근무시간</h2>
+          <h2 className="text-sm font-semibold text-gray-500 mb-4">금주 연장근무시간</h2>
           <WeeklyGauge hours={weeklyHours} max={maxHours} />
           <p className="text-xs text-gray-400 mt-3">
-            {weeklyHours <= 40 && '정상 근무 중입니다.'}
-            {weeklyHours > 40 && weeklyHours <= 48 && '연장근무 주의 구간입니다.'}
-            {weeklyHours > 48 && weeklyHours <= 52 && '야간근무 경고 구간입니다.'}
-            {weeklyHours > 52 && '최대 근무시간을 초과했습니다.'}
+            {weeklyHours < 8 && '정상 범위입니다.'}
+            {weeklyHours >= 8 && weeklyHours < 10 && '연장근무 주의 구간입니다.'}
+            {weeklyHours >= 10 && weeklyHours < 12 && '연장근무 경고 구간입니다.'}
+            {weeklyHours >= 12 && '법정 주간 연장근무 한도를 초과했습니다.'}
           </p>
         </div>
 
