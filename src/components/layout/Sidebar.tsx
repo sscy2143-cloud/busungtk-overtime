@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard,
   FileText,
+  FilePlus,
   Calendar,
   Shield,
   CheckSquare,
@@ -19,6 +20,7 @@ import {
   UserSquare2,
   Banknote,
   Contact,
+  RefreshCw,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -32,9 +34,12 @@ export function Sidebar() {
   const { employee, signOut } = useAuth()
   const isAdmin = employee?.role === 'manager' || employee?.role === 'admin'
   const isSuperAdmin = employee?.role === 'admin'
+  const [workOpen, setWorkOpen] = useState(true)
   const [overtimeOpen, setOvertimeOpen] = useState(true)
   const [leaveOpen, setLeaveOpen] = useState(true)
+  const [leaveEmployeeOpen, setLeaveEmployeeOpen] = useState(true)
   const [etcOpen, setEtcOpen] = useState(true)
+  const [payOpen, setPayOpen] = useState(true)
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
@@ -52,9 +57,6 @@ export function Sidebar() {
 
   const mainNav: NavItem[] = [
     { to: '/', label: '대시보드', icon: <LayoutDashboard size={18} /> },
-    { to: '/requests', label: '근무 관리', icon: <FileText size={18} /> },
-    { to: '/leave', label: '휴가 관리', icon: <Calendar size={18} /> },
-    { to: '/expenses', label: '경비 제출', icon: <Receipt size={18} /> },
   ]
 
   const adminNavBefore: NavItem[] = [
@@ -86,6 +88,69 @@ export function Sidebar() {
             {item.label}
           </NavLink>
         ))}
+
+        {/* 근무 관리 (접히는 그룹) */}
+        <div>
+          <button
+            onClick={() => setWorkOpen(o => !o)}
+            className="flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <FileText size={18} />
+              근무 관리
+            </div>
+            <ChevronDown
+              size={14}
+              className={`transition-transform duration-200 ${workOpen ? 'rotate-180' : ''}`}
+            />
+          </button>
+          {workOpen && (
+            <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-100 pl-3">
+              <NavLink to="/requests" className={subNavLinkClass}>
+                <FileText size={16} />
+                근무 현황
+              </NavLink>
+              <NavLink to="/request" className={subNavLinkClass}>
+                <FilePlus size={16} />
+                연장근무 신청
+              </NavLink>
+            </div>
+          )}
+        </div>
+
+        {/* 휴가 관리 (직원용, 접히는 그룹) */}
+        <div>
+          <button
+            onClick={() => setLeaveEmployeeOpen(o => !o)}
+            className="flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <Calendar size={18} />
+              휴가 관리
+            </div>
+            <ChevronDown
+              size={14}
+              className={`transition-transform duration-200 ${leaveEmployeeOpen ? 'rotate-180' : ''}`}
+            />
+          </button>
+          {leaveEmployeeOpen && (
+            <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-100 pl-3">
+              <NavLink to="/leave" end className={subNavLinkClass}>
+                <CalendarCheck size={16} />
+                휴가현황
+              </NavLink>
+              <NavLink to="/leave/request" className={subNavLinkClass}>
+                <FileText size={16} />
+                휴가신청
+              </NavLink>
+            </div>
+          )}
+        </div>
+
+        <NavLink to="/expenses" className={navLinkClass}>
+          <Receipt size={18} />
+          경비 제출
+        </NavLink>
 
         {isAdmin && (
           <>
@@ -128,10 +193,34 @@ export function Sidebar() {
                     <UserSquare2 size={16} />
                     직원별 현황
                   </NavLink>
-                  <NavLink to="/admin/overtime/pay" className={subNavLinkClass}>
-                    <Banknote size={16} />
-                    연장근무수당
-                  </NavLink>
+                  {/* 수당계산 (접히는 그룹) */}
+                  <div>
+                    <button
+                      onClick={() => setPayOpen(o => !o)}
+                      className="flex items-center justify-between w-full px-3 py-2 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Banknote size={16} />
+                        수당계산
+                      </div>
+                      <ChevronDown
+                        size={12}
+                        className={`transition-transform duration-200 ${payOpen ? 'rotate-180' : ''}`}
+                      />
+                    </button>
+                    {payOpen && (
+                      <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-100 pl-3">
+                        <NavLink to="/admin/overtime/pay" className={subNavLinkClass}>
+                          <Banknote size={14} />
+                          연장근무수당
+                        </NavLink>
+                        <NavLink to="/admin/overtime/leave-pay" className={subNavLinkClass}>
+                          <Banknote size={14} />
+                          연차수당
+                        </NavLink>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -156,6 +245,10 @@ export function Sidebar() {
                   <NavLink to="/admin/leave" end className={subNavLinkClass}>
                     <CalendarCheck size={16} />
                     휴가 현황
+                  </NavLink>
+                  <NavLink to="/admin/leave/comp" className={subNavLinkClass}>
+                    <RefreshCw size={16} />
+                    대체휴가 현황
                   </NavLink>
                   <NavLink to="/admin/leave-types" className={subNavLinkClass}>
                     <Settings size={16} />
@@ -192,6 +285,10 @@ export function Sidebar() {
                   <NavLink to="/admin/documents" className={subNavLinkClass}>
                     <FolderOpen size={16} />
                     자료실
+                  </NavLink>
+                  <NavLink to="/admin/payslips" className={subNavLinkClass}>
+                    <FileText size={16} />
+                    급여명세서
                   </NavLink>
                 </div>
               )}

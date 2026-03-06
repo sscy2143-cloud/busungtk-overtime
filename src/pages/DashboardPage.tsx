@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FilePlus, CalendarPlus, AlertCircle, Clock } from 'lucide-react'
+import { FilePlus, CalendarPlus, AlertCircle, Clock, ChevronLeft, ChevronRight, Download } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { StatusBadge } from '../components/common/StatusBadge'
-import type { RequestStatus, OvertimeType } from '../types'
-import { OVERTIME_TYPE_LABEL } from '../types'
+import type { RequestStatus, OvertimeType, LeaveType } from '../types'
+import { OVERTIME_TYPE_LABEL, LEAVE_TYPE_LABEL } from '../types'
 
 
 // 주간 근무시간 게이지 (인라인 컴포넌트)
@@ -74,8 +74,12 @@ export function DashboardPage() {
   const maxHours = 12
   const [weeklyHours, setWeeklyHours] = useState(0)
   const [pendingApprovals, setPendingApprovals] = useState(0)
-  const [recentRequests, setRecentRequests] = useState<{ id: string; type: OvertimeType; date: string; status: RequestStatus }[]>([])
+  const [recentRequests, setRecentRequests] = useState<{ id: string; kind: 'overtime' | 'leave'; type: OvertimeType | LeaveType; date: string; status: RequestStatus; created_at: string }[]>([])
   const [leave, setLeave] = useState({ total: 0, used: 0, remaining: 0 })
+  const [notices, setNotices] = useState<{ id: string; title: string; category: string; created_at: string }[]>([])
+  const [noticePage, setNoticePage] = useState(0)
+  const NOTICE_PAGE_SIZE = 5
+  const [payslips, setPayslips] = useState<{ id: string; period: string; file_path: string; file_name: string }[]>([])
 
   useEffect(() => {
     if (!employee?.id) return
@@ -111,17 +115,28 @@ export function DashboardPage() {
         setWeeklyHours(totalHours)
       }
 
-      // 최근 제출 (본인)
-      const { data: recent } = await supabase
-        .from('overtime_requests')
-        .select('id, type, date, status')
-        .eq('employee_id', employee!.id)
-        .order('created_at', { ascending: false })
-        .limit(5)
+      // 최근 제출 (본인) - 야근 + 휴가 합산
+      const [{ data: recentOt }, { data: recentLeave }] = await Promise.all([
+        supabase
+          .from('overtime_requests')
+          .select('id, type, date, status, created_at')
+          .eq('employee_id', employee!.id)
+          .order('created_at', { ascending: false })
+          .limit(10),
+        supabase
+          .from('leave_requests')
+          .select('id, type, start_date, status, created_at')
+          .eq('employee_id', employee!.id)
+          .order('created_at', { ascending: false })
+          .limit(10),
+      ])
 
-      if (recent) {
-        setRecentRequests(recent as { id: string; type: OvertimeType; date: string; status: RequestStatus }[])
-      }
+      const combined = [
+        ...(recentOt ?? []).map((r) => ({ id: r.id, kind: 'overtime' as const, type: r.type as OvertimeType, date: r.date, status: r.status as RequestStatus, created_at: r.created_at })),
+        ...(recentLeave ?? []).map((r) => ({ id: r.id, kind: 'leave' as const, type: r.type as LeaveType, date: r.start_date, status: r.status as RequestStatus, created_at: r.created_at })),
+      ]
+      combined.sort((a, b) => b.created_at.localeCompare(a.created_at))
+      setRecentRequests(combined.slice(0, 5))
 
       // 잔여 연차
       const currentYear = new Date().getFullYear()
@@ -135,6 +150,24 @@ export function DashboardPage() {
       if (bal) {
         setLeave({ total: bal.total_days, used: bal.used_days, remaining: bal.remaining_days })
       }
+
+      // 급여명세서
+      const { data: slipData } = await supabase
+        .from('payslips')
+        .select('id, period, file_path, file_name')
+        .eq('employee_id', employee!.id)
+        .order('period', { ascending: false })
+        .limit(12)
+      if (slipData) setPayslips(slipData)
+
+      // 공지사항
+      const { data: noticeData } = await supabase
+        .from('notices')
+        .select('id, title, category, created_at')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(50)
+      if (noticeData) setNotices(noticeData)
 
       // 관리자: 승인 대기 건수
       if (employee!.role === 'admin' || employee!.role === 'manager') {
@@ -235,7 +268,9 @@ export function DashboardPage() {
               >
                 <div>
                   <p className="text-sm font-medium text-gray-800">
-                    {OVERTIME_TYPE_LABEL[req.type]}
+                    {req.kind === 'overtime'
+                      ? OVERTIME_TYPE_LABEL[req.type as OvertimeType]
+                      : LEAVE_TYPE_LABEL[req.type as LeaveType]}
                   </p>
                   <p className="text-xs text-gray-400 mt-0.5">
                     {new Date(req.date).toLocaleDateString('ko-KR', {
@@ -250,27 +285,108 @@ export function DashboardPage() {
         )}
       </div>
 
+      {/* 공지사항 */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+        <h2 className="text-sm font-semibold text-gray-500 mb-3">공지사항</h2>
+        {notices.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-6">등록된 공지사항이 없습니다.</p>
+        ) : (
+          <>
+            <ul className="divide-y divide-gray-50">
+              {notices.slice(noticePage * NOTICE_PAGE_SIZE, (noticePage + 1) * NOTICE_PAGE_SIZE).map((n) => (
+                <li key={n.id} className="flex items-center gap-3 py-2.5">
+                  <span className={`flex-shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${
+                    n.category === '업데이트' ? 'bg-blue-50 text-blue-600' :
+                    n.category === '공지' ? 'bg-amber-50 text-amber-600' :
+                    'bg-red-50 text-red-500'
+                  }`}>
+                    {n.category}
+                  </span>
+                  <span className="flex-1 text-sm text-gray-700 truncate">{n.title}</span>
+                  <span className="flex-shrink-0 text-xs text-gray-400">
+                    {new Date(n.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '-').replace('.', '')}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {notices.length > NOTICE_PAGE_SIZE && (
+              <div className="flex items-center justify-center gap-3 mt-3 pt-2 border-t border-gray-50">
+                <button
+                  onClick={() => setNoticePage(p => Math.max(0, p - 1))}
+                  disabled={noticePage === 0}
+                  className="p-1 rounded-lg hover:bg-gray-100 disabled:opacity-30 transition-colors"
+                >
+                  <ChevronLeft size={16} className="text-gray-500" />
+                </button>
+                <span className="text-xs text-gray-400">
+                  {noticePage + 1} / {Math.ceil(notices.length / NOTICE_PAGE_SIZE)}
+                </span>
+                <button
+                  onClick={() => setNoticePage(p => Math.min(Math.ceil(notices.length / NOTICE_PAGE_SIZE) - 1, p + 1))}
+                  disabled={noticePage >= Math.ceil(notices.length / NOTICE_PAGE_SIZE) - 1}
+                  className="p-1 rounded-lg hover:bg-gray-100 disabled:opacity-30 transition-colors"
+                >
+                  <ChevronRight size={16} className="text-gray-500" />
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* 급여명세서 */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+        <h2 className="text-sm font-semibold text-gray-500 mb-3">급여명세서</h2>
+        {payslips.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-6">등록된 급여명세서가 없습니다.</p>
+        ) : (
+          <ul className="divide-y divide-gray-50">
+            {payslips.map(slip => {
+              const [y, m] = slip.period.split('-')
+              return (
+                <li key={slip.id} className="flex items-center justify-between py-2.5">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">{y}년 {parseInt(m)}월</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{slip.file_name}</p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const { data } = await supabase.storage.from('payslips').createSignedUrl(slip.file_path, 300)
+                      if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary-600 border border-primary-200 rounded-lg hover:bg-primary-50 transition-colors"
+                  >
+                    <Download size={12} />
+                    보기
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </div>
+
       {/* 빠른 액션 */}
       <div className="grid grid-cols-3 gap-3">
         <button
           onClick={() => navigate('/request')}
-          className="flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white font-semibold text-sm py-3.5 rounded-xl transition-colors shadow-sm"
+          className="flex flex-col items-center justify-center gap-1.5 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white font-semibold text-sm py-6 rounded-xl transition-colors shadow-sm"
         >
-          <FilePlus size={18} />
+          <FilePlus size={20} />
           연장근무 신청
         </button>
         <button
           onClick={() => navigate('/leave/request')}
-          className="flex items-center justify-center gap-2 bg-white hover:bg-gray-50 active:bg-gray-100 text-primary-600 font-semibold text-sm py-3.5 rounded-xl border border-primary-200 transition-colors shadow-sm"
+          className="flex flex-col items-center justify-center gap-1.5 bg-white hover:bg-gray-50 active:bg-gray-100 text-primary-600 font-semibold text-sm py-6 rounded-xl border border-primary-200 transition-colors shadow-sm"
         >
-          <CalendarPlus size={18} />
+          <CalendarPlus size={20} />
           휴가 신청
         </button>
         <button
           onClick={() => navigate('/timesheet')}
-          className="flex items-center justify-center gap-2 bg-white hover:bg-gray-50 active:bg-gray-100 text-gray-700 font-semibold text-sm py-3.5 rounded-xl border border-gray-200 transition-colors shadow-sm"
+          className="flex flex-col items-center justify-center gap-1.5 bg-white hover:bg-gray-50 active:bg-gray-100 text-gray-700 font-semibold text-sm py-6 rounded-xl border border-gray-200 transition-colors shadow-sm"
         >
-          <Clock size={18} />
+          <Clock size={20} />
           근무 기록
         </button>
       </div>

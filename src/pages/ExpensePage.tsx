@@ -42,11 +42,14 @@ export function ExpensePage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card')
   const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
+  const [otherCategoryNote, setOtherCategoryNote] = useState('')
+  const [otherPaymentNote, setOtherPaymentNote] = useState('')
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [toast, setToast] = useState(false)
+  const [detailExp, setDetailExp] = useState<Expense | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -87,6 +90,8 @@ export function ExpensePage() {
     setPaymentMethod('card')
     setAmount('')
     setDescription('')
+    setOtherCategoryNote('')
+    setOtherPaymentNote('')
     setReceiptFile(null)
     setReceiptPreview(null)
   }
@@ -146,6 +151,11 @@ export function ExpensePage() {
       if (url) receiptUrl = url
     }
 
+    const categoryPrefix = category === 'other' && otherCategoryNote.trim() ? `[분류: ${otherCategoryNote.trim()}]` : ''
+    const paymentPrefix = paymentMethod === 'other' && otherPaymentNote.trim() ? `[결제: ${otherPaymentNote.trim()}]` : ''
+    const prefix = [categoryPrefix, paymentPrefix].filter(Boolean).join(' ')
+    const finalDescription = prefix ? `${prefix} ${description.trim()}` : description.trim()
+
     const { data, error } = await supabase
       .from('expenses')
       .insert({
@@ -154,7 +164,7 @@ export function ExpensePage() {
         category,
         payment_method: paymentMethod,
         amount: Number(amount),
-        description: description.trim(),
+        description: finalDescription,
         ...(receiptUrl ? { receipt_url: receiptUrl } : {}),
       })
       .select()
@@ -177,31 +187,35 @@ export function ExpensePage() {
   }
 
   return (
-    <div className="max-w-lg mx-auto space-y-5">
+    <div className="max-w-4xl mx-auto space-y-5">
       {/* 헤더 */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">경비 제출</h1>
           <p className="text-sm text-gray-500 mt-0.5">업무 중 사비로 지출한 경비를 제출합니다</p>
         </div>
         <button
           onClick={() => setFormOpen(!formOpen)}
-          className="flex items-center gap-1.5 px-3 py-2 bg-primary-600 text-white text-sm font-medium rounded-xl hover:bg-primary-700 transition-colors"
+          className="flex items-center gap-1.5 px-4 py-2 bg-primary-600 text-white text-sm font-semibold rounded-lg hover:bg-primary-700 transition-colors"
         >
           <Plus size={16} />
-          새 제출
+          경비 신청
         </button>
       </div>
 
-      {/* 요약 카드 */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-          <p className="text-xs text-gray-400 mb-1">승인 대기</p>
+      {/* 요약 */}
+      <div className="bg-white rounded-xl border border-gray-200 divide-x divide-gray-100 flex overflow-hidden">
+        <div className="flex-1 px-5 py-3.5">
+          <p className="text-xs text-gray-400 mb-0.5">승인 대기</p>
           <p className="text-lg font-bold text-warning-600">{formatWon(totalPending)}</p>
         </div>
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-          <p className="text-xs text-gray-400 mb-1">승인 완료</p>
+        <div className="flex-1 px-5 py-3.5">
+          <p className="text-xs text-gray-400 mb-0.5">승인 완료</p>
           <p className="text-lg font-bold text-success-600">{formatWon(totalApproved)}</p>
+        </div>
+        <div className="flex-1 px-5 py-3.5">
+          <p className="text-xs text-gray-400 mb-0.5">전체 청구</p>
+          <p className="text-lg font-bold text-gray-800">{formatWon(expenses.reduce((s, e) => s + e.amount, 0))}</p>
         </div>
       </div>
 
@@ -235,7 +249,7 @@ export function ExpensePage() {
                 <button
                   key={c}
                   type="button"
-                  onClick={() => setCategory(c)}
+                  onClick={() => { setCategory(c); if (c !== 'other') setOtherCategoryNote('') }}
                   className={`py-2 text-xs font-medium rounded-xl border transition-colors ${
                     category === c
                       ? 'bg-primary-600 text-white border-primary-600'
@@ -248,6 +262,23 @@ export function ExpensePage() {
             </div>
           </div>
 
+          {/* 기타 분류 상세 */}
+          {category === 'other' && (
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                기타 분류 <span className="text-danger-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={otherCategoryNote}
+                onChange={(e) => setOtherCategoryNote(e.target.value)}
+                placeholder="구체적으로 입력하세요 (예: 숙박비, 택시비, 공구 구입)"
+                required
+                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+              />
+            </div>
+          )}
+
           {/* 결제방법 */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1.5">결제방법</label>
@@ -256,7 +287,7 @@ export function ExpensePage() {
                 <button
                   key={m}
                   type="button"
-                  onClick={() => setPaymentMethod(m)}
+                  onClick={() => { setPaymentMethod(m); if (m !== 'other') setOtherPaymentNote('') }}
                   className={`py-2 text-xs font-medium rounded-xl border transition-colors ${
                     paymentMethod === m
                       ? 'bg-primary-600 text-white border-primary-600'
@@ -268,6 +299,23 @@ export function ExpensePage() {
               ))}
             </div>
           </div>
+
+          {/* 기타 결제방법 상세 */}
+          {paymentMethod === 'other' && (
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                기타 결제방법 <span className="text-danger-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={otherPaymentNote}
+                onChange={(e) => setOtherPaymentNote(e.target.value)}
+                placeholder="구체적으로 입력하세요 (예: 개인카드, 상품권)"
+                required
+                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+              />
+            </div>
+          )}
 
           {/* 금액 */}
           <div>
@@ -348,7 +396,7 @@ export function ExpensePage() {
 
           <button
             type="submit"
-            disabled={submitting || uploading || !amount || !description.trim()}
+            disabled={submitting || uploading || !amount || !description.trim() || (category === 'other' && !otherCategoryNote.trim()) || (paymentMethod === 'other' && !otherPaymentNote.trim())}
             className="w-full py-2.5 bg-primary-600 text-white text-sm font-semibold rounded-xl hover:bg-primary-700 disabled:opacity-50 transition-colors"
           >
             {uploading ? '업로드 중...' : submitting ? '제출 중...' : '경비 제출'}
@@ -375,48 +423,215 @@ export function ExpensePage() {
 
       {/* 경비 목록 */}
       {filtered.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
           <Receipt className="w-12 h-12 text-gray-200 mx-auto mb-3" />
           <p className="text-sm font-medium text-gray-500 mb-1">경비 내역이 없습니다</p>
           <p className="text-xs text-gray-400">업무 중 사비 지출이 있으면 제출해 주세요</p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {filtered.map((exp) => (
-            <div key={exp.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${CATEGORY_COLOR[exp.category]}`}>
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-400 w-10">번호</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">지출일</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500">분류</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 hidden sm:table-cell">결제방법</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500">내용</th>
+                <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 whitespace-nowrap">금액</th>
+                <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-500">상태</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((exp, idx) => (
+                <tr
+                  key={exp.id}
+                  onClick={() => setDetailExp(exp)}
+                  className={`border-b border-gray-100 last:border-0 cursor-pointer transition-colors ${idx % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'} hover:bg-primary-50/40`}
+                >
+                  <td className="px-3 py-2.5 text-center text-xs font-bold text-gray-300">{idx + 1}</td>
+                  <td className="px-3 py-2.5 text-xs text-gray-600 whitespace-nowrap">
+                    {new Date(exp.date).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md ${CATEGORY_COLOR[exp.category]}`}>
                       {EXPENSE_CATEGORY_LABEL[exp.category]}
                     </span>
+                  </td>
+                  <td className="px-3 py-2.5 hidden sm:table-cell">
                     {exp.payment_method && (
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${PAYMENT_METHOD_COLOR[exp.payment_method]}`}>
+                      <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md ${PAYMENT_METHOD_COLOR[exp.payment_method]}`}>
                         {PAYMENT_METHOD_LABEL[exp.payment_method]}
                       </span>
                     )}
-                    <span className="text-xs text-gray-400">
-                      {new Date(exp.date).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}
+                  </td>
+                  <td className="px-3 py-2.5 max-w-[140px]">
+                    <p className="text-xs text-gray-700 truncate">{exp.description}</p>
+                    {exp.status === 'rejected' && exp.rejection_reason && (
+                      <p className="text-xs text-danger-500 truncate mt-0.5">↳ {exp.rejection_reason}</p>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 text-right text-sm font-semibold text-gray-900 whitespace-nowrap">
+                    {formatWon(exp.amount)}
+                  </td>
+                  <td className="px-3 py-2.5 text-center">
+                    <StatusBadge status={exp.status} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-gray-200 bg-gray-50">
+                <td colSpan={5} className="px-3 py-2.5 text-xs font-semibold text-gray-500">
+                  총 {filtered.length}건
+                </td>
+                <td className="px-3 py-2.5 text-right text-sm font-bold text-gray-800">
+                  {formatWon(filtered.reduce((s, e) => s + e.amount, 0))}
+                </td>
+                <td />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+
+      {/* 경비 상세 팝업 */}
+      {detailExp && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setDetailExp(null)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-2xl shadow-xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h3 className="text-base font-bold text-gray-900">경비 상세</h3>
+              <button onClick={() => setDetailExp(null)}><X size={18} className="text-gray-400" /></button>
+            </div>
+
+            <div className="grid grid-cols-2 divide-x divide-gray-100">
+              {/* 왼쪽: 제출 내용 */}
+              <div className="px-5 py-4 space-y-3">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">제출 내용</p>
+                {/* 상태 */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-400">상태</span>
+                  <StatusBadge status={detailExp.status} />
+                </div>
+                {/* 반려 사유 */}
+                {detailExp.status === 'rejected' && detailExp.rejection_reason && (
+                  <div className="bg-danger-50 border border-danger-200 rounded-xl px-3 py-2.5">
+                    <p className="text-xs font-semibold text-danger-500 mb-1">반려 사유</p>
+                    <p className="text-sm text-danger-700">{detailExp.rejection_reason}</p>
+                  </div>
+                )}
+                {/* 날짜 */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-400">지출 날짜</span>
+                  <span className="text-sm text-gray-800">
+                    {new Date(detailExp.date).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}
+                  </span>
+                </div>
+                {/* 분류 */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-400">분류</span>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${CATEGORY_COLOR[detailExp.category]}`}>
+                    {EXPENSE_CATEGORY_LABEL[detailExp.category]}
+                  </span>
+                </div>
+                {/* 결제방법 */}
+                {detailExp.payment_method && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-400">결제방법</span>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${PAYMENT_METHOD_COLOR[detailExp.payment_method]}`}>
+                      {PAYMENT_METHOD_LABEL[detailExp.payment_method]}
                     </span>
                   </div>
-                  <p className="text-sm font-semibold text-gray-900">{formatWon(exp.amount)}</p>
-                  <p className="text-xs text-gray-500 mt-0.5 truncate">{exp.description}</p>
-                  {exp.receipt_url && (
-                    <a
-                      href={exp.receipt_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-primary-600 hover:underline mt-1"
-                    >
-                      <Image size={12} />
-                      증빙자료 보기
-                    </a>
-                  )}
+                )}
+                {/* 금액 */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-400">청구 금액</span>
+                  <span className="text-base font-bold text-gray-900">{formatWon(detailExp.amount)}</span>
                 </div>
-                <StatusBadge status={exp.status} />
+                {/* 내용 */}
+                <div>
+                  <p className="text-xs text-gray-400 mb-1">지출 내용</p>
+                  <p className="text-sm text-gray-700 bg-gray-50 rounded-xl px-3 py-2">{detailExp.description}</p>
+                </div>
+                {/* 증빙자료 */}
+                {detailExp.receipt_url && (
+                  <a
+                    href={detailExp.receipt_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-3 py-2.5 bg-primary-50 border border-primary-100 rounded-xl text-sm text-primary-600 font-medium hover:bg-primary-100 transition-colors"
+                  >
+                    <Image size={16} />
+                    증빙자료 보기
+                  </a>
+                )}
+                {/* 제출일 */}
+                <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+                  <span className="text-xs text-gray-400">제출일</span>
+                  <span className="text-xs text-gray-500">
+                    {new Date(detailExp.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
+                  </span>
+                </div>
+              </div>
+
+              {/* 오른쪽: 지급 정보 */}
+              <div className="px-5 py-4 space-y-3">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">지급 정보</p>
+                {detailExp.paid_at ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-400">지급 상태</span>
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-success-50 text-success-700">지급완료</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-400">지급일</span>
+                      <span className="text-sm text-gray-800">
+                        {new Date(detailExp.paid_at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}
+                      </span>
+                    </div>
+                    {detailExp.paid_amount != null && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-400">지급 금액</span>
+                        <span className="text-base font-bold text-success-700">{formatWon(detailExp.paid_amount)}</span>
+                      </div>
+                    )}
+                    {detailExp.paid_amount != null && detailExp.paid_amount !== detailExp.amount && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-400">차액</span>
+                        <span className={`text-sm font-semibold ${detailExp.paid_amount < detailExp.amount ? 'text-danger-500' : 'text-success-600'}`}>
+                          {detailExp.paid_amount < detailExp.amount ? '-' : '+'}{formatWon(Math.abs(detailExp.paid_amount - detailExp.amount))}
+                        </span>
+                      </div>
+                    )}
+                    {detailExp.payment_bank && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-400">은행</span>
+                        <span className="text-sm text-gray-800">{detailExp.payment_bank}</span>
+                      </div>
+                    )}
+                    {detailExp.payment_account && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-400">계좌번호</span>
+                        <span className="text-sm text-gray-800">{detailExp.payment_account}</span>
+                      </div>
+                    )}
+                    {detailExp.payment_note && (
+                      <div>
+                        <p className="text-xs text-gray-400 mb-1">메모</p>
+                        <p className="text-sm text-gray-700 bg-gray-50 rounded-xl px-3 py-2">{detailExp.payment_note}</p>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-32 gap-2">
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">미지급</span>
+                    <p className="text-xs text-gray-300">아직 지급 처리가 되지 않았습니다</p>
+                  </div>
+                )}
               </div>
             </div>
-          ))}
+          </div>
         </div>
       )}
 

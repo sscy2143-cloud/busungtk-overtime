@@ -1,7 +1,7 @@
 export type UserRole = 'employee' | 'manager' | 'admin'
 export type EmployeeType = 'office' | 'field'
 export type OvertimeType = 'extended' | 'night' | 'holiday'
-export type RequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
+export type RequestStatus = 'pending' | 'manager_approved' | 'approved' | 'rejected' | 'cancelled'
 export type GroupMemberStatus = 'pending_confirm' | 'confirmed' | 'declined'
 export type LeaveType = 'annual' | 'half_am' | 'half_pm' | 'special' | 'sick'
 export type WarningLevel = 'normal' | 'caution' | 'warning' | 'exceeded'
@@ -102,6 +102,7 @@ export interface LeaveRequest {
   approved_by: string | null
   approved_at: string | null
   rejection_reason: string | null
+  use_substitute: boolean
   created_at: string
 }
 
@@ -135,6 +136,7 @@ export const OVERTIME_TYPE_LABEL: Record<OvertimeType, string> = {
 
 export const REQUEST_STATUS_LABEL: Record<RequestStatus, string> = {
   pending: '대기중',
+  manager_approved: '1차 승인',
   approved: '승인',
   rejected: '반려',
   cancelled: '취소',
@@ -172,6 +174,13 @@ export interface Expense {
   approved_by: string | null
   approved_at: string | null
   rejection_reason: string | null
+  paid_at: string | null
+  paid_amount: number | null
+  payout_method: string | null
+  payment_bank: string | null
+  payment_account: string | null
+  payment_note: string | null
+  paid_by: string | null
   created_at: string
 }
 

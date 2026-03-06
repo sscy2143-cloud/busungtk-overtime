@@ -48,6 +48,7 @@ export function AdminLeavePage() {
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; id: string; employeeName: string; days: number; status: string }>({ open: false, id: '', employeeName: '', days: 0, status: '' })
   const [subGrantModal, setSubGrantModal] = useState<SubstituteGrantModal>({ open: false, employeeId: '', employeeName: '', unit: 'hours', value: 1, reason: '' })
   const [adjustLogs, setAdjustLogs] = useState<Record<string, { reason: string; delta: number; date: string }[]>>({})
+  const [otCompLeaveHours, setOtCompLeaveHours] = useState<Record<string, number>>({})
 
   const currentYear = new Date().getFullYear()
 
@@ -55,6 +56,7 @@ export function AdminLeavePage() {
     fetchLeaveRequests()
     loadBalances()
     loadAdjustLogs()
+    loadOtCompLeave()
   }, [])
 
   async function fetchLeaveRequests() {
@@ -84,6 +86,21 @@ export function AdminLeavePage() {
       })))
     }
     setBalancesLoading(false)
+  }
+
+  async function loadOtCompLeave() {
+    const { data } = await supabase
+      .from('substitute_history')
+      .select('employee_id, granted_days')
+      .not('related_request_id', 'is', null)
+
+    if (data) {
+      const grouped: Record<string, number> = {}
+      for (const r of data) {
+        grouped[r.employee_id] = (grouped[r.employee_id] ?? 0) + r.granted_days * 8
+      }
+      setOtCompLeaveHours(grouped)
+    }
   }
 
   async function loadAdjustLogs() {
@@ -127,20 +144,30 @@ export function AdminLeavePage() {
       return
     }
 
-    // leave_balances.used_days 증가
+    // leave_balances 업데이트: 대체휴가 우선 사용 여부에 따라 분기
     const { data: bal } = await supabase
       .from('leave_balances')
-      .select('used_days')
+      .select('used_days, substitute_used, substitute_total')
       .eq('employee_id', req.employee_id)
       .eq('year', currentYear)
       .single()
 
     if (bal) {
-      await supabase
-        .from('leave_balances')
-        .update({ used_days: Number(bal.used_days) + Number(req.days) })
-        .eq('employee_id', req.employee_id)
-        .eq('year', currentYear)
+      if (req.use_substitute) {
+        // 대체휴가에서 차감 (연차 used_days 불변)
+        await supabase
+          .from('leave_balances')
+          .update({ substitute_used: Number(bal.substitute_used) + Number(req.days) })
+          .eq('employee_id', req.employee_id)
+          .eq('year', currentYear)
+      } else {
+        // 일반 연차에서 차감
+        await supabase
+          .from('leave_balances')
+          .update({ used_days: Number(bal.used_days) + Number(req.days) })
+          .eq('employee_id', req.employee_id)
+          .eq('year', currentYear)
+      }
     }
 
     setRequests((prev) => prev.map((r) => r.id === id ? { ...r, status: 'approved' } : r))
@@ -167,21 +194,29 @@ export function AdminLeavePage() {
     const { id, status, days } = deleteModal
     const req = requests.find((r) => r.id === id)
 
-    // 승인 상태였던 건 삭제 시 used_days 차감 (잔여 복원)
+    // 승인 상태였던 건 삭제 시 차감했던 잔여 복원
     if (status === 'approved' && req) {
       const { data: bal } = await supabase
         .from('leave_balances')
-        .select('used_days')
+        .select('used_days, substitute_used')
         .eq('employee_id', req.employee_id)
         .eq('year', currentYear)
         .single()
 
       if (bal) {
-        await supabase
-          .from('leave_balances')
-          .update({ used_days: Math.max(0, Number(bal.used_days) - Number(days)) })
-          .eq('employee_id', req.employee_id)
-          .eq('year', currentYear)
+        if (req.use_substitute) {
+          await supabase
+            .from('leave_balances')
+            .update({ substitute_used: Math.max(0, Number(bal.substitute_used) - Number(days)) })
+            .eq('employee_id', req.employee_id)
+            .eq('year', currentYear)
+        } else {
+          await supabase
+            .from('leave_balances')
+            .update({ used_days: Math.max(0, Number(bal.used_days) - Number(days)) })
+            .eq('employee_id', req.employee_id)
+            .eq('year', currentYear)
+        }
       }
     }
 
@@ -446,6 +481,16 @@ export function AdminLeavePage() {
             직원별 연차 현황
             <span className="text-xs font-normal text-gray-400 ml-2">{currentYear}년</span>
           </h2>
+          <div className="flex items-center gap-3 mt-2">
+            <span className="text-xs text-gray-400">
+              <span className="inline-flex items-center gap-1 border border-gray-200 px-1.5 py-0.5 rounded text-gray-500 mr-1">연차</span>
+              연차 총 일수 조정
+            </span>
+            <span className="text-xs text-gray-400">
+              <span className="inline-flex items-center gap-1 border border-teal-200 px-1.5 py-0.5 rounded text-teal-600 mr-1">대체</span>
+              대체휴가 추가 지급
+            </span>
+          </div>
         </div>
         {balancesLoading ? (
           <p className="text-center text-sm text-gray-400 py-10">불러오는 중...</p>
@@ -489,7 +534,15 @@ export function AdminLeavePage() {
                       {(() => {
                         const days = (b.substitute_total ?? 0) - (b.substitute_used ?? 0)
                         const hours = Math.round(days * 8 * 10) / 10
-                        return <>{days}일 <span className="text-xs font-normal text-teal-400">({hours}h)</span></>
+                        const otHours = Math.round((otCompLeaveHours[b.id] ?? 0) * 10) / 10
+                        return (
+                          <>
+                            {days}일 <span className="text-xs font-normal text-teal-400">({hours}h)</span>
+                            {otHours > 0 && (
+                              <div className="text-xs font-normal text-orange-500 mt-0.5">야근전환 -{otHours}h</div>
+                            )}
+                          </>
+                        )
                       })()}
                     </td>
                     <td className="px-2 py-3 text-center">
