@@ -1,4 +1,4 @@
-import { useState, useEffect, CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { FileText, Printer, X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -28,24 +28,12 @@ const inputSt: CSSProperties = {
 export function AdminDocumentsPage() {
   const { employee } = useAuth()
   const [openDoc, setOpenDoc] = useState<DocId | null>(null)
-  const [fields, setFields] = useState<Record<string, string>>({})
 
   const today = new Date()
   const dateStr = `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일`
 
-  useEffect(() => {
-    if (openDoc) {
-      setFields({
-        name: employee?.name ?? '',
-        department: employee?.department ?? '',
-        date: dateStr,
-      })
-    }
-  }, [openDoc])
-
-  const f = (k: string) => fields[k] ?? ''
-  const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setFields(p => ({ ...p, [k]: e.target.value }))
+  const name = employee?.name ?? ''
+  const dept = employee?.department ?? ''
 
   function handlePrint() { window.print() }
 
@@ -55,7 +43,7 @@ export function AdminDocumentsPage() {
         <tbody>
           <tr>{levels.map(l => <td key={l} style={{ ...th, width: '60px' }}>{l}</td>)}</tr>
           <tr>{levels.map(l => <td key={l} style={{ ...td, width: '60px', height: '50px' }} />)}</tr>
-          <tr>{levels.map(l => <td key={l} style={{ ...td, width: '60px', textAlign: 'center', height: '20px', fontSize: '8pt' }}>{l === '기안' ? f('name') : ''}</td>)}</tr>
+          <tr>{levels.map(l => <td key={l} style={{ ...td, width: '60px', textAlign: 'center', height: '20px', fontSize: '8pt' }}>{l === '기안' ? name : ''}</td>)}</tr>
         </tbody>
       </table>
     )
@@ -66,7 +54,7 @@ export function AdminDocumentsPage() {
       <table style={{ borderCollapse: 'collapse', width: '220px', float: 'left', marginBottom: '16px' }}>
         <colgroup><col width="70" /><col width="150" /></colgroup>
         <tbody>
-          {[['기 안 자', f('name')], ['소 속', f('department')], ['기 안 일', dateStr]].map(([label, val]) => (
+          {[['기 안 자', name], ['소 속', dept], ['기 안 일', dateStr]].map(([label, val]) => (
             <tr key={label}>
               <td style={th}>{label}</td>
               <td style={td}>{val}</td>
@@ -94,13 +82,13 @@ export function AdminDocumentsPage() {
             <tr>
               <td rowSpan={2} style={th}>인적사항</td>
               <td style={th}>성 명</td>
-              <td style={td}><input style={inputSt} value={f('name')} onChange={sf('name')} /></td>
+              <td style={td}><input style={inputSt} defaultValue={name} /></td>
               <td style={th}>주민등록번호</td>
-              <td style={td}><input style={inputSt} value={f('ssn')} onChange={sf('ssn')} placeholder="000000-0000000" /></td>
+              <td style={td}><input style={inputSt} defaultValue="" placeholder="000000-0000000" /></td>
             </tr>
             <tr>
               <td style={th}>주 소</td>
-              <td colSpan={3} style={td}><input style={inputSt} value={f('address')} onChange={sf('address')} /></td>
+              <td colSpan={3} style={td}><input style={inputSt} defaultValue="" /></td>
             </tr>
             <tr>
               <td rowSpan={5} style={th}>증명사항</td>
@@ -111,12 +99,12 @@ export function AdminDocumentsPage() {
             {[0, 1, 2, 3].map(i => (
               <tr key={i}>
                 <td colSpan={2} style={{ ...td, textAlign: 'center' }}>
-                  <input style={{ ...inputSt, width: '90px' }} value={f(`from${i}`)} onChange={sf(`from${i}`)} placeholder="yyyy.mm.dd" />
+                  <input style={{ ...inputSt, width: '90px' }} defaultValue="" placeholder="yyyy.mm.dd" />
                   {' ~ '}
-                  <input style={{ ...inputSt, width: '90px' }} value={f(`to${i}`)} onChange={sf(`to${i}`)} placeholder="yyyy.mm.dd" />
+                  <input style={{ ...inputSt, width: '90px' }} defaultValue="" placeholder="yyyy.mm.dd" />
                 </td>
-                <td style={td}><input style={inputSt} value={f(`pos${i}`)} onChange={sf(`pos${i}`)} /></td>
-                <td style={td}><input style={inputSt} value={f(`duty${i}`)} onChange={sf(`duty${i}`)} /></td>
+                <td style={td}><input style={inputSt} defaultValue={i === 0 ? dept : ''} /></td>
+                <td style={td}><input style={inputSt} defaultValue="" /></td>
               </tr>
             ))}
             <tr>
@@ -149,34 +137,34 @@ export function AdminDocumentsPage() {
             <tr>
               <td rowSpan={2} style={th}>인적사항</td>
               <td style={th}>성 명</td>
-              <td style={td}><input style={inputSt} value={f('name')} onChange={sf('name')} /></td>
+              <td style={td}><input style={inputSt} defaultValue={name} /></td>
               <td style={th}>주민등록번호</td>
-              <td style={td}><input style={inputSt} value={f('ssn')} onChange={sf('ssn')} placeholder="000000-0000000" /></td>
+              <td style={td}><input style={inputSt} defaultValue="" placeholder="000000-0000000" /></td>
             </tr>
             <tr>
               <td style={th}>주 소</td>
-              <td colSpan={3} style={td}><input style={inputSt} value={f('address')} onChange={sf('address')} /></td>
+              <td colSpan={3} style={td}><input style={inputSt} defaultValue="" /></td>
             </tr>
             <tr>
               <td rowSpan={3} style={th}>재직사항</td>
               <td style={th}>소 속</td>
-              <td colSpan={3} style={td}><input style={inputSt} value={f('department')} onChange={sf('department')} /></td>
+              <td colSpan={3} style={td}><input style={inputSt} defaultValue={dept} /></td>
             </tr>
             <tr>
               <td style={th}>직 위</td>
-              <td colSpan={3} style={td}><input style={inputSt} value={f('position')} onChange={sf('position')} /></td>
+              <td colSpan={3} style={td}><input style={inputSt} defaultValue="" /></td>
             </tr>
             <tr>
               <td style={th}>재직기간</td>
               <td colSpan={3} style={td}>
-                <input style={{ ...inputSt, width: '120px' }} value={f('periodFrom')} onChange={sf('periodFrom')} placeholder="yyyy.mm.dd" />
+                <input style={{ ...inputSt, width: '120px' }} defaultValue="" placeholder="yyyy.mm.dd" />
                 {' ~ '}
-                <input style={{ ...inputSt, width: '120px' }} value={f('periodTo')} onChange={sf('periodTo')} placeholder="yyyy.mm.dd" />
+                <input style={{ ...inputSt, width: '120px' }} defaultValue="" placeholder="yyyy.mm.dd" />
               </td>
             </tr>
             <tr>
               <td style={th}>발급용도</td>
-              <td colSpan={4} style={td}><input style={inputSt} value={f('purpose')} onChange={sf('purpose')} /></td>
+              <td colSpan={4} style={td}><input style={inputSt} defaultValue="" /></td>
             </tr>
             <tr>
               <td colSpan={5} style={{ ...td, textAlign: 'center', padding: '24px 20px' }}>
@@ -210,19 +198,19 @@ export function AdminDocumentsPage() {
           <tbody>
             <tr>
               <td style={hdrTh}>문서번호</td>
-              <td style={hdrTd}><input style={inputSt} value={f('docNo')} onChange={sf('docNo')} /></td>
+              <td style={hdrTd}><input style={inputSt} defaultValue="" /></td>
               <td style={hdrTh}>보안등급</td>
-              <td style={hdrTd}><input style={inputSt} value={f('secLevel')} onChange={sf('secLevel')} /></td>
+              <td style={hdrTd}><input style={inputSt} defaultValue="" /></td>
               <td style={hdrTh}>기안일시</td>
               <td style={hdrTd}>{dateStr}</td>
             </tr>
             <tr>
               <td style={hdrTh}>기안자</td>
-              <td style={hdrTd}>{f('name')}</td>
+              <td style={hdrTd}>{name}</td>
               <td style={hdrTh}>부서</td>
-              <td style={hdrTd}>{f('department')}</td>
+              <td style={hdrTd}>{dept}</td>
               <td style={hdrTh}>보존연한</td>
-              <td style={hdrTd}><input style={inputSt} value={f('retention')} onChange={sf('retention')} /></td>
+              <td style={hdrTd}><input style={inputSt} defaultValue="" /></td>
             </tr>
           </tbody>
         </table>
@@ -232,7 +220,7 @@ export function AdminDocumentsPage() {
           <tbody>
             <tr>
               <td style={th}>제 목</td>
-              <td colSpan={2} style={td}><input style={inputSt} value={f('subject')} onChange={sf('subject')} /></td>
+              <td colSpan={2} style={td}><input style={inputSt} defaultValue="" /></td>
             </tr>
             <tr>
               <td colSpan={3} style={{ ...td, textAlign: 'center', padding: '20px', lineHeight: '2' }}>
@@ -245,31 +233,31 @@ export function AdminDocumentsPage() {
             </tr>
             <tr>
               <td style={th}>성 명</td>
-              <td colSpan={2} style={td}><input style={inputSt} value={f('name')} onChange={sf('name')} /></td>
+              <td colSpan={2} style={td}><input style={inputSt} defaultValue={name} /></td>
             </tr>
             <tr>
               <td style={th}>소속부서 / 직급</td>
-              <td colSpan={2} style={td}><input style={inputSt} value={f('deptRank')} onChange={sf('deptRank')} /></td>
+              <td colSpan={2} style={td}><input style={inputSt} defaultValue={dept} /></td>
             </tr>
             <tr>
               <td style={th}>입사년월일</td>
-              <td colSpan={2} style={td}><input style={inputSt} value={f('hireDate')} onChange={sf('hireDate')} placeholder="yyyy.mm.dd" /></td>
+              <td colSpan={2} style={td}><input style={inputSt} defaultValue="" placeholder="yyyy.mm.dd" /></td>
             </tr>
             <tr>
               <td style={th}>신청목적</td>
-              <td colSpan={2} style={td}><input style={inputSt} value={f('purpose')} onChange={sf('purpose')} /></td>
+              <td colSpan={2} style={td}><input style={inputSt} defaultValue="" /></td>
             </tr>
             <tr>
               <td style={th}>정산기간</td>
               <td colSpan={2} style={td}>
-                <input style={{ ...inputSt, width: '120px' }} value={f('periodFrom')} onChange={sf('periodFrom')} placeholder="yyyy.mm.dd" />
+                <input style={{ ...inputSt, width: '120px' }} defaultValue="" placeholder="yyyy.mm.dd" />
                 {' ~ '}
-                <input style={{ ...inputSt, width: '120px' }} value={f('periodTo')} onChange={sf('periodTo')} placeholder="yyyy.mm.dd" />
+                <input style={{ ...inputSt, width: '120px' }} defaultValue="" placeholder="yyyy.mm.dd" />
               </td>
             </tr>
             <tr>
               <td style={th}>지급희망일자</td>
-              <td colSpan={2} style={td}><input style={inputSt} value={f('payDate')} onChange={sf('payDate')} placeholder="yyyy.mm.dd" /></td>
+              <td colSpan={2} style={td}><input style={inputSt} defaultValue="" placeholder="yyyy.mm.dd" /></td>
             </tr>
           </tbody>
         </table>
@@ -292,29 +280,28 @@ export function AdminDocumentsPage() {
             <tr>
               <td rowSpan={3} style={th}>신청인<br />정보</td>
               <td style={th}>성 명</td>
-              <td style={td}><input style={inputSt} value={f('name')} onChange={sf('name')} /></td>
+              <td style={td}><input style={inputSt} defaultValue={name} /></td>
               <td style={th}>주민등록번호</td>
-              <td style={td}><input style={inputSt} value={f('ssn')} onChange={sf('ssn')} placeholder="000000-0000000" /></td>
+              <td style={td}><input style={inputSt} defaultValue="" placeholder="000000-0000000" /></td>
             </tr>
             <tr>
               <td style={th}>소 속</td>
-              <td style={td}><input style={inputSt} value={f('department')} onChange={sf('department')} /></td>
+              <td style={td}><input style={inputSt} defaultValue={dept} /></td>
               <td style={th}>직 위</td>
-              <td style={td}><input style={inputSt} value={f('position')} onChange={sf('position')} /></td>
+              <td style={td}><input style={inputSt} defaultValue="" /></td>
             </tr>
             <tr>
               <td style={th}>입 사 일</td>
-              <td style={td}><input style={inputSt} value={f('hireDate')} onChange={sf('hireDate')} placeholder="yyyy.mm.dd" /></td>
+              <td style={td}><input style={inputSt} defaultValue="" placeholder="yyyy.mm.dd" /></td>
               <td style={th}>퇴직 희망일</td>
-              <td style={td}><input style={inputSt} value={f('resignDate')} onChange={sf('resignDate')} placeholder="yyyy.mm.dd" /></td>
+              <td style={td}><input style={inputSt} defaultValue="" placeholder="yyyy.mm.dd" /></td>
             </tr>
             <tr>
               <td style={th}>사직 사유</td>
               <td colSpan={4} style={{ ...td, verticalAlign: 'top', padding: '6px 8px' }}>
                 <textarea
                   style={{ width: '100%', border: 'none', background: 'transparent', fontSize: '9pt', outline: 'none', resize: 'none', minHeight: '80px' }}
-                  value={f('resignReason')}
-                  onChange={sf('resignReason')}
+                  defaultValue=""
                   placeholder="사직 사유를 입력하세요"
                 />
               </td>
@@ -328,7 +315,7 @@ export function AdminDocumentsPage() {
               <td colSpan={5} style={{ ...td, textAlign: 'center', padding: '24px 20px' }}>
                 <p style={{ textAlign: 'right', marginRight: '60px' }}>{dateStr}</p>
                 <br />
-                <p style={{ textAlign: 'right', marginRight: '60px' }}>신청인: {f('name')} &nbsp;&nbsp;&nbsp; (서명)</p>
+                <p style={{ textAlign: 'right', marginRight: '60px' }}>신청인: {name} &nbsp;&nbsp;&nbsp; (서명)</p>
                 <br />
                 <p style={{ textAlign: 'right', marginRight: '60px' }}>부성티케이 주식회사 대표이사 귀중</p>
               </td>
@@ -400,11 +387,11 @@ export function AdminDocumentsPage() {
             </div>
 
             {/* 문서 본문 */}
-            <div id="print-area" className="p-8">
-              {openDoc === 'career' && <CareerDoc />}
-              {openDoc === 'employment' && <EmploymentDoc />}
-              {openDoc === 'severance' && <SeveranceDoc />}
-              {openDoc === 'resignation' && <ResignationDoc />}
+            <div id="print-area" className="p-8" key={openDoc}>
+              {openDoc === 'career' && CareerDoc()}
+              {openDoc === 'employment' && EmploymentDoc()}
+              {openDoc === 'severance' && SeveranceDoc()}
+              {openDoc === 'resignation' && ResignationDoc()}
             </div>
           </div>
         </div>

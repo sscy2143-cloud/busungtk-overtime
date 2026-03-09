@@ -525,7 +525,7 @@ export function AdminExpensePage() {
                   </div>
                 ) : (
                   <button
-                    onClick={() => { setDetailExp(null); setPayModal({ open: true, id: detailExp.id, expense_amount: detailExp.amount, paid_at: new Date().toISOString().slice(0, 10), paid_amount: String(detailExp.amount), payment_bank: '', payment_account: '', payment_note: '' }) }}
+                    onClick={() => { setDetailExp(null); setPayModal({ open: true, id: detailExp.id, expense_amount: detailExp.amount, paid_at: new Date().toISOString().slice(0, 10), paid_amount: String(detailExp.amount), payment_bank: '', payment_account: '', payment_note: '', payout_method: 'transfer' }) }}
                     className="w-full py-2.5 text-sm font-semibold text-primary-600 border border-primary-300 rounded-xl hover:bg-primary-50 transition-colors"
                   >
                     지급 처리 등록
