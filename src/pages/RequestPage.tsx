@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlertTriangle, Users, Calendar, Clock, Info } from 'lucide-react'
+import { AlertTriangle, Users, Calendar, Clock, Info, ChevronDown } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { OVERTIME_TYPE_LABEL } from '../types'
@@ -78,6 +78,45 @@ export function RequestPage() {
   const [groupIds, setGroupIds] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [toast, setToast] = useState(false)
+
+  // 노션 스케줄
+  interface NotionSchedule {
+    id: string
+    title: string
+    date: string
+    siteName: string
+    workTitle: string
+    status: string
+  }
+  const [schedules, setSchedules] = useState<NotionSchedule[]>([])
+  const [scheduleLoading, setScheduleLoading] = useState(false)
+  const [selectedScheduleId, setSelectedScheduleId] = useState('')
+
+  useEffect(() => {
+    async function fetchSchedules() {
+      setScheduleLoading(true)
+      try {
+        const res = await fetch('/api/notion-schedules')
+        if (res.ok) {
+          const { schedules: items } = await res.json()
+          setSchedules(items ?? [])
+        }
+      } catch { /* 실패해도 무시 */ }
+      setScheduleLoading(false)
+    }
+    fetchSchedules()
+  }, [])
+
+  function handleScheduleSelect(scheduleId: string) {
+    setSelectedScheduleId(scheduleId)
+    if (!scheduleId) return
+    const s = schedules.find(s => s.id === scheduleId)
+    if (!s) return
+    if (s.date) setDate(s.date)
+    if (s.siteName) setSiteName(s.siteName)
+    if (s.workTitle) setWorkDetails(s.workTitle)
+    setForceHoliday(false)
+  }
 
   // 자동 판정
   const autoHoliday = date ? isHolidayDate(date) : false
@@ -179,6 +218,39 @@ export function RequestPage() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-5">
+        {/* 노션 스케줄 선택 */}
+        {schedules.length > 0 && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              <span className="flex items-center gap-1.5">
+                <Calendar size={15} />
+                스케줄 선택
+              </span>
+            </label>
+            <div className="relative">
+              <select
+                value={selectedScheduleId}
+                onChange={(e) => handleScheduleSelect(e.target.value)}
+                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-400 appearance-none pr-8"
+              >
+                <option value="">직접 입력</option>
+                {schedules.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.date.slice(5).replace('-', '/')} — {s.title}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            </div>
+            {selectedScheduleId && (
+              <p className="text-xs text-primary-500 mt-1.5">스케줄에서 자동 입력되었습니다. 아래에서 수정할 수 있습니다.</p>
+            )}
+          </div>
+        )}
+        {scheduleLoading && (
+          <p className="text-xs text-gray-400">스케줄 불러오는 중...</p>
+        )}
+
         {/* 날짜 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -229,14 +301,8 @@ export function RequestPage() {
               근무 시간
             </span>
           </label>
-          {/* 휴게시간 법적 고지 */}
-          <div className="mt-2 mb-3 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5 text-xs text-blue-700 space-y-1">
-            <p className="font-semibold">📋 근로기준법 제54조 (휴게시간)</p>
-            <ul className="space-y-0.5 text-blue-600 pl-1">
-              <li>· 4시간 근무 시 <strong>30분 이상</strong> 휴게 보장</li>
-              <li>· 8시간 근무 시 <strong>1시간 이상</strong> 휴게 보장</li>
-            </ul>
-            <p className="text-blue-500 pt-0.5">실제 근무 시간을 입력해 주세요. 휴게시간은 위 기준에 따라 자동 차감됩니다.</p>
+          <div className="mt-2 mb-3 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5">
+            <p className="text-xs text-gray-600">휴게시간을 반영하여 정규 근무 이후 연장근무를 시작한 시각과 종료한 시각을 입력하세요.</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
