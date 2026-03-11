@@ -352,8 +352,7 @@ export function ExpensePage() {
 
           {/* 증빙자료 업로드 */}
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">증빙자료</label>
-            <p className="text-xs text-gray-400 mb-1.5">1MB 이하 파일만 첨부 가능합니다.</p>
+            <label className="block text-xs font-medium text-gray-600 mb-1.5">증빙자료</label>
             {receiptFile ? (
               <div className="border border-gray-200 rounded-xl p-3">
                 <div className="flex items-center justify-between">

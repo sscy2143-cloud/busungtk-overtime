@@ -11,12 +11,10 @@ interface ApprovalCardProps {
   onEditTime?: (id: string) => void
   onRevokeApproval?: (id: string) => void
   onViewHistory?: (id: string) => void
-  onViewDetail?: (id: string) => void
   canApprove?: boolean
   checked?: boolean
   onCheck?: (id: string, checked: boolean) => void
   weeklyHours?: number
-  approverRole?: string
 }
 
 function isOvertimeRequest(r: OvertimeRequest | LeaveRequest): r is OvertimeRequest {
@@ -35,8 +33,6 @@ export function ApprovalCard({
   checked = false,
   onCheck,
   weeklyHours,
-  approverRole,
-  onViewDetail,
 }: ApprovalCardProps) {
   const isOvertime = type === 'overtime'
   const overtime = isOvertimeRequest(request) ? request : null
@@ -100,10 +96,7 @@ export function ApprovalCard({
       </div>
 
       {/* 상세 정보 */}
-      <div
-        className={`mt-3 ml-12 space-y-1 ${onViewDetail ? 'cursor-pointer' : ''}`}
-        onClick={onViewDetail ? () => onViewDetail(request.id) : undefined}
-      >
+      <div className="mt-3 ml-12 space-y-1">
         {isOvertime && overtime && (
           <>
             <div className="flex items-center gap-1.5 text-xs text-gray-600">
@@ -134,27 +127,9 @@ export function ApprovalCard({
 
         {/* 사유 */}
         <p className="text-xs text-gray-500 line-clamp-2">{request.reason}</p>
-
-        {/* 승인현황 */}
-        {(request.status === 'approved' || request.status === 'pending') && (
-          <div className="mt-1.5 flex items-center gap-3 text-xs">
-            <span className="text-gray-400">승인현황</span>
-            <span className={request.status === 'approved' && approverRole === 'manager' ? 'text-success-600 font-semibold' : 'text-gray-300'}>
-              인사담당자: {request.status === 'approved' && approverRole === 'manager' ? '승인' : '미승인'}
-            </span>
-            <span className={request.status === 'approved' && approverRole === 'admin' ? 'text-success-600 font-semibold' : 'text-gray-300'}>
-              대표: {request.status === 'approved' && approverRole === 'admin' ? '승인' : '미승인'}
-            </span>
-          </div>
-        )}
-        {request.status === 'rejected' && (
-          <p className="text-xs text-danger-500 mt-1">
-            {(request as any).rejection_reason && `반려 사유: ${(request as any).rejection_reason}`}
-          </p>
-        )}
       </div>
 
-      {/* 액션 버튼 - pending 상태에서 승인 권한 있는 경우 */}
+      {/* 액션 버튼 - pending 상태: 대표(admin)만 표시 */}
       {request.status === 'pending' && canApprove && (
         <div className="flex gap-2 mt-3 ml-12">
           {isOvertime && onEditTime && (
@@ -202,6 +177,11 @@ export function ApprovalCard({
             </button>
           )}
         </div>
+      )}
+
+      {/* 인사담당(manager)에게는 읽기 전용 안내 */}
+      {request.status === 'pending' && !canApprove && (
+        <p className="mt-2 ml-12 text-xs text-gray-400">대표 승인 대기 중</p>
       )}
     </div>
   )

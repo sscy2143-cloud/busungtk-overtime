@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { CheckSquare, X, Clock, History, Banknote, RefreshCw } from 'lucide-react'
+import { CheckSquare, X, Clock, History } from 'lucide-react'
 import { ApprovalCard } from '../components/admin/ApprovalCard'
-import { StatusBadge } from '../components/common/StatusBadge'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import type { OvertimeRequest, ApprovalHistory } from '../types'
@@ -34,16 +33,6 @@ interface HistoryModalState {
   entries: ApprovalHistory[]
 }
 
-interface ApproveChoiceModal {
-  open: boolean
-  id: string
-  employeeId: string
-  totalHours: number
-  compLeaveHours: number
-  date: string
-  empName: string
-}
-
 export function AdminApprovalsPage() {
   const { employee } = useAuth()
   const isAdminRole = employee?.role === 'admin'
@@ -58,8 +47,6 @@ export function AdminApprovalsPage() {
   const [timeEditModal, setTimeEditModal] = useState<TimeEditModalState>({ open: false, id: '', start: '', end: '' })
   const [revokeModal, setRevokeModal] = useState<RevokeModalState>({ open: false, id: '', reason: '' })
   const [historyModal, setHistoryModal] = useState<HistoryModalState>({ open: false, requestId: '', entries: [] })
-  const [approveChoiceModal, setApproveChoiceModal] = useState<ApproveChoiceModal>({ open: false, id: '', employeeId: '', totalHours: 0, compLeaveHours: 0, date: '', empName: '' })
-  const [detailModal, setDetailModal] = useState<string | null>(null)
 
   useEffect(() => {
     fetchOvertimes()
@@ -68,7 +55,7 @@ export function AdminApprovalsPage() {
   async function fetchOvertimes() {
     const { data, error } = await supabase
       .from('overtime_requests')
-      .select('*, employee:employees!overtime_requests_employee_id_fkey(id, name, department), approver:employees!overtime_requests_approved_by_fkey(id, name, role)')
+      .select('*, employee:employees!overtime_requests_employee_id_fkey(id, name, department)')
       .order('created_at', { ascending: false })
 
     if (!error && data) {
@@ -94,7 +81,6 @@ export function AdminApprovalsPage() {
     })
   }
 
-  // 승인 (대표/인사담당자 모두 pending → approved 직접 처리)
   async function handleApprove(id: string) {
     const { error } = await supabase
       .from('overtime_requests')
@@ -111,81 +97,12 @@ export function AdminApprovalsPage() {
     setCheckedIds((prev) => { const s = new Set(prev); s.delete(id); return s })
   }
 
-  function openApproveChoice(id: string) {
-    const req = overtimes.find(r => r.id === id)
-    if (!req) return
-    const [sh, sm] = req.planned_start.split(':').map(Number)
-    const [eh, em] = req.planned_end.split(':').map(Number)
-    let mins = (eh * 60 + em) - (sh * 60 + sm)
-    if (mins < 0) mins += 24 * 60
-    const hours = Math.round(mins / 60 * 10) / 10
-    setApproveChoiceModal({
-      open: true,
-      id,
-      employeeId: req.employee_id,
-      totalHours: hours,
-      compLeaveHours: hours,
-      date: req.date,
-      empName: (req.employee as any)?.name ?? '',
-    })
-  }
-
-  async function confirmApproveAsCompLeave() {
-    const { id, employeeId, compLeaveHours, date } = approveChoiceModal
-    if (compLeaveHours <= 0) return
-
-    const { error } = await supabase
-      .from('overtime_requests')
-      .update({ status: 'approved', approved_by: employee?.id, approved_at: new Date().toISOString() })
-      .eq('id', id)
-
-    if (error) return
-
-    await recordHistory(id, 'overtime', 'pending', 'approved', `대체휴가 ${compLeaveHours}시간 전환`)
-
-    const grantedDays = compLeaveHours / 8
-    await supabase.from('substitute_history').insert({
-      employee_id: employeeId,
-      granted_days: grantedDays,
-      reason: `야근 대체전환: ${date} (${compLeaveHours}시간)`,
-      granted_by: employee?.id ?? '',
-      related_request_id: id,
-    })
-
-    const year = new Date().getFullYear()
-    const { data: bal } = await supabase
-      .from('leave_balances')
-      .select('substitute_total')
-      .eq('employee_id', employeeId)
-      .eq('year', year)
-      .maybeSingle()
-
-    if (bal) {
-      await supabase
-        .from('leave_balances')
-        .update({ substitute_total: (bal.substitute_total ?? 0) + grantedDays })
-        .eq('employee_id', employeeId)
-        .eq('year', year)
-    } else {
-      await supabase
-        .from('leave_balances')
-        .insert({ employee_id: employeeId, year, substitute_total: grantedDays, total_days: 0, used_days: 0, substitute_used: 0 })
-    }
-
-    setOvertimes(prev => prev.map(r => r.id === id ? { ...r, status: 'approved' } : r))
-    setCheckedIds(prev => { const s = new Set(prev); s.delete(id); return s })
-    setApproveChoiceModal({ open: false, id: '', employeeId: '', totalHours: 0, compLeaveHours: 0, date: '', empName: '' })
-  }
-
   function openReject(id: string) {
     setRejectModal({ open: true, id, reason: '' })
   }
 
   async function confirmReject() {
     const { id, reason } = rejectModal
-    const req = overtimes.find((r) => r.id === id)
-    const fromStatus = req?.status ?? 'pending'
-
     const { error } = await supabase
       .from('overtime_requests')
       .update({ status: 'rejected', rejection_reason: reason })
@@ -196,7 +113,7 @@ export function AdminApprovalsPage() {
       return
     }
 
-    await recordHistory(id, 'overtime', fromStatus as any, 'rejected', reason)
+    await recordHistory(id, 'overtime', 'pending', 'rejected', reason)
     setOvertimes((prev) => prev.map((r) => r.id === id ? { ...r, status: 'rejected', rejection_reason: reason } : r))
     setCheckedIds((prev) => { const s = new Set(prev); s.delete(id); return s })
     setRejectModal({ open: false, id: '', reason: '' })
@@ -366,17 +283,15 @@ export function AdminApprovalsPage() {
             key={req.id}
             request={req}
             type="overtime"
-            canApprove={isAdminRole || employee?.role === 'manager'}
-            onApprove={(id) => isAdminRole ? openApproveChoice(id) : handleApprove(id)}
+            canApprove={isAdminRole}
+            onApprove={handleApprove}
             onReject={openReject}
             onEditTime={isAdminRole ? openTimeEdit : undefined}
             onRevokeApproval={isAdminRole ? openRevokeModal : undefined}
             onViewHistory={openHistoryModal}
-            onViewDetail={(id) => setDetailModal(id)}
             checked={checkedIds.has(req.id)}
             onCheck={req.status === 'pending' && isAdminRole ? handleCheck : undefined}
             weeklyHours={req.weeklyHours}
-            approverRole={(req as any).approver?.role}
           />
         ))}
         {filteredOvertimes.length === 0 && (
@@ -511,168 +426,6 @@ export function AdminApprovalsPage() {
               >
                 수정 후 승인
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 신청 상세 모달 */}
-      {detailModal && (() => {
-        const req = overtimes.find(r => r.id === detailModal)
-        if (!req) return null
-        const emp = (req as any).employee
-        const approver = (req as any).approver
-        const hours = (() => {
-          const [sh, sm] = req.planned_start.split(':').map(Number)
-          const [eh, em] = req.planned_end.split(':').map(Number)
-          let mins = (eh * 60 + em) - (sh * 60 + sm)
-          if (mins < 0) mins += 24 * 60
-          return (mins / 60).toFixed(1)
-        })()
-        const TYPE_LABEL: Record<string, string> = { extended: '연장근무', night: '야간근무', holiday: '휴일근무' }
-        return (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
-            <div className="absolute inset-0 bg-black/40" onClick={() => setDetailModal(null)} />
-            <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                <h3 className="text-base font-bold text-gray-900">야근 신청 상세</h3>
-                <button onClick={() => setDetailModal(null)}>
-                  <X className="w-5 h-5 text-gray-400" />
-                </button>
-              </div>
-              <div className="px-5 py-4 space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center shrink-0">
-                    <span className="text-sm font-bold text-primary-700">{emp?.name?.charAt(0) ?? '?'}</span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">{emp?.name ?? '-'}</p>
-                    <p className="text-xs text-gray-400">{emp?.department ?? '-'}</p>
-                  </div>
-                  <div className="ml-auto">
-                    <StatusBadge status={req.status} />
-                  </div>
-                </div>
-                <div className="bg-gray-50 rounded-xl p-3 space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">날짜</span>
-                    <span className="font-medium text-gray-800">{req.date}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">시간</span>
-                    <span className="font-medium text-gray-800">{req.planned_start} ~ {req.planned_end} <span className="text-primary-600">({hours}h)</span></span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">유형</span>
-                    <span className="font-medium text-gray-800">{TYPE_LABEL[req.type] ?? req.type}</span>
-                  </div>
-                </div>
-                {req.site_name && (
-                  <div>
-                    <p className="text-xs font-semibold text-gray-500 mb-1">현장명</p>
-                    <p className="text-sm text-gray-700 bg-gray-50 rounded-xl px-3 py-2">{req.site_name}</p>
-                  </div>
-                )}
-                {req.work_details && (
-                  <div>
-                    <p className="text-xs font-semibold text-gray-500 mb-1">작업내용 상세</p>
-                    <p className="text-sm text-gray-700 bg-gray-50 rounded-xl px-3 py-2">{req.work_details}</p>
-                  </div>
-                )}
-                {req.reason && (
-                  <div>
-                    <p className="text-xs font-semibold text-gray-500 mb-1">기타</p>
-                    <p className="text-sm text-gray-700 bg-gray-50 rounded-xl px-3 py-2">{req.reason}</p>
-                  </div>
-                )}
-                {req.status === 'approved' && approver?.name && (
-                  <p className="text-xs text-success-600 font-medium">승인: {approver.name}</p>
-                )}
-                {req.status === 'rejected' && req.rejection_reason && (
-                  <div>
-                    <p className="text-xs font-semibold text-gray-500 mb-1">반려 사유</p>
-                    <p className="text-sm text-danger-600 bg-danger-50 rounded-xl px-3 py-2">{req.rejection_reason}</p>
-                  </div>
-                )}
-              </div>
-              <div className="px-5 pb-4">
-                <button
-                  onClick={() => setDetailModal(null)}
-                  className="w-full py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
-                >
-                  닫기
-                </button>
-              </div>
-            </div>
-          </div>
-        )
-      })()}
-
-      {/* 승인 방식 선택 모달 */}
-      {approveChoiceModal.open && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setApproveChoiceModal(p => ({ ...p, open: false }))} />
-          <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="text-base font-bold text-gray-900">승인 방식 선택</h3>
-              <button onClick={() => setApproveChoiceModal(p => ({ ...p, open: false }))}>
-                <X className="w-5 h-5 text-gray-400" />
-              </button>
-            </div>
-            <p className="text-xs text-gray-500 mb-4">
-              <span className="font-semibold text-gray-700">{approveChoiceModal.empName}</span>
-              {' · '}{approveChoiceModal.date}{' · '}{approveChoiceModal.totalHours}시간
-            </p>
-            <div className="space-y-2 mb-1">
-              {/* 수당으로 승인 */}
-              <button
-                onClick={async () => {
-                  await handleApprove(approveChoiceModal.id)
-                  setApproveChoiceModal(p => ({ ...p, open: false }))
-                }}
-                className="w-full text-left px-4 py-3 border-2 border-blue-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
-                    <Banknote className="w-5 h-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-800">수당으로 승인</p>
-                    <p className="text-xs text-gray-500 mt-0.5">연장근무수당 계산에 포함됩니다</p>
-                  </div>
-                </div>
-              </button>
-              {/* 대체휴가로 승인 */}
-              <div className="border-2 border-teal-200 rounded-xl p-4">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-9 h-9 rounded-xl bg-teal-100 flex items-center justify-center shrink-0">
-                    <RefreshCw className="w-5 h-5 text-teal-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-800">대체휴가로 승인</p>
-                    <p className="text-xs text-gray-500 mt-0.5">수당 대신 대체휴가로 부여됩니다</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 mb-3">
-                  <label className="text-xs text-gray-600 shrink-0">부여 시간</label>
-                  <input
-                    type="number"
-                    min="0.5"
-                    step="0.5"
-                    value={approveChoiceModal.compLeaveHours}
-                    onChange={e => setApproveChoiceModal(p => ({ ...p, compLeaveHours: parseFloat(e.target.value) || 0 }))}
-                    className="flex-1 px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-400 text-right"
-                  />
-                  <span className="text-xs text-gray-500 shrink-0">시간 = {(approveChoiceModal.compLeaveHours / 8).toFixed(1)}일</span>
-                </div>
-                <button
-                  onClick={confirmApproveAsCompLeave}
-                  disabled={approveChoiceModal.compLeaveHours <= 0}
-                  className="w-full py-2 text-sm font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 disabled:opacity-40 transition-colors"
-                >
-                  대체휴가 {approveChoiceModal.compLeaveHours}시간 부여 후 승인
-                </button>
-              </div>
             </div>
           </div>
         </div>

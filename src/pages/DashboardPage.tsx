@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FilePlus, CalendarPlus, AlertCircle, Clock, Download } from 'lucide-react'
+import { FilePlus, CalendarPlus, AlertCircle, Clock, ChevronLeft, ChevronRight, Download } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { StatusBadge } from '../components/common/StatusBadge'
@@ -77,8 +77,8 @@ export function DashboardPage() {
   const [recentRequests, setRecentRequests] = useState<{ id: string; kind: 'overtime' | 'leave'; type: OvertimeType | LeaveType; date: string; status: RequestStatus; created_at: string }[]>([])
   const [leave, setLeave] = useState({ total: 0, used: 0, remaining: 0 })
   const [notices, setNotices] = useState<{ id: string; title: string; category: string; created_at: string }[]>([])
-  const [showAllNotices, setShowAllNotices] = useState(false)
-  const [showAllPayslips, setShowAllPayslips] = useState(false)
+  const [noticePage, setNoticePage] = useState(0)
+  const NOTICE_PAGE_SIZE = 5
   const [payslips, setPayslips] = useState<{ id: string; period: string; file_path: string; file_name: string }[]>([])
 
   useEffect(() => {
@@ -245,31 +245,6 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {/* 빠른 액션 */}
-      <div className="grid grid-cols-3 gap-3">
-        <button
-          onClick={() => navigate('/request')}
-          className="flex flex-col items-center justify-center gap-1.5 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white font-semibold text-sm py-6 rounded-xl transition-colors shadow-sm"
-        >
-          <FilePlus size={20} />
-          연장근무 신청
-        </button>
-        <button
-          onClick={() => navigate('/leave/request')}
-          className="flex flex-col items-center justify-center gap-1.5 bg-white hover:bg-gray-50 active:bg-gray-100 text-primary-600 font-semibold text-sm py-6 rounded-xl border border-primary-200 transition-colors shadow-sm"
-        >
-          <CalendarPlus size={20} />
-          휴가 신청
-        </button>
-        <button
-          onClick={() => navigate('/timesheet')}
-          className="flex flex-col items-center justify-center gap-1.5 bg-white hover:bg-gray-50 active:bg-gray-100 text-gray-700 font-semibold text-sm py-6 rounded-xl border border-gray-200 transition-colors shadow-sm"
-        >
-          <Clock size={20} />
-          근무 기록
-        </button>
-      </div>
-
       {/* 카드 2: 최근 제출 */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
         <div className="flex items-center justify-between mb-4">
@@ -310,23 +285,15 @@ export function DashboardPage() {
         )}
       </div>
 
-      {/* 공지사항 + 급여명세서 (1x2) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* 공지사항 */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-gray-500">공지사항</h2>
-            {notices.length > 2 && (
-              <button onClick={() => setShowAllNotices(v => !v)} className="text-xs text-primary-600 hover:underline">
-                {showAllNotices ? '접기' : '전체보기 →'}
-              </button>
-            )}
-          </div>
-          {notices.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-6">등록된 공지사항이 없습니다.</p>
-          ) : (
+      {/* 공지사항 */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+        <h2 className="text-sm font-semibold text-gray-500 mb-3">공지사항</h2>
+        {notices.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-6">등록된 공지사항이 없습니다.</p>
+        ) : (
+          <>
             <ul className="divide-y divide-gray-50">
-              {(showAllNotices ? notices : notices.slice(0, 2)).map((n) => (
+              {notices.slice(noticePage * NOTICE_PAGE_SIZE, (noticePage + 1) * NOTICE_PAGE_SIZE).map((n) => (
                 <li key={n.id} className="flex items-center gap-3 py-2.5">
                   <span className={`flex-shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${
                     n.category === '업데이트' ? 'bg-blue-50 text-blue-600' :
@@ -342,47 +309,86 @@ export function DashboardPage() {
                 </li>
               ))}
             </ul>
-          )}
-        </div>
-
-        {/* 급여명세서 */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-gray-500">급여명세서</h2>
-            {payslips.length > 2 && (
-              <button onClick={() => setShowAllPayslips(v => !v)} className="text-xs text-primary-600 hover:underline">
-                {showAllPayslips ? '접기' : '전체보기 →'}
-              </button>
+            {notices.length > NOTICE_PAGE_SIZE && (
+              <div className="flex items-center justify-center gap-3 mt-3 pt-2 border-t border-gray-50">
+                <button
+                  onClick={() => setNoticePage(p => Math.max(0, p - 1))}
+                  disabled={noticePage === 0}
+                  className="p-1 rounded-lg hover:bg-gray-100 disabled:opacity-30 transition-colors"
+                >
+                  <ChevronLeft size={16} className="text-gray-500" />
+                </button>
+                <span className="text-xs text-gray-400">
+                  {noticePage + 1} / {Math.ceil(notices.length / NOTICE_PAGE_SIZE)}
+                </span>
+                <button
+                  onClick={() => setNoticePage(p => Math.min(Math.ceil(notices.length / NOTICE_PAGE_SIZE) - 1, p + 1))}
+                  disabled={noticePage >= Math.ceil(notices.length / NOTICE_PAGE_SIZE) - 1}
+                  className="p-1 rounded-lg hover:bg-gray-100 disabled:opacity-30 transition-colors"
+                >
+                  <ChevronRight size={16} className="text-gray-500" />
+                </button>
+              </div>
             )}
-          </div>
-          {payslips.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-6">등록된 급여명세서가 없습니다.</p>
-          ) : (
-            <ul className="divide-y divide-gray-50">
-              {(showAllPayslips ? payslips : payslips.slice(0, 2)).map(slip => {
-                const [y, m] = slip.period.split('-')
-                return (
-                  <li key={slip.id} className="flex items-center justify-between py-2.5">
-                    <div>
-                      <p className="text-sm font-semibold text-gray-800">{y}년 {parseInt(m)}월</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{slip.file_name}</p>
-                    </div>
-                    <button
-                      onClick={async () => {
-                        const { data } = await supabase.storage.from('payslips').createSignedUrl(slip.file_path, 300)
-                        if (data?.signedUrl) window.open(data.signedUrl, '_blank')
-                      }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary-600 border border-primary-200 rounded-lg hover:bg-primary-50 transition-colors"
-                    >
-                      <Download size={12} />
-                      보기
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </div>
+          </>
+        )}
+      </div>
+
+      {/* 급여명세서 */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+        <h2 className="text-sm font-semibold text-gray-500 mb-3">급여명세서</h2>
+        {payslips.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-6">등록된 급여명세서가 없습니다.</p>
+        ) : (
+          <ul className="divide-y divide-gray-50">
+            {payslips.map(slip => {
+              const [y, m] = slip.period.split('-')
+              return (
+                <li key={slip.id} className="flex items-center justify-between py-2.5">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">{y}년 {parseInt(m)}월</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{slip.file_name}</p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const { data } = await supabase.storage.from('payslips').createSignedUrl(slip.file_path, 300)
+                      if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary-600 border border-primary-200 rounded-lg hover:bg-primary-50 transition-colors"
+                  >
+                    <Download size={12} />
+                    보기
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </div>
+
+      {/* 빠른 액션 */}
+      <div className="grid grid-cols-3 gap-3">
+        <button
+          onClick={() => navigate('/request')}
+          className="flex flex-col items-center justify-center gap-1.5 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white font-semibold text-sm py-6 rounded-xl transition-colors shadow-sm"
+        >
+          <FilePlus size={20} />
+          연장근무 신청
+        </button>
+        <button
+          onClick={() => navigate('/leave/request')}
+          className="flex flex-col items-center justify-center gap-1.5 bg-white hover:bg-gray-50 active:bg-gray-100 text-primary-600 font-semibold text-sm py-6 rounded-xl border border-primary-200 transition-colors shadow-sm"
+        >
+          <CalendarPlus size={20} />
+          휴가 신청
+        </button>
+        <button
+          onClick={() => navigate('/timesheet')}
+          className="flex flex-col items-center justify-center gap-1.5 bg-white hover:bg-gray-50 active:bg-gray-100 text-gray-700 font-semibold text-sm py-6 rounded-xl border border-gray-200 transition-colors shadow-sm"
+        >
+          <Clock size={20} />
+          근무 기록
+        </button>
       </div>
     </div>
   )

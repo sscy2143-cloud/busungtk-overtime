@@ -252,8 +252,7 @@ export function RequestPage() {
               </select>
               <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             </div>
-            <p className="text-xs text-gray-400 mt-1.5">노션에 등록된 최근 2주치 작업 일정입니다.</p>
-            <p className="text-xs text-gray-400 mt-0.5">선택하면 날짜, 현장명, 내용이 자동으로 채워집니다.</p>
+            <p className="text-xs text-gray-400 mt-1.5">노션에 등록된 최근 2주치 작업 일정입니다. 선택하면 날짜, 현장명, 작업내용이 자동으로 채워집니다.</p>
           </div>
         )}
         {scheduleLoading && (
@@ -310,7 +309,9 @@ export function RequestPage() {
               근무 시간
             </span>
           </label>
-          <p className="text-xs text-gray-400 mt-1 mb-3">휴게시간을 반영하여 정규 근무 이후 연장근무를 시작한 시각과 종료한 시각을 입력하세요.</p>
+          <div className="mt-2 mb-3 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5">
+            <p className="text-xs text-gray-600">휴게시간을 반영하여 정규 근무 이후 연장근무를 시작한 시각과 종료한 시각을 입력하세요.</p>
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
