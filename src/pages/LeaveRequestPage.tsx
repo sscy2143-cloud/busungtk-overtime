@@ -40,6 +40,7 @@ export function LeaveRequestPage() {
   const [searchParams] = useSearchParams()
   const { employee } = useAuth()
   const [remainingDays, setRemainingDays] = useState(0)
+  const [substituteRemaining, setSubstituteRemaining] = useState(0)
 
   useEffect(() => {
     if (!employee?.id) return
@@ -47,11 +48,14 @@ export function LeaveRequestPage() {
       const currentYear = new Date().getFullYear()
       const { data } = await supabase
         .from('leave_balances')
-        .select('remaining_days')
+        .select('remaining_days, substitute_total, substitute_used')
         .eq('employee_id', employee!.id)
         .eq('year', currentYear)
         .single()
-      if (data) setRemainingDays(data.remaining_days)
+      if (data) {
+        setRemainingDays(data.remaining_days)
+        setSubstituteRemaining((data.substitute_total ?? 0) - (data.substitute_used ?? 0))
+      }
     }
     fetchBalance()
   }, [employee?.id])
@@ -93,6 +97,9 @@ export function LeaveRequestPage() {
     const finalReason = isOther ? otherSubType + (reason.trim() ? ` / ${reason.trim()}` : '') : reason.trim()
     const finalEnd = isHalfDay ? startDate : (endDate || startDate)
 
+    // 연차 신청 시 대체휴가 잔여 있으면 우선 사용
+    const useSubstitute = leaveType === 'annual' && substituteRemaining > 0
+
     // DB에 휴가 신청 저장
     const { error } = await supabase.from('leave_requests').insert({
       employee_id: employee?.id ?? '',
@@ -101,6 +108,7 @@ export function LeaveRequestPage() {
       end_date: finalEnd,
       days: calculatedDays,
       reason: finalReason,
+      use_substitute: useSubstitute,
     })
 
     if (error) {
@@ -165,6 +173,16 @@ export function LeaveRequestPage() {
               </option>
             ))}
           </select>
+
+          {/* 대체휴가 우선 사용 안내 */}
+          {leaveType === 'annual' && substituteRemaining > 0 && (
+            <div className="mt-3 flex items-start gap-2 bg-teal-50 border border-teal-100 rounded-xl px-3 py-2.5">
+              <span className="text-teal-500 mt-0.5">ℹ</span>
+              <p className="text-xs text-teal-700">
+                대체휴가 잔여 <span className="font-bold">{substituteRemaining}일</span>이 있어 잔여 연차가 아닌 대체휴가에서 먼저 차감됩니다.
+              </p>
+            </div>
+          )}
 
           {/* 기타 세부 유형 */}
           {isOther && (

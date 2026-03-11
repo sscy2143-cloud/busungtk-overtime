@@ -24,10 +24,21 @@ export function AdminOvertimePayPage() {
   const [loading, setLoading] = useState(true)
   // 시급 로컬 오버라이드 (DB 반영 전 즉시 UI 반영용)
   const [wageOverrides, setWageOverrides] = useState<Record<string, number>>({})
+  const [compLeaveRequestIds, setCompLeaveRequestIds] = useState<Set<string>>(new Set())
   const [editingEmpId, setEditingEmpId] = useState<string | null>(null)
   const [editingValue, setEditingValue] = useState('')
 
   const monthPrefix = `${calYear}-${String(calMonth).padStart(2, '0')}`
+
+  useEffect(() => {
+    supabase
+      .from('substitute_history')
+      .select('related_request_id')
+      .not('related_request_id', 'is', null)
+      .then(({ data }) => {
+        if (data) setCompLeaveRequestIds(new Set(data.map((r: any) => r.related_request_id as string)))
+      })
+  }, [])
 
   useEffect(() => {
     setLoading(true)
@@ -62,7 +73,7 @@ export function AdminOvertimePayPage() {
       holidayNight: number; holidayOvertimeNight: number
       totalMinutes: number
     }>()
-    for (const r of allRequests) {
+    for (const r of allRequests.filter(r => !compLeaveRequestIds.has(r.id))) {
       const empId = r.employee_id
       const bd = calculateOvertimeBreakdown(r.date, r.planned_start, r.planned_end)
       let entry = map.get(empId)
@@ -86,7 +97,7 @@ export function AdminOvertimePayPage() {
       entry.totalMinutes += bd.totalMinutes
     }
     return Array.from(map.values()).sort((a, b) => b.totalMinutes - a.totalMinutes)
-  }, [allRequests])
+  }, [allRequests, compLeaveRequestIds])
 
   function getWage(empId: string, dbWage: number): number {
     return wageOverrides[empId] ?? dbWage
@@ -124,6 +135,7 @@ export function AdminOvertimePayPage() {
 
   const totalPay = payTable.reduce((s, row) => s + calcPay(row, getWage(row.empId, row.dbWage)), 0)
   const wageFilledCount = payTable.filter(r => getWage(r.empId, r.dbWage) > 0).length
+  const compLeaveExcludedCount = allRequests.filter(r => compLeaveRequestIds.has(r.id)).length
 
   if (loading) return (
     <div className="flex items-center justify-center py-20">
@@ -151,6 +163,13 @@ export function AdminOvertimePayPage() {
         </div>
         <p className="text-xs text-blue-400">* 시급은 사원현황에서 설정하거나 여기서 직접 수정할 수 있습니다</p>
       </div>
+
+      {/* 대체휴가 제외 안내 */}
+      {compLeaveExcludedCount > 0 && (
+        <div className="flex items-center gap-2 bg-teal-50 border border-teal-200 rounded-xl px-4 py-2.5 text-xs text-teal-700">
+          <span>대체휴가로 처리된 야근 <span className="font-semibold">{compLeaveExcludedCount}건</span>은 수당 계산에서 제외됩니다</span>
+        </div>
+      )}
 
       {/* 월 선택 */}
       <div className="flex items-center gap-2 justify-end">
