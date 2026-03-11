@@ -73,6 +73,7 @@ export function RequestPage() {
   const [reason, setReason] = useState('')
   const [siteName, setSiteName] = useState('')
   const [workDetails, setWorkDetails] = useState('')
+  const [workDetailsFull, setWorkDetailsFull] = useState('')
   const [forceHoliday, setForceHoliday] = useState(false)
   const [groupOpen, setGroupOpen] = useState(false)
   const [groupIds, setGroupIds] = useState<string[]>([])
@@ -163,7 +164,7 @@ export function RequestPage() {
       planned_end: payload.planned_end,
       reason: payload.reason,
       site_name: siteName.trim() || null,
-      work_details: workDetails.trim() || null,
+      work_details: [workDetails.trim(), workDetailsFull.trim()].filter(Boolean).join(' | ') || null,
       is_retroactive: payload.is_retroactive,
       created_by: payload.employee_id,
       group_id: groupId,
@@ -221,19 +222,22 @@ export function RequestPage() {
         {/* 노션 스케줄 선택 */}
         {schedules.length > 0 && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
               <span className="flex items-center gap-1.5">
                 <Calendar size={15} />
-                스케줄 선택
+                오늘의 작업 일정
               </span>
             </label>
+            <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 mb-2">
+              <p className="text-xs text-gray-600">노션 캘린더에 등록된 일정입니다. 선택하면 날짜, 현장명, 작업내용이 자동으로 채워집니다.</p>
+            </div>
             <div className="relative">
               <select
                 value={selectedScheduleId}
                 onChange={(e) => handleScheduleSelect(e.target.value)}
                 className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-400 appearance-none pr-8"
               >
-                <option value="">직접 입력</option>
+                <option value="">일정을 선택하거나 아래에서 직접 입력하세요</option>
                 {schedules.map(s => (
                   <option key={s.id} value={s.id}>
                     {s.date.slice(5).replace('-', '/')} — {s.title}
@@ -242,9 +246,7 @@ export function RequestPage() {
               </select>
               <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             </div>
-            {selectedScheduleId && (
-              <p className="text-xs text-primary-500 mt-1.5">스케줄에서 자동 입력되었습니다. 아래에서 수정할 수 있습니다.</p>
-            )}
+            <p className="text-xs text-gray-400 mt-1.5">노션에 등록된 최근 2주치 작업 일정입니다. 선택하면 날짜, 현장명, 작업내용이 자동으로 채워지며, 채워진 내용은 수정할 수 있습니다.</p>
           </div>
         )}
         {scheduleLoading && (
@@ -406,17 +408,31 @@ export function RequestPage() {
           />
         </div>
 
+        {/* 작업내용 */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            작업내용 <span className="text-danger-500">*</span>
+          </label>
+          <input
+            type="text"
+            value={workDetails}
+            onChange={(e) => setWorkDetails(e.target.value)}
+            placeholder="작업내용을 입력하세요 (예: 워크인냉장고 콤프 교체)"
+            required
+            className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-400"
+          />
+        </div>
+
         {/* 작업내용 상세 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            작업내용 상세 <span className="text-danger-500">*</span>
+            작업내용 상세 <span className="text-xs font-normal text-gray-400">(내부 보고용)</span>
           </label>
           <textarea
-            value={workDetails}
-            onChange={(e) => setWorkDetails(e.target.value)}
+            value={workDetailsFull}
+            onChange={(e) => setWorkDetailsFull(e.target.value)}
             rows={2}
-            placeholder="수행한 작업 내용을 상세히 입력하세요 (예: 야외 워크인냉장고 콤프고장으로 교체 작업진행)"
-            required
+            placeholder="상세 작업 내용을 입력하세요 (예: 야외 워크인냉장고 콤프고장으로 교체 작업진행, 냉매 충전 완료)"
             className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-400 resize-none"
           />
         </div>
