@@ -34,7 +34,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           },
         },
         sorts: [
-          { property: '날짜', direction: 'ascending' },
+          { property: '날짜', direction: 'descending' },
         ],
         page_size: 100,
       }),
