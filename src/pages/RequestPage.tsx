@@ -229,7 +229,7 @@ export function RequestPage() {
                 </span>
               </label>
               <a
-                href="https://www.notion.so/5feec1e4b2284dffb3428a3f130dfa0d"
+                href="notion://www.notion.so/5feec1e4b2284dffb3428a3f130dfa0d"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs text-primary-500 hover:underline"
