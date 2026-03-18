@@ -144,7 +144,7 @@ export function RequestListPage() {
       </div>
 
       {/* 요약 띠 */}
-      <div className="bg-white rounded-xl border border-gray-200 flex divide-x divide-gray-100 overflow-hidden">
+      <div data-tour="work-summary" className="bg-white rounded-xl border border-gray-200 flex divide-x divide-gray-100 overflow-hidden">
         <div className="flex-1 px-5 py-3.5">
           <p className="text-xs text-gray-400 mb-0.5">금주 연장</p>
           <p className="text-lg font-bold text-blue-600">{weeklyHours.toFixed(1)}h</p>

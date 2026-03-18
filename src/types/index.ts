@@ -101,6 +101,8 @@ export interface LeaveRequest {
   status: RequestStatus
   approved_by: string | null
   approved_at: string | null
+  manager_approved_by: string | null
+  manager_approved_at: string | null
   rejection_reason: string | null
   use_substitute: boolean
   created_at: string
@@ -181,6 +183,11 @@ export interface Expense {
   payment_account: string | null
   payment_note: string | null
   paid_by: string | null
+  employee_confirmed_at: string | null
+  confirmed_device: string | null
+  cancel_requested_at: string | null
+  cancel_reason: string | null
+  admin_note: string | null
   created_at: string
 }
 

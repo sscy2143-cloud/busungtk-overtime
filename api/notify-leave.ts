@@ -1,5 +1,17 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import * as crypto from 'crypto'
+import { createClient } from '@supabase/supabase-js'
+
+async function verifyAuth(req: VercelRequest): Promise<boolean> {
+  const authHeader = req.headers.authorization
+  if (!authHeader?.startsWith('Bearer ')) return false
+  const supabase = createClient(
+    process.env.VITE_SUPABASE_URL!,
+    process.env.VITE_SUPABASE_ANON_KEY!,
+  )
+  const { data: { user }, error } = await supabase.auth.getUser(authHeader.split(' ')[1])
+  return !error && !!user
+}
 
 function getSolapiAuth() {
   const apiKey = process.env.SOLAPI_API_KEY
@@ -50,22 +62,24 @@ async function sendSMS(
   return { success: true }
 }
 
-/**
- * POST /api/notify-leave
- * 휴가 신청 시 사장님에게 SMS 알림
- *
- * Body: {
- *   employeeName: string    // 신청자 이름
- *   leaveType: string       // 연차, 오전반차, 오후반차, 특별휴가, 병가
- *   startDate: string       // 시작일
- *   endDate: string         // 종료일
- *   days: number            // 일수
- *   reason: string          // 사유
- * }
- */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // CORS
+  const allowedOrigin = process.env.ALLOWED_ORIGIN || 'https://busungtk-overtime.vercel.app'
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigin)
+  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end()
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  // 인증 확인
+  if (!(await verifyAuth(req))) {
+    return res.status(401).json({ error: '인증이 필요합니다' })
   }
 
   try {
@@ -80,12 +94,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(500).json({ error: 'BOSS_PHONE 환경변수 미설정' })
     }
 
-    // 날짜 표시
     const dateRange = startDate === endDate || !endDate
       ? startDate
       : `${startDate} ~ ${endDate}`
 
-    // SMS 메시지 (80바이트 이내면 SMS, 초과면 LMS 자동 전환)
     const message = [
       `[부성TK 휴가신청]`,
       `${employeeName} - ${leaveType} ${days}일`,
@@ -97,7 +109,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const result = await sendSMS(bossPhone, message)
 
     if (!result.success) {
-      console.error('SMS 발송 실패:', result.error)
       return res.status(500).json({
         success: false,
         error: result.error,
@@ -109,7 +120,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       message: '사장님에게 SMS 알림 발송 완료',
     })
   } catch (error) {
-    console.error('notify-leave error:', error)
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : '서버 오류',

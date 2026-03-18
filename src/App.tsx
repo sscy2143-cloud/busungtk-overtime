@@ -26,6 +26,11 @@ import { AdminLeavePayPage } from './pages/AdminLeavePayPage'
 import { AdminEmployeesPage } from './pages/AdminEmployeesPage'
 import { AdminCompLeavePage } from './pages/AdminCompLeavePage'
 import { AdminPayslipPage } from './pages/AdminPayslipPage'
+import { AdminNoticePage } from './pages/AdminNoticePage'
+import { PayslipListPage } from './pages/PayslipListPage'
+import { NoticeListPage } from './pages/NoticeListPage'
+import { UserGuidePage } from './pages/UserGuidePage'
+import { SettingsPage } from './pages/SettingsPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -74,6 +79,10 @@ export default function App() {
           <Route path="leave/request" element={<LeaveRequestPage />} />
           <Route path="notifications" element={<NotificationsPage />} />
           <Route path="expenses" element={<ExpensePage />} />
+          <Route path="payslips" element={<PayslipListPage />} />
+          <Route path="notices" element={<NoticeListPage />} />
+          <Route path="guide" element={<UserGuidePage />} />
+          <Route path="settings" element={<SettingsPage />} />
           <Route path="admin" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
           <Route path="admin/approvals" element={<AdminRoute><AdminApprovalsPage /></AdminRoute>} />
           <Route path="admin/overtime" element={<AdminRoute><AdminOvertimeDashboardPage /></AdminRoute>} />
@@ -89,6 +98,7 @@ export default function App() {
           <Route path="admin/payroll" element={<AdminRoute><AdminPayrollPage /></AdminRoute>} />
           <Route path="admin/documents" element={<AdminRoute><AdminDocumentsPage /></AdminRoute>} />
           <Route path="admin/payslips" element={<AdminRoute><AdminPayslipPage /></AdminRoute>} />
+          <Route path="admin/notices" element={<AdminRoute><AdminNoticePage /></AdminRoute>} />
         </Route>
       </Routes>
     </BrowserRouter>

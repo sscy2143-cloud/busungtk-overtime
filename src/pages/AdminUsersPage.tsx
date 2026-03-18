@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Users, UserCheck, UserX, Shield, X } from 'lucide-react'
+import { Users, UserCheck, UserX, Shield, X, Plus, KeyRound } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import type { Employee, UserRole } from '../types'
-
-const ADMIN_KEY = '6325'
 
 const ROLE_LABEL: Record<UserRole, string> = {
   employee: '직원',
@@ -27,30 +25,45 @@ interface EditModal {
   isActive: boolean
 }
 
+interface CreateModal {
+  open: boolean
+  employeeNumber: string
+  name: string
+  department: string
+  role: UserRole
+  password: string
+  passwordConfirm: string
+}
+
+interface ResetPasswordModal {
+  open: boolean
+  userId: string
+  name: string
+  newPassword: string
+}
+
 export function AdminUsersPage() {
-  const { employee: currentUser, isDemo } = useAuth()
+  const { employee: currentUser, session } = useAuth()
   const [employees, setEmployees] = useState<Employee[]>([])
 
   useEffect(() => {
-    if (isDemo) {
-      // 개발자 모드: RPC로 조회 (RLS 우회)
-      supabase.rpc('list_all_employees', { p_admin_key: ADMIN_KEY }).then(({ data }) => {
-        if (data) setEmployees(data as Employee[])
-      })
-    } else {
-      supabase
-        .from('employees')
-        .select('*')
-        .order('created_at', { ascending: true })
-        .then(({ data }) => {
-          if (data) setEmployees(data)
-        })
-    }
-  }, [isDemo])
+    supabase.rpc('list_all_employees').then(({ data }) => {
+      if (data) setEmployees(data as Employee[])
+    })
+  }, [])
+
   const [editModal, setEditModal] = useState<EditModal>({
     open: false, employee: null, name: '', role: 'employee', department: '', isActive: true,
   })
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; id: string; name: string }>({ open: false, id: '', name: '' })
+  const [createModal, setCreateModal] = useState<CreateModal>({
+    open: false, employeeNumber: '', name: '', department: '', role: 'employee', password: '', passwordConfirm: '',
+  })
+  const [resetModal, setResetModal] = useState<ResetPasswordModal>({
+    open: false, userId: '', name: '', newPassword: '',
+  })
+  const [actionError, setActionError] = useState('')
+  const [actionLoading, setActionLoading] = useState(false)
 
   function openEdit(emp: Employee) {
     setEditModal({
@@ -66,16 +79,10 @@ export function AdminUsersPage() {
   async function saveEdit() {
     if (!editModal.employee) return
     const id = editModal.employee.id
-    if (isDemo) {
-      await supabase.rpc('update_employee_admin', {
-        p_admin_key: ADMIN_KEY, p_id: id,
-        p_name: editModal.name, p_role: editModal.role, p_department: editModal.department, p_is_active: editModal.isActive,
-      })
-    } else {
-      await supabase.from('employees').update({
-        name: editModal.name, role: editModal.role, department: editModal.department, is_active: editModal.isActive,
-      }).eq('id', id)
-    }
+    await supabase.rpc('update_employee_admin', {
+      p_id: id,
+      p_name: editModal.name, p_role: editModal.role, p_department: editModal.department, p_is_active: editModal.isActive,
+    })
     setEmployees((prev) =>
       prev.map((e) => e.id === id ? { ...e, name: editModal.name, role: editModal.role, department: editModal.department, is_active: editModal.isActive } : e),
     )
@@ -86,13 +93,9 @@ export function AdminUsersPage() {
     const emp = employees.find((e) => e.id === id)
     if (!emp) return
     const newActive = !emp.is_active
-    if (isDemo) {
-      await supabase.rpc('update_employee_admin', {
-        p_admin_key: ADMIN_KEY, p_id: id, p_is_active: newActive,
-      })
-    } else {
-      await supabase.from('employees').update({ is_active: newActive }).eq('id', id)
-    }
+    await supabase.rpc('update_employee_admin', {
+      p_id: id, p_is_active: newActive,
+    })
     setEmployees((prev) =>
       prev.map((e) => e.id === id ? { ...e, is_active: newActive } : e),
     )
@@ -100,16 +103,112 @@ export function AdminUsersPage() {
 
   async function confirmDelete() {
     const { id } = deleteModal
-    if (isDemo) {
-      // 데모 모드: 삭제 RPC 없으므로 비활성화 처리
-      await supabase.rpc('update_employee_admin', {
-        p_admin_key: ADMIN_KEY, p_id: id, p_is_active: false,
-      })
-    } else {
-      await supabase.from('employees').delete().eq('id', id)
-    }
+    await supabase.rpc('update_employee_admin', {
+      p_id: id, p_is_active: false,
+    })
     setEmployees((prev) => prev.filter((e) => e.id !== id))
     setDeleteModal({ open: false, id: '', name: '' })
+  }
+
+  // 직원 추가
+  async function handleCreateUser() {
+    setActionError('')
+    const { employeeNumber, name, password, passwordConfirm, department, role } = createModal
+
+    if (!employeeNumber.trim() || !name.trim() || !password) {
+      setActionError('사번, 이름, 비밀번호는 필수입니다')
+      return
+    }
+    if (password.length < 6) {
+      setActionError('비밀번호는 6자 이상이어야 합니다')
+      return
+    }
+    if (password !== passwordConfirm) {
+      setActionError('비밀번호가 일치하지 않습니다')
+      return
+    }
+
+    setActionLoading(true)
+    try {
+      const res = await fetch('/api/admin-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({
+          employeeNumber: employeeNumber.trim(),
+          name: name.trim(),
+          password,
+          department: department.trim(),
+          role,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        setActionError(data.error || '직원 추가에 실패했습니다')
+        setActionLoading(false)
+        return
+      }
+
+      // 목록 새로고침
+      const { data: refreshed } = await supabase.rpc('list_all_employees')
+      if (refreshed) setEmployees(refreshed as Employee[])
+
+      setCreateModal({ open: false, employeeNumber: '', name: '', department: '', role: 'employee', password: '', passwordConfirm: '' })
+    } catch {
+      setActionError('서버와 통신할 수 없습니다')
+    }
+    setActionLoading(false)
+  }
+
+  // 비밀번호 초기화
+  async function handleResetPassword() {
+    setActionError('')
+    const { userId, newPassword } = resetModal
+
+    if (!newPassword) {
+      setActionError('새 비밀번호를 입력하세요')
+      return
+    }
+    if (newPassword.length < 6) {
+      setActionError('비밀번호는 6자 이상이어야 합니다')
+      return
+    }
+
+    setActionLoading(true)
+    try {
+      const res = await fetch('/api/admin-user', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({ userId, newPassword }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        setActionError(data.error || '비밀번호 초기화에 실패했습니다')
+        setActionLoading(false)
+        return
+      }
+
+      setResetModal({ open: false, userId: '', name: '', newPassword: '' })
+      alert('비밀번호가 초기화되었습니다')
+    } catch {
+      setActionError('서버와 통신할 수 없습니다')
+    }
+    setActionLoading(false)
+  }
+
+  // 사번 추출 (이메일에서)
+  function getEmployeeNumber(email: string): string {
+    if (email.endsWith('@busungtk.internal')) {
+      return email.replace('@busungtk.internal', '').toUpperCase()
+    }
+    return email
   }
 
   const activeCount = employees.filter((e) => e.is_active).length
@@ -117,9 +216,18 @@ export function AdminUsersPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-gray-900">사용자 관리</h1>
-        <p className="text-sm text-gray-500 mt-0.5">로그인한 사용자에게 포지션을 부여하고 관리합니다</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">사용자 관리</h1>
+          <p className="text-sm text-gray-500 mt-0.5">직원 계정을 생성하고 관리합니다</p>
+        </div>
+        <button
+          onClick={() => setCreateModal({ open: true, employeeNumber: '', name: '', department: '', role: 'employee', password: '', passwordConfirm: '' })}
+          className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-white bg-primary-600 rounded-xl hover:bg-primary-700 transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          직원 추가
+        </button>
       </div>
 
       {/* 요약 */}
@@ -146,7 +254,7 @@ export function AdminUsersPage() {
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
           <Shield className="w-12 h-12 text-gray-200 mx-auto mb-3" />
           <p className="text-sm font-medium text-gray-500 mb-1">등록된 사용자가 없습니다</p>
-          <p className="text-xs text-gray-400">Google 로그인한 사용자가 여기에 표시됩니다</p>
+          <p className="text-xs text-gray-400">직원 추가 버튼으로 새 직원을 등록하세요</p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -154,7 +262,7 @@ export function AdminUsersPage() {
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">이름</th>
-                <th className="text-left px-3 py-3 text-xs font-semibold text-gray-500">이메일</th>
+                <th className="text-left px-3 py-3 text-xs font-semibold text-gray-500">사번</th>
                 <th className="text-center px-3 py-3 text-xs font-semibold text-gray-500">부서</th>
                 <th className="text-center px-3 py-3 text-xs font-semibold text-gray-500">포지션</th>
                 <th className="text-center px-3 py-3 text-xs font-semibold text-gray-500">상태</th>
@@ -172,7 +280,7 @@ export function AdminUsersPage() {
                       <span className="font-medium text-gray-900">{emp.name}</span>
                     </div>
                   </td>
-                  <td className="px-3 py-3 text-gray-500 text-xs">{emp.email}</td>
+                  <td className="px-3 py-3 text-gray-500 text-xs font-mono">{getEmployeeNumber(emp.email)}</td>
                   <td className="px-3 py-3 text-center text-gray-600 text-xs">{emp.department || '-'}</td>
                   <td className="px-3 py-3 text-center">
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${ROLE_COLOR[emp.role]}`}>
@@ -201,6 +309,14 @@ export function AdminUsersPage() {
                         수정
                       </button>
                       <button
+                        onClick={() => setResetModal({ open: true, userId: emp.id, name: emp.name, newPassword: '' })}
+                        disabled={emp.id === currentUser?.id}
+                        className="text-xs text-warning-600 hover:text-warning-700 font-medium disabled:text-gray-300 disabled:cursor-not-allowed"
+                        title="비밀번호 초기화"
+                      >
+                        <KeyRound className="w-3.5 h-3.5 inline" />
+                      </button>
+                      <button
                         onClick={() => setDeleteModal({ open: true, id: emp.id, name: emp.name })}
                         disabled={emp.id === currentUser?.id}
                         className="text-xs text-danger-600 hover:text-danger-700 font-medium disabled:text-gray-300 disabled:cursor-not-allowed"
@@ -213,6 +329,161 @@ export function AdminUsersPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* 직원 추가 모달 */}
+      {createModal.open && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setCreateModal((p) => ({ ...p, open: false }))} />
+          <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-gray-900">신규 직원 등록</h3>
+              <button onClick={() => { setCreateModal((p) => ({ ...p, open: false })); setActionError('') }}>
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">사번</label>
+                <input
+                  type="text"
+                  value={createModal.employeeNumber}
+                  onChange={(e) => setCreateModal((p) => ({ ...p, employeeNumber: e.target.value }))}
+                  placeholder="예: EMP001"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">이름</label>
+                <input
+                  type="text"
+                  value={createModal.name}
+                  onChange={(e) => setCreateModal((p) => ({ ...p, name: e.target.value }))}
+                  placeholder="이름 입력"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">부서</label>
+                <input
+                  type="text"
+                  value={createModal.department}
+                  onChange={(e) => setCreateModal((p) => ({ ...p, department: e.target.value }))}
+                  placeholder="부서명 입력"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">포지션</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['employee', 'manager', 'admin'] as UserRole[]).map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setCreateModal((p) => ({ ...p, role: r }))}
+                      className={`py-2 text-xs font-medium rounded-xl border transition-colors ${
+                        createModal.role === r
+                          ? 'bg-primary-600 text-white border-primary-600'
+                          : 'bg-white text-gray-600 border-gray-200 hover:border-primary-300'
+                      }`}
+                    >
+                      {ROLE_LABEL[r]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">비밀번호</label>
+                <input
+                  type="password"
+                  value={createModal.password}
+                  onChange={(e) => setCreateModal((p) => ({ ...p, password: e.target.value }))}
+                  placeholder="6자 이상"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">비밀번호 확인</label>
+                <input
+                  type="password"
+                  value={createModal.passwordConfirm}
+                  onChange={(e) => setCreateModal((p) => ({ ...p, passwordConfirm: e.target.value }))}
+                  placeholder="비밀번호 재입력"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                />
+              </div>
+
+              {actionError && <p className="text-xs text-danger-500">{actionError}</p>}
+            </div>
+
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={() => { setCreateModal((p) => ({ ...p, open: false })); setActionError('') }}
+                className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleCreateUser}
+                disabled={actionLoading}
+                className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-600 rounded-xl hover:bg-primary-700 transition-colors disabled:opacity-50"
+              >
+                {actionLoading ? '처리중...' : '등록'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 비밀번호 초기화 모달 */}
+      {resetModal.open && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => { setResetModal((p) => ({ ...p, open: false })); setActionError('') }} />
+          <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-gray-900">비밀번호 초기화</h3>
+              <button onClick={() => { setResetModal((p) => ({ ...p, open: false })); setActionError('') }}>
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-600 mb-4">
+              <span className="font-semibold">{resetModal.name}</span>의 비밀번호를 초기화합니다.
+            </p>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">새 비밀번호</label>
+              <input
+                type="password"
+                value={resetModal.newPassword}
+                onChange={(e) => setResetModal((p) => ({ ...p, newPassword: e.target.value }))}
+                placeholder="6자 이상"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                autoFocus
+              />
+            </div>
+
+            {actionError && <p className="text-xs text-danger-500 mt-2">{actionError}</p>}
+
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={() => { setResetModal((p) => ({ ...p, open: false })); setActionError('') }}
+                className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleResetPassword}
+                disabled={actionLoading}
+                className="flex-1 py-2.5 text-sm font-semibold text-white bg-warning-500 rounded-xl hover:bg-warning-600 transition-colors disabled:opacity-50"
+              >
+                {actionLoading ? '처리중...' : '초기화'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -230,7 +501,7 @@ export function AdminUsersPage() {
 
             <div className="space-y-4">
               <div>
-                <p className="text-xs text-gray-400 mb-2">{editModal.employee.email}</p>
+                <p className="text-xs text-gray-400 mb-2">{getEmployeeNumber(editModal.employee.email)}</p>
                 <label className="block text-xs font-medium text-gray-600 mb-1">이름</label>
                 <input
                   type="text"

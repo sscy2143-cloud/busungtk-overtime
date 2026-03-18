@@ -102,7 +102,7 @@ export function AdminApprovalsPage() {
       .eq('id', id)
 
     if (error) {
-      console.error('[Approve] error:', error)
+      void error
       return
     }
 
@@ -192,7 +192,7 @@ export function AdminApprovalsPage() {
       .eq('id', id)
 
     if (error) {
-      console.error('[Reject] error:', error)
+      void error
       return
     }
 
@@ -239,7 +239,7 @@ export function AdminApprovalsPage() {
       .eq('id', id)
 
     if (error) {
-      console.error('[TimeEdit] error:', error)
+      void error
       return
     }
 
@@ -270,7 +270,7 @@ export function AdminApprovalsPage() {
       .eq('id', id)
 
     if (error) {
-      console.error('[Revoke] error:', error)
+      void error
       return
     }
 

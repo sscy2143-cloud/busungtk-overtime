@@ -33,6 +33,8 @@ export function LeavePage() {
   const [historyYear, setHistoryYear] = useState(CURRENT_YEAR)
   const [requestFilter, setRequestFilter] = useState<'all' | 'pending' | 'approved' | 'rejected' | 'cancelled'>('pending')
   const [detailReq, setDetailReq] = useState<LeaveRequest | null>(null)
+  const [adminApproved, setAdminApproved] = useState<{ at: string | null }>({ at: null })
+  const [managerApproved, setManagerApproved] = useState<{ at: string | null }>({ at: null })
   const [showCalendar, setShowCalendar] = useState(false)
   const [calendarDate, setCalendarDate] = useState(() => new Date())
 
@@ -43,6 +45,12 @@ export function LeavePage() {
     fetchSubHistory()
   }, [employee?.id])
 
+  // 상세 모달 열릴 때 승인 상태 설정
+  useEffect(() => {
+    setAdminApproved({ at: detailReq?.approved_at ?? null })
+    setManagerApproved({ at: detailReq?.manager_approved_at ?? null })
+  }, [detailReq])
+
   async function fetchSubHistory() {
     const { data, error } = await supabase
       .from('substitute_history')
@@ -50,7 +58,7 @@ export function LeavePage() {
       .eq('employee_id', employee!.id)
       .order('created_at', { ascending: false })
     if (error) {
-      console.error('[LeavePage] fetchSubHistory join error:', error)
+      void error
       // 조인 실패 시 기본 쿼리로 폴백
       const { data: fallback } = await supabase
         .from('substitute_history')
@@ -149,7 +157,7 @@ export function LeavePage() {
       </div>
 
       {/* 연차 현황 */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <div data-tour="leave-balance-card" className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-gray-700">연차 현황</h2>
           <span className="text-xs text-gray-400">{CURRENT_YEAR}-01-01 ~ {CURRENT_YEAR}-12-31 회계연도 기준</span>
@@ -182,7 +190,7 @@ export function LeavePage() {
       </div>
 
       {/* 신청 내역 */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div data-tour="leave-requests" className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         {/* 헤더 */}
         <div className="px-4 pt-3 pb-2 border-b border-gray-100">
           <div className="flex items-center justify-between mb-2">
@@ -880,14 +888,40 @@ export function LeavePage() {
                   </div>
                 )}
                 <div className="pt-2 border-t border-gray-100">
-                  <p className="text-xs text-gray-400 mb-2">승인현황</p>
-                  <div className="flex gap-4 text-xs">
-                    <span className={isApproved ? 'text-success-600 font-semibold' : 'text-gray-300'}>
-                      인사담당자: {isApproved ? '승인' : '미승인'}
-                    </span>
-                    <span className={isApproved ? 'text-success-600 font-semibold' : 'text-gray-300'}>
-                      대표: {isApproved ? '승인' : '미승인'}
-                    </span>
+                  <p className="text-xs text-gray-400 mb-3">승인현황</p>
+                  <div className="space-y-2">
+                    {/* 대표 */}
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-600 font-medium">대표</span>
+                      {detailReq.status === 'rejected' ? (
+                        <span className="text-danger-500 font-semibold">반려</span>
+                      ) : adminApproved.at ? (
+                        <span className="text-success-600 font-semibold">승인완료</span>
+                      ) : (
+                        <span className="text-gray-400">미승인</span>
+                      )}
+                    </div>
+                    {adminApproved.at && (
+                      <p className="text-xs text-gray-400 text-right -mt-1">
+                        {new Date(adminApproved.at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
+                      </p>
+                    )}
+                    {/* 인사담당자 */}
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-600 font-medium">인사담당자</span>
+                      {detailReq.status === 'rejected' ? (
+                        <span className="text-danger-500 font-semibold">반려</span>
+                      ) : managerApproved.at ? (
+                        <span className="text-success-600 font-semibold">승인완료</span>
+                      ) : (
+                        <span className="text-gray-400">미승인</span>
+                      )}
+                    </div>
+                    {managerApproved.at && (
+                      <p className="text-xs text-gray-400 text-right -mt-1">
+                        {new Date(managerApproved.at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
+                      </p>
+                    )}
                   </div>
                 </div>
                 {detailReq.status === 'rejected' && (detailReq as any).rejection_reason && (

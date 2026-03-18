@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom'
 import { Header } from './Header'
 import { Sidebar } from './Sidebar'
 import { BottomNav } from './BottomNav'
+import { OnboardingTour } from '../common/OnboardingTour'
 
 export function AppLayout() {
   return (
@@ -21,6 +22,9 @@ export function AppLayout() {
 
       {/* 모바일: 하단 탭바 */}
       <BottomNav />
+
+      {/* 온보딩 투어 (전체 페이지 걸쳐 동작) */}
+      <OnboardingTour />
     </div>
   )
 }

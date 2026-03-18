@@ -5,8 +5,6 @@ import { LEAVE_TYPE_LABEL } from '../types'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
-const ADMIN_KEY = '6325'
-
 interface EmployeeBalance {
   id: string
   name: string
@@ -72,11 +70,7 @@ export function AdminLeavePage() {
 
   async function loadBalances() {
     setBalancesLoading(true)
-    const params = isDemo
-      ? { p_admin_key: ADMIN_KEY, p_year: currentYear }
-      : { p_year: currentYear }
-
-    const { data, error } = await supabase.rpc('list_employee_balances', params)
+    const { data, error } = await supabase.rpc('list_employee_balances', { p_year: currentYear })
     if (!error && data) {
       // RPC 결과에 substitute 컬럼이 없을 수 있으므로 기본값 설정
       setBalances((data as EmployeeBalance[]).map((b) => ({
@@ -130,47 +124,75 @@ export function AdminLeavePage() {
     const req = requests.find((r) => r.id === id)
     if (!req) return
 
+    const now = new Date().toISOString()
+    const myRole = employee?.role // 'admin' = 대표, 'manager' = 인사담당자
+
+    // 현재 승인자의 역할에 따라 업데이트 필드 결정
+    const updateFields: Record<string, unknown> = {}
+
+    if (myRole === 'admin') {
+      // 대표 승인
+      updateFields.approved_by = employee?.id ?? null
+      updateFields.approved_at = now
+    } else {
+      // 인사담당자 승인
+      updateFields.manager_approved_by = employee?.id ?? null
+      updateFields.manager_approved_at = now
+    }
+
+    // 상대방이 이미 승인했는지 확인 → 둘 다 승인이면 최종 승인
+    const otherApproved = myRole === 'admin'
+      ? !!req.manager_approved_at  // 인사담당자가 이미 승인했는지
+      : !!req.approved_at          // 대표가 이미 승인했는지
+
+    if (otherApproved) {
+      // 둘 다 승인 완료 → 최종 승인 상태로 변경
+      updateFields.status = 'approved'
+    } else {
+      // 한쪽만 승인 → 중간 상태
+      updateFields.status = 'manager_approved'
+    }
+
     const { error: reqErr } = await supabase
       .from('leave_requests')
-      .update({
-        status: 'approved',
-        approved_by: employee?.id ?? null,
-        approved_at: new Date().toISOString(),
-      })
+      .update(updateFields)
       .eq('id', id)
 
     if (reqErr) {
-      console.error('승인 실패:', reqErr)
+      void reqErr
       return
     }
 
-    // leave_balances 업데이트: 대체휴가 우선 사용 여부에 따라 분기
-    const { data: bal } = await supabase
-      .from('leave_balances')
-      .select('used_days, substitute_used, substitute_total')
-      .eq('employee_id', req.employee_id)
-      .eq('year', currentYear)
-      .single()
+    // 둘 다 승인된 경우에만 연차/대체휴가 차감
+    if (otherApproved) {
+      const { data: bal } = await supabase
+        .from('leave_balances')
+        .select('used_days, substitute_used, substitute_total')
+        .eq('employee_id', req.employee_id)
+        .eq('year', currentYear)
+        .single()
 
-    if (bal) {
-      if (req.use_substitute) {
-        // 대체휴가에서 차감 (연차 used_days 불변)
-        await supabase
-          .from('leave_balances')
-          .update({ substitute_used: Number(bal.substitute_used) + Number(req.days) })
-          .eq('employee_id', req.employee_id)
-          .eq('year', currentYear)
-      } else {
-        // 일반 연차에서 차감
-        await supabase
-          .from('leave_balances')
-          .update({ used_days: Number(bal.used_days) + Number(req.days) })
-          .eq('employee_id', req.employee_id)
-          .eq('year', currentYear)
+      if (bal) {
+        if (req.use_substitute) {
+          await supabase
+            .from('leave_balances')
+            .update({ substitute_used: Number(bal.substitute_used) + Number(req.days) })
+            .eq('employee_id', req.employee_id)
+            .eq('year', currentYear)
+        } else {
+          await supabase
+            .from('leave_balances')
+            .update({ used_days: Number(bal.used_days) + Number(req.days) })
+            .eq('employee_id', req.employee_id)
+            .eq('year', currentYear)
+        }
       }
     }
 
-    setRequests((prev) => prev.map((r) => r.id === id ? { ...r, status: 'approved' } : r))
+    setRequests((prev) => prev.map((r) => r.id === id ? {
+      ...r,
+      ...updateFields as Partial<LeaveRequest>,
+    } : r))
     loadBalances()
   }
 
@@ -236,11 +258,9 @@ export function AdminLeavePage() {
     const { employeeId, currentTotal, newTotal, reason } = adjustModal
     const delta = newTotal - currentTotal
 
-    const params = isDemo
-      ? { p_admin_key: ADMIN_KEY, p_employee_id: employeeId, p_year: currentYear, p_delta: delta, p_reason: reason }
-      : { p_employee_id: employeeId, p_year: currentYear, p_delta: delta, p_reason: reason }
-
-    const { data, error } = await supabase.rpc('upsert_leave_balance', params)
+    const { data, error } = await supabase.rpc('upsert_leave_balance', {
+      p_employee_id: employeeId, p_year: currentYear, p_delta: delta, p_reason: reason,
+    })
 
     if (!error && data) {
       const updated = Array.isArray(data) ? data[0] : data
@@ -340,7 +360,7 @@ export function AdminLeavePage() {
     sick: 'bg-orange-50 text-orange-700',
   }
 
-  const pendingRequests = requests.filter(r => r.status === 'pending')
+  const pendingRequests = requests.filter(r => r.status === 'pending' || r.status === 'manager_approved')
   const thisMonthPrefix = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
   const thisMonthApproved = requests.filter(r => r.status === 'approved' && r.start_date?.startsWith(thisMonthPrefix)).length
   const lowRemainingEmployees = balances.filter(b => b.remaining_days <= 5)
@@ -447,7 +467,10 @@ export function AdminLeavePage() {
                     </div>
                     {req.reason && <p className="text-xs text-gray-400 truncate mt-0.5">{req.reason}</p>}
                   </div>
-                  <div className="flex gap-1.5 shrink-0">
+                  <div className="flex gap-1.5 shrink-0 items-center">
+                    {req.status === 'manager_approved' && (
+                      <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full mr-1">1차 승인</span>
+                    )}
                     <button
                       onClick={() => handleApprove(req.id)}
                       className="px-2.5 py-1.5 text-xs font-semibold text-white bg-success-500 rounded-lg hover:bg-success-600 transition-colors"

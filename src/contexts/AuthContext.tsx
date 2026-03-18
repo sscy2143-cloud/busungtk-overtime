@@ -3,14 +3,17 @@ import { supabase, isDemoMode } from '../lib/supabase'
 import type { Employee } from '../types'
 import type { User, Session } from '@supabase/supabase-js'
 
+const EMAIL_DOMAIN = '@busungtk.internal'
+
 interface AuthState {
   user: User | null
   employee: Employee | null
   session: Session | null
   loading: boolean
   isDemo: boolean
-  signInWithGoogle: () => Promise<void>
+  signInWithPassword: (employeeNumber: string, password: string) => Promise<{ success: boolean; error?: string }>
   signInAsDemo: (password: string) => Promise<boolean>
+  changePassword: (newPassword: string) => Promise<{ success: boolean; error?: string }>
   signOut: () => Promise<void>
 }
 
@@ -78,40 +81,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (data) {
       setEmployee(data)
-    } else {
-      // 첫 Google 로그인 → RPC로 자동 등록 (첫 사용자 = admin, 이후 = employee)
-      const authUser = (await supabase.auth.getUser()).data.user
-      if (authUser) {
-        const meta = authUser.user_metadata ?? {}
-        const { data: registered } = await supabase.rpc('register_employee', {
-          p_id: userId,
-          p_name: meta.full_name || meta.name || authUser.email?.split('@')[0] || '사용자',
-          p_email: authUser.email ?? '',
-          p_avatar_url: meta.avatar_url ?? null,
-        })
-        setEmployee(registered as Employee | null)
-      }
     }
     setLoading(false)
   }
 
-  async function signInWithGoogle() {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin },
-    })
+  async function signInWithPassword(employeeNumber: string, password: string): Promise<{ success: boolean; error?: string }> {
+    const email = employeeNumber.includes('@')
+      ? employeeNumber
+      : `${employeeNumber.toLowerCase()}${EMAIL_DOMAIN}`
+
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+
+    if (error) {
+      if (error.message.includes('Invalid login credentials')) {
+        return { success: false, error: '사번 또는 비밀번호가 올바르지 않습니다' }
+      }
+      return { success: false, error: '로그인 중 오류가 발생했습니다' }
+    }
+
+    return { success: true }
   }
 
   async function signInAsDemo(password: string): Promise<boolean> {
-    if (password !== '0527') return false
+    if (!import.meta.env.DEV) return false
 
-    // 데모 모드: 로컬 관리자로 바로 로그인
+    const DEMO_LIMIT_KEY = 'busungtk_demo_attempts'
+    const stored = JSON.parse(localStorage.getItem(DEMO_LIMIT_KEY) || '{"count":0,"lockedUntil":0}')
+    if (Date.now() < stored.lockedUntil) return false
+    if (password !== '0527') {
+      const newCount = stored.count + 1
+      localStorage.setItem(DEMO_LIMIT_KEY, JSON.stringify(
+        newCount >= 5 ? { count: 0, lockedUntil: Date.now() + 60000 } : { count: newCount, lockedUntil: 0 }
+      ))
+      return false
+    }
+    localStorage.removeItem(DEMO_LIMIT_KEY)
+
     const demoEmp = DEMO_EMPLOYEES.admin
     setEmployee(demoEmp)
     setUser({ id: demoEmp.id, email: demoEmp.email } as User)
     setIsDemo(true)
     setLoading(false)
     return true
+  }
+
+  async function changePassword(newPassword: string): Promise<{ success: boolean; error?: string }> {
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    if (error) {
+      return { success: false, error: '비밀번호 변경에 실패했습니다' }
+    }
+    return { success: true }
   }
 
   async function signOut() {
@@ -122,8 +141,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsDemo(false)
   }
 
+  // 15분 비활성 자동 로그아웃 (금융 등급 보안)
+  useEffect(() => {
+    if (!user && !isDemo) return
+    const INACTIVITY_MS = 15 * 60 * 1000
+    let timeout: ReturnType<typeof setTimeout>
+
+    function resetTimer() {
+      clearTimeout(timeout)
+      timeout = setTimeout(() => {
+        signOut()
+        window.location.href = '/'
+      }, INACTIVITY_MS)
+    }
+
+    const events = ['mousedown', 'keydown', 'touchstart', 'scroll'] as const
+    events.forEach(e => window.addEventListener(e, resetTimer))
+    resetTimer()
+
+    return () => {
+      clearTimeout(timeout)
+      events.forEach(e => window.removeEventListener(e, resetTimer))
+    }
+  }, [user, isDemo])
+
   return (
-    <AuthContext.Provider value={{ user, employee, session, loading, isDemo, signInWithGoogle, signInAsDemo, signOut }}>
+    <AuthContext.Provider value={{ user, employee, session, loading, isDemo, signInWithPassword, signInAsDemo, changePassword, signOut }}>
       {children}
     </AuthContext.Provider>
   )

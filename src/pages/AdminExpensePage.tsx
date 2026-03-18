@@ -35,12 +35,13 @@ interface PayModal {
   payment_bank: string
   payment_account: string
   payment_note: string
+  admin_note: string
 }
 
 export function AdminExpensePage() {
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [rejectModal, setRejectModal] = useState<RejectModal>({ open: false, id: '', reason: '' })
-  const [payModal, setPayModal] = useState<PayModal>({ open: false, id: '', expense_amount: 0, paid_at: new Date().toISOString().slice(0, 10), paid_amount: '', payout_method: 'transfer', payment_bank: '', payment_account: '', payment_note: '' })
+  const [payModal, setPayModal] = useState<PayModal>({ open: false, id: '', expense_amount: 0, paid_at: new Date().toISOString().slice(0, 10), paid_amount: '', payout_method: 'transfer', payment_bank: '', payment_account: '', payment_note: '', admin_note: '' })
   const [detailExp, setDetailExp] = useState<Expense | null>(null)
   const [showExportPreview, setShowExportPreview] = useState(false)
   const [filterDateMode, setFilterDateMode] = useState<'all' | 'this_month' | 'last_month' | '3months' | '6months' | 'custom'>('all')
@@ -95,22 +96,63 @@ export function AdminExpensePage() {
     setRejectModal({ open: false, id: '', reason: '' })
   }
 
+  async function approveCancelRequest(id: string) {
+    if (!confirm('이 경비의 취소 요청을 승인하시겠습니까? 지급 정보가 초기화됩니다.')) return
+    const { error } = await supabase
+      .from('expenses')
+      .update({
+        status: 'cancelled',
+        paid_at: null,
+        paid_amount: null,
+        payout_method: null,
+        payment_bank: null,
+        payment_account: null,
+        payment_note: null,
+        employee_confirmed_at: null,
+        cancel_requested_at: null,
+        cancel_reason: null,
+      })
+      .eq('id', id)
+    if (!error) fetchExpenses()
+  }
+
+  async function rejectCancelRequest(id: string) {
+    const { error } = await supabase
+      .from('expenses')
+      .update({ cancel_requested_at: null, cancel_reason: null })
+      .eq('id', id)
+    if (!error) {
+      setExpenses(prev => prev.map(e => e.id === id ? { ...e, cancel_requested_at: null, cancel_reason: null } : e))
+    }
+  }
+
   async function confirmPay() {
-    const { id, paid_at, paid_amount, payout_method, payment_bank, payment_account, payment_note } = payModal
+    const { id, paid_at, paid_amount, payout_method, payment_bank, payment_account, payment_note, admin_note } = payModal
     const paidAmt = paid_amount ? Number(paid_amount) : null
     const { error } = await supabase
       .from('expenses')
-      .update({ paid_at: new Date(paid_at).toISOString(), paid_amount: paidAmt, payout_method, payment_bank, payment_account, payment_note })
+      .update({
+        paid_at: new Date(paid_at).toISOString(),
+        paid_amount: paidAmt,
+        payout_method,
+        payment_bank,
+        payment_account,
+        payment_note,
+        admin_note: admin_note.trim() || null,
+        employee_confirmed_at: null,
+        cancel_requested_at: null,
+        cancel_reason: null,
+      })
       .eq('id', id)
     if (!error) {
       setExpenses((prev) => prev.map((e) =>
-        e.id === id ? { ...e, paid_at: new Date(paid_at).toISOString(), paid_amount: paidAmt, payout_method, payment_bank, payment_account, payment_note } : e
+        e.id === id ? { ...e, paid_at: new Date(paid_at).toISOString(), paid_amount: paidAmt, payout_method, payment_bank, payment_account, payment_note, admin_note: admin_note.trim() || null } : e
       ))
       if (detailExp?.id === id) {
-        setDetailExp((prev) => prev ? { ...prev, paid_at: new Date(paid_at).toISOString(), paid_amount: paidAmt, payout_method, payment_bank, payment_account, payment_note } : null)
+        setDetailExp((prev) => prev ? { ...prev, paid_at: new Date(paid_at).toISOString(), paid_amount: paidAmt, payout_method, payment_bank, payment_account, payment_note, admin_note: admin_note.trim() || null } : null)
       }
     }
-    setPayModal({ open: false, id: '', expense_amount: 0, paid_at: new Date().toISOString().slice(0, 10), paid_amount: '', payout_method: 'transfer', payment_bank: '', payment_account: '', payment_note: '' })
+    setPayModal({ open: false, id: '', expense_amount: 0, paid_at: new Date().toISOString().slice(0, 10), paid_amount: '', payout_method: 'transfer', payment_bank: '', payment_account: '', payment_note: '', admin_note: '' })
   }
 
   function formatWon(amount: number): string {
@@ -313,6 +355,7 @@ export function AdminExpensePage() {
                   <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-600 text-center whitespace-nowrap">청구금액</th>
                   <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-600 text-left">지출내용</th>
                   <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-600 text-center whitespace-nowrap">처리상태</th>
+                  <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-600 text-center whitespace-nowrap">수령확인</th>
                   <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-600 text-center whitespace-nowrap">지급일</th>
                   <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-600 text-center whitespace-nowrap">지급금액</th>
                   <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-600 text-center whitespace-nowrap">처리</th>
@@ -352,6 +395,17 @@ export function AdminExpensePage() {
                         {exp.status === 'pending' ? '검토중' : exp.status === 'approved' ? '승인' : exp.status === 'manager_approved' ? '1차승인' : '반려'}
                       </span>
                     </td>
+                    <td className="border border-gray-200 px-2 py-2 text-center whitespace-nowrap">
+                      {exp.cancel_requested_at ? (
+                        <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-warning-50 text-warning-700">취소요청</span>
+                      ) : exp.employee_confirmed_at ? (
+                        <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-success-50 text-success-700">확인</span>
+                      ) : exp.paid_at ? (
+                        <span className="text-xs text-gray-400">대기</span>
+                      ) : (
+                        <span className="text-xs text-gray-300">-</span>
+                      )}
+                    </td>
                     <td className="border border-gray-200 px-2 py-2 text-xs text-gray-600 text-center whitespace-nowrap">
                       {exp.paid_at ? new Date(exp.paid_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' }) : '-'}
                     </td>
@@ -371,14 +425,20 @@ export function AdminExpensePage() {
                       )}
                       {exp.status === 'approved' && !exp.paid_at && (
                         <button
-                          onClick={() => setPayModal({ open: true, id: exp.id, expense_amount: exp.amount, paid_at: new Date().toISOString().slice(0, 10), paid_amount: String(exp.amount), payout_method: 'transfer', payment_bank: '', payment_account: '', payment_note: '' })}
+                          onClick={() => setPayModal({ open: true, id: exp.id, expense_amount: exp.amount, paid_at: new Date().toISOString().slice(0, 10), paid_amount: String(exp.amount), payout_method: 'transfer', payment_bank: '', payment_account: '', payment_note: '', admin_note: '' })}
                           className="px-2 py-1 text-xs bg-primary-600 text-white rounded hover:bg-primary-700 whitespace-nowrap"
                         >
                           지급처리
                         </button>
                       )}
-                      {exp.status === 'approved' && exp.paid_at && (
+                      {exp.status === 'approved' && exp.paid_at && !exp.cancel_requested_at && (
                         <span className="text-xs text-success-600 font-semibold">완료</span>
+                      )}
+                      {exp.cancel_requested_at && (
+                        <div className="flex gap-1 justify-center">
+                          <button onClick={() => approveCancelRequest(exp.id)} className="px-2 py-1 text-xs bg-warning-500 text-white rounded hover:bg-warning-600 whitespace-nowrap">취소승인</button>
+                          <button onClick={() => rejectCancelRequest(exp.id)} className="px-2 py-1 text-xs border border-gray-300 text-gray-600 rounded hover:bg-gray-50 whitespace-nowrap">거절</button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -388,7 +448,7 @@ export function AdminExpensePage() {
                 <tr className="bg-gray-100 font-bold">
                   <td colSpan={6} className="border border-gray-300 px-3 py-2 text-xs text-gray-600 text-right">합 계</td>
                   <td className="border border-gray-300 px-3 py-2 text-xs text-gray-900 text-right whitespace-nowrap">{formatWon(filteredExpenses.reduce((s, e) => s + e.amount, 0))}</td>
-                  <td colSpan={3} className="border border-gray-300" />
+                  <td colSpan={4} className="border border-gray-300" />
                   <td className="border border-gray-300 px-3 py-2 text-xs text-success-700 text-right whitespace-nowrap">
                     {formatWon(filteredExpenses.filter(e => e.paid_amount != null).reduce((s, e) => s + (e.paid_amount ?? 0), 0))}
                   </td>
@@ -473,6 +533,7 @@ export function AdminExpensePage() {
             {detailExp.status === 'approved' && (
               <div className="px-5 pb-4">
                 {detailExp.paid_at ? (
+                  <>
                   <div className="bg-success-50 border border-success-200 rounded-xl px-4 py-3 space-y-1.5">
                     <p className="text-xs font-semibold text-success-700 mb-2">지급 완료</p>
                     {detailExp.payout_method && (
@@ -522,10 +583,61 @@ export function AdminExpensePage() {
                         <p className="text-xs text-gray-700">{detailExp.payment_note}</p>
                       </div>
                     )}
+                    {detailExp.admin_note && (
+                      <div className="pt-1 border-t border-amber-200">
+                        <p className="text-xs text-amber-600 mb-0.5 font-semibold">관리자 메모</p>
+                        <p className="text-xs text-amber-700">{detailExp.admin_note}</p>
+                      </div>
+                    )}
                   </div>
+                  {/* 수령확인 상태 */}
+                  {detailExp.employee_confirmed_at ? (
+                    <div className="mt-2 bg-success-50 border border-success-200 rounded-xl px-3 py-2.5 space-y-1">
+                      <p className="text-xs font-semibold text-success-700">직원 수령확인 완료</p>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-400">확인 시간</span>
+                        <span className="text-gray-700">{new Date(detailExp.employee_confirmed_at).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                      {detailExp.confirmed_device && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-gray-400">확인 환경</span>
+                          <span className="text-gray-700">{detailExp.confirmed_device}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-400">확인자</span>
+                        <span className="text-gray-700">{detailExp.employee?.name ?? '-'}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-gray-400 mt-2 bg-gray-50 rounded-lg px-3 py-2">직원 수령확인 대기중</div>
+                  )}
+                  {detailExp.cancel_requested_at && (
+                    <div className="bg-warning-50 border border-warning-200 rounded-xl px-3 py-2.5 mt-2">
+                      <p className="text-xs font-semibold text-warning-700 mb-1">취소 요청</p>
+                      <p className="text-xs text-warning-600">{detailExp.cancel_reason}</p>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => {
+                      setDetailExp(null)
+                      setPayModal({
+                        open: true, id: detailExp.id, expense_amount: detailExp.amount,
+                        paid_at: detailExp.paid_at ? new Date(detailExp.paid_at).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+                        paid_amount: String(detailExp.paid_amount ?? detailExp.amount),
+                        payout_method: (detailExp.payout_method as 'cash' | 'transfer' | 'other') ?? 'transfer',
+                        payment_bank: detailExp.payment_bank ?? '', payment_account: detailExp.payment_account ?? '',
+                        payment_note: detailExp.payment_note ?? '', admin_note: detailExp.admin_note ?? '',
+                      })
+                    }}
+                    className="w-full py-2 mt-2 text-xs font-medium text-primary-600 border border-primary-200 rounded-xl hover:bg-primary-50 transition-colors"
+                  >
+                    지급 정보 수정
+                  </button>
+                  </>
                 ) : (
                   <button
-                    onClick={() => { setDetailExp(null); setPayModal({ open: true, id: detailExp.id, expense_amount: detailExp.amount, paid_at: new Date().toISOString().slice(0, 10), paid_amount: String(detailExp.amount), payment_bank: '', payment_account: '', payment_note: '', payout_method: 'transfer' }) }}
+                    onClick={() => { setDetailExp(null); setPayModal({ open: true, id: detailExp.id, expense_amount: detailExp.amount, paid_at: new Date().toISOString().slice(0, 10), paid_amount: String(detailExp.amount), payout_method: 'transfer', payment_bank: '', payment_account: '', payment_note: '', admin_note: '' }) }}
                     className="w-full py-2.5 text-sm font-semibold text-primary-600 border border-primary-300 rounded-xl hover:bg-primary-50 transition-colors"
                   >
                     지급 처리 등록
@@ -721,13 +833,23 @@ export function AdminExpensePage() {
                 </>
               )}
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">메모</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">메모 (직원에게 표시)</label>
                 <textarea
                   value={payModal.payment_note}
                   onChange={(e) => setPayModal(p => ({ ...p, payment_note: e.target.value }))}
                   rows={2}
                   placeholder="지급 관련 특이사항"
                   className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-amber-700 mb-1">관리자 메모 (직원 비공개)</label>
+                <textarea
+                  value={payModal.admin_note}
+                  onChange={(e) => setPayModal(p => ({ ...p, admin_note: e.target.value }))}
+                  rows={2}
+                  placeholder="인사담당자만 확인 가능한 메모"
+                  className="w-full border border-amber-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 bg-amber-50/30"
                 />
               </div>
             </div>

@@ -96,7 +96,10 @@ export function RequestPage() {
     async function fetchSchedules() {
       setScheduleLoading(true)
       try {
-        const res = await fetch('/api/notion-schedules')
+        const { data: { session } } = await supabase.auth.getSession()
+        const res = await fetch('/api/notion-schedules', {
+          headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+        })
         if (res.ok) {
           const { schedules: items } = await res.json()
           setSchedules(items ?? [])
@@ -151,7 +154,7 @@ export function RequestPage() {
       is_retroactive: true, // 사후 제출이므로 항상 true
       group_member_ids: groupIds,
     }
-    console.log('[RequestPage] submit payload:', payload)
+
 
     const groupId = groupIds.length > 0 ? crypto.randomUUID() : null
 
@@ -170,30 +173,11 @@ export function RequestPage() {
     })
 
     if (error) {
-      console.error('[RequestPage] insert error:', error)
+      void error
       setSubmitting(false)
       return
     }
 
-    // 노션 캘린더 연동 (실패해도 제출은 완료)
-    try {
-      await fetch('/api/notify-overtime-notion', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          employeeName: employee?.name ?? '',
-          date: payload.date,
-          startTime: payload.planned_start,
-          endTime: payload.planned_end,
-          overtimeType: payload.type,
-          siteName: siteName.trim(),
-          workDetails: workDetails.trim(),
-          reason: payload.reason,
-        }),
-      })
-    } catch (notionErr) {
-      console.warn('[RequestPage] Notion notify failed (non-blocking):', notionErr)
-    }
 
     setSubmitting(false)
     showToast()
@@ -205,7 +189,7 @@ export function RequestPage() {
       <h1 className="text-xl font-bold text-gray-900 mb-6">야근 제출</h1>
 
       {/* 주간 게이지 */}
-      <div className="mb-6">
+      <div data-tour="overtime-gauge" className="mb-6">
         <WeeklyGauge currentHours={currentWeeklyHours} />
       </div>
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Upload, Trash2, Download, Plus, X, FileText } from 'lucide-react'
+import { Upload, Trash2, Download, FileText, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -9,39 +9,62 @@ interface Payslip {
   period: string
   file_path: string
   file_name: string
+  message: string | null
+  admin_note: string | null
   created_at: string
+  work_start: string | null
+  work_end: string | null
   employee: { name: string; department: string } | null
 }
 
-interface EmpOption {
+interface Employee {
   id: string
   name: string
   department: string
 }
 
-interface UploadModal {
-  open: boolean
-  employeeId: string
-  period: string
+interface RowForm {
   file: File | null
+  message: string
+  adminNote: string
+  workStart: string
+  workEnd: string
+  uploading: boolean
+  done: boolean
 }
 
 export function AdminPayslipPage() {
   const { employee: currentUser } = useAuth()
   const [payslips, setPayslips] = useState<Payslip[]>([])
-  const [employees, setEmployees] = useState<EmpOption[]>([])
+  const [employees, setEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(true)
-  const [uploading, setUploading] = useState(false)
+  const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7))
+  const [tab, setTab] = useState<'register' | 'list'>('register')
   const [filterEmpId, setFilterEmpId] = useState('')
-  const [modal, setModal] = useState<UploadModal>({
-    open: false,
-    employeeId: '',
-    period: new Date().toISOString().slice(0, 7),
-    file: null,
-  })
-  const fileRef = useRef<HTMLInputElement>(null)
+
+  // 사원별 폼 상태
+  const [rowForms, setRowForms] = useState<Record<string, RowForm>>({})
+  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
   useEffect(() => { fetchAll() }, [])
+
+  // period 변경 시 기존 등록 여부 확인해서 rowForms 업데이트
+  useEffect(() => {
+    const newForms: Record<string, RowForm> = {}
+    for (const emp of employees) {
+      const existing = payslips.find(s => s.employee_id === emp.id && s.period === period)
+      newForms[emp.id] = {
+        file: null,
+        message: existing?.message ?? '',
+        adminNote: existing?.admin_note ?? '',
+        workStart: existing?.work_start ?? '',
+        workEnd: existing?.work_end ?? '',
+        uploading: false,
+        done: !!existing,
+      }
+    }
+    setRowForms(newForms)
+  }, [period, employees, payslips])
 
   async function fetchAll() {
     const [{ data: slips }, { data: emps }] = await Promise.all([
@@ -51,50 +74,77 @@ export function AdminPayslipPage() {
         .order('period', { ascending: false }),
       supabase
         .from('employees')
-        .select('id, name, department')
-        .eq('is_active', true)
+        .select('id, name, department, is_active')
         .order('name'),
     ])
     if (slips) setPayslips(slips as any)
-    if (emps) setEmployees(emps as EmpOption[])
+    if (emps) setEmployees(emps as Employee[])
     setLoading(false)
   }
 
-  async function handleUpload() {
-    const { employeeId, period, file } = modal
-    if (!file || !employeeId || !period) return
-    setUploading(true)
+  function updateRow(empId: string, patch: Partial<RowForm>) {
+    setRowForms(prev => ({ ...prev, [empId]: { ...prev[empId], ...patch } }))
+  }
 
-    const ext = file.name.split('.').pop()
-    const path = `${employeeId}/${period}.${ext}`
+  async function handleUploadRow(empId: string) {
+    const row = rowForms[empId]
+    if (!row?.file) return
 
-    const { error: uploadError } = await supabase.storage
-      .from('payslips')
-      .upload(path, file, { upsert: true })
-
-    if (uploadError) {
-      setUploading(false)
-      alert('업로드 실패: ' + uploadError.message)
+    // 파일 검증
+    const MAX_SIZE = 5 * 1024 * 1024 // 5MB
+    const ALLOWED = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
+    if (row.file.size > MAX_SIZE) {
+      alert('파일 크기가 5MB를 초과합니다.')
+      return
+    }
+    if (!ALLOWED.includes(row.file.type)) {
+      alert('허용되지 않는 파일 형식입니다. (PDF, JPG, PNG, WEBP)')
       return
     }
 
-    // 기존 레코드 삭제 후 재삽입 (upsert 대신)
-    await supabase.from('payslips').delete().eq('employee_id', employeeId).eq('period', period)
-    await supabase.from('payslips').insert({
-      employee_id: employeeId,
+    updateRow(empId, { uploading: true })
+
+    // 파일명: 기간_랜덤.확장자 (경로 예측 방지)
+    const ext = row.file.name.split('.').pop()
+    const rand = crypto.randomUUID().slice(0, 8)
+    const path = `${empId}/${period}_${rand}.${ext}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('payslips')
+      .upload(path, row.file, { upsert: true })
+
+    if (uploadError) {
+      updateRow(empId, { uploading: false })
+      alert('업로드에 실패했습니다. 잠시 후 다시 시도해주세요.')
+      return
+    }
+
+    // 기존 레코드 삭제 후 재삽입
+    await supabase.from('payslips').delete().eq('employee_id', empId).eq('period', period)
+    const { error: insertError } = await supabase.from('payslips').insert({
+      employee_id: empId,
       period,
       file_path: path,
-      file_name: file.name,
+      file_name: row.file.name,
+      message: row.message.trim() || null,
+      admin_note: row.adminNote.trim() || null,
+      work_start: row.workStart || null,
+      work_end: row.workEnd || null,
       uploaded_by: currentUser?.id,
     })
 
-    setModal({ open: false, employeeId: '', period: new Date().toISOString().slice(0, 7), file: null })
-    setUploading(false)
+    if (insertError) {
+      updateRow(empId, { uploading: false })
+      alert('등록에 실패했습니다. 잠시 후 다시 시도해주세요.')
+      return
+    }
+
+    updateRow(empId, { uploading: false, done: true, file: null })
     fetchAll()
   }
 
   async function handleDelete(slip: Payslip) {
-    if (!confirm(`${slip.employee?.name}의 ${slip.period} 명세서를 삭제할까요?`)) return
+    if (!confirm(`${slip.employee?.name}의 ${fmtPeriod(slip.period)} 명세서를 삭제할까요?`)) return
     await supabase.storage.from('payslips').remove([slip.file_path])
     await supabase.from('payslips').delete().eq('id', slip.id)
     fetchAll()
@@ -102,7 +152,7 @@ export function AdminPayslipPage() {
 
   async function handleDownload(slip: Payslip) {
     const { data } = await supabase.storage.from('payslips').createSignedUrl(slip.file_path, 300)
-    if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+    if (data?.signedUrl) window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
   }
 
   function fmtPeriod(p: string) {
@@ -110,190 +160,257 @@ export function AdminPayslipPage() {
     return `${y}년 ${parseInt(m)}월`
   }
 
-  const filtered = filterEmpId ? payslips.filter(s => s.employee_id === filterEmpId) : payslips
+  const filteredList = filterEmpId ? payslips.filter(s => s.employee_id === filterEmpId) : payslips
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <p className="text-sm text-gray-400">불러오는 중...</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <h1 className="text-xl font-bold text-gray-900">급여명세서 관리</h1>
+      <h1 className="text-xl font-bold text-gray-900">급여명세서 관리</h1>
+
+      {/* 탭 */}
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit">
         <button
-          onClick={() => setModal(m => ({ ...m, open: true }))}
-          className="flex items-center gap-1.5 px-4 py-2 bg-primary-600 text-white text-sm font-semibold rounded-lg hover:bg-primary-700 transition-colors"
+          onClick={() => setTab('register')}
+          className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+            tab === 'register' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+          }`}
         >
-          <Plus size={16} />
           명세서 등록
+        </button>
+        <button
+          onClick={() => setTab('list')}
+          className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+            tab === 'list' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          등록 현황
         </button>
       </div>
 
-      {/* 필터 */}
-      <div className="flex gap-2">
-        <select
-          value={filterEmpId}
-          onChange={e => setFilterEmpId(e.target.value)}
-          className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
-        >
-          <option value="">전체 직원</option>
-          {employees.map(e => (
-            <option key={e.id} value={e.id}>{e.name} ({e.department})</option>
-          ))}
-        </select>
-        {filterEmpId && (
-          <button
-            onClick={() => setFilterEmpId('')}
-            className="px-3 py-2 text-xs text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50"
-          >
-            초기화
-          </button>
-        )}
-      </div>
+      {tab === 'register' ? (
+        <>
+          {/* 기간 선택 */}
+          <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
+            <label className="text-sm font-medium text-gray-600">지급월</label>
+            <input
+              type="month"
+              value={period}
+              onChange={e => setPeriod(e.target.value)}
+              className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400"
+            />
+            <span className="text-xs text-gray-400">
+              {employees.length}명 재직 중 · {payslips.filter(s => s.period === period).length}명 등록 완료
+            </span>
+          </div>
 
-      {/* 목록 */}
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <p className="text-sm text-gray-400">불러오는 중...</p>
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-16 text-center">
-          <FileText className="w-8 h-8 text-gray-200 mx-auto mb-3" />
-          <p className="text-sm text-gray-400">등록된 급여명세서가 없습니다</p>
-          <p className="text-xs text-gray-300 mt-1">명세서 등록 버튼을 눌러 파일을 업로드하세요</p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">직원</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400">부서</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 whitespace-nowrap">지급월</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">파일명</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 whitespace-nowrap">등록일</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400">관리</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {filtered.map(slip => (
-                  <tr key={slip.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 font-medium text-gray-800">{slip.employee?.name ?? '-'}</td>
-                    <td className="px-4 py-3 text-xs text-gray-400">{slip.employee?.department ?? '-'}</td>
-                    <td className="px-4 py-3 text-center text-sm font-semibold text-gray-700">{fmtPeriod(slip.period)}</td>
-                    <td className="px-4 py-3 text-xs text-gray-500 max-w-[200px] truncate">{slip.file_name}</td>
-                    <td className="px-4 py-3 text-center text-xs text-gray-400">
-                      {new Date(slip.created_at).toLocaleDateString('ko-KR')}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-center gap-2">
-                        <button
-                          onClick={() => handleDownload(slip)}
-                          className="p-1.5 rounded-lg hover:bg-primary-50 text-primary-600 transition-colors"
-                          title="다운로드"
-                        >
-                          <Download size={14} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(slip)}
-                          className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 transition-colors"
-                          title="삭제"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
+          {/* 사원 리스트 */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 w-28">직원</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">파일</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">실근로일</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">전달 문구</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">기타 (관리자 메모)</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 w-20">등록</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {employees.map(emp => {
+                    const row = rowForms[emp.id]
+                    if (!row) return null
+                    const existing = payslips.find(s => s.employee_id === emp.id && s.period === period)
+                    return (
+                      <tr key={emp.id} className={`transition-colors ${row.done ? 'bg-green-50/50' : 'hover:bg-gray-50'}`}>
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-gray-800 text-sm">{emp.name}</p>
+                          <p className="text-xs text-gray-400">{emp.department}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            ref={el => { fileRefs.current[emp.id] = el }}
+                            type="file"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            onChange={e => updateRow(emp.id, { file: e.target.files?.[0] ?? null, done: false })}
+                            className="hidden"
+                          />
+                          {existing && !row.file ? (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+                                <Check size={12} />
+                                {existing.file_name}
+                              </span>
+                              <button
+                                onClick={() => fileRefs.current[emp.id]?.click()}
+                                className="text-xs text-primary-600 hover:underline"
+                              >
+                                변경
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => fileRefs.current[emp.id]?.click()}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs border border-dashed rounded-lg transition-colors ${
+                                row.file
+                                  ? 'border-primary-400 text-primary-700 bg-primary-50'
+                                  : 'border-gray-300 text-gray-400 hover:border-primary-400'
+                              }`}
+                            >
+                              <Upload size={12} />
+                              {row.file ? row.file.name : '파일 선택'}
+                            </button>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="date"
+                              value={row.workStart}
+                              onChange={e => updateRow(emp.id, { workStart: e.target.value })}
+                              className="w-[120px] px-1.5 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-400"
+                            />
+                            <span className="text-xs text-gray-400">~</span>
+                            <input
+                              type="date"
+                              value={row.workEnd}
+                              onChange={e => updateRow(emp.id, { workEnd: e.target.value })}
+                              className="w-[120px] px-1.5 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-400"
+                            />
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            type="text"
+                            value={row.message}
+                            onChange={e => updateRow(emp.id, { message: e.target.value })}
+                            placeholder="직원에게 전달할 문구"
+                            className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-400"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            type="text"
+                            value={row.adminNote}
+                            onChange={e => updateRow(emp.id, { adminNote: e.target.value })}
+                            placeholder="관리자 메모 (직원 비공개)"
+                            className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-400 bg-amber-50/30"
+                          />
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {row.done && !row.file ? (
+                            <span className="text-xs text-green-600 font-medium">완료</span>
+                          ) : (
+                            <button
+                              onClick={() => handleUploadRow(emp.id)}
+                              disabled={!row.file || row.uploading}
+                              className="px-3 py-1.5 text-xs font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-40 transition-colors"
+                            >
+                              {row.uploading ? '...' : '등록'}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
-
-      {/* 업로드 모달 */}
-      {modal.open && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setModal(m => ({ ...m, open: false }))} />
-          <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-gray-900">급여명세서 등록</h3>
-              <button onClick={() => setModal(m => ({ ...m, open: false }))}>
-                <X size={18} className="text-gray-400" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  직원 <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={modal.employeeId}
-                  onChange={e => setModal(m => ({ ...m, employeeId: e.target.value }))}
-                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
-                >
-                  <option value="">직원을 선택하세요</option>
-                  {employees.map(e => (
-                    <option key={e.id} value={e.id}>{e.name} ({e.department})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  지급월 <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="month"
-                  value={modal.period}
-                  onChange={e => setModal(m => ({ ...m, period: e.target.value }))}
-                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  파일 <span className="text-red-500">*</span>
-                  <span className="text-gray-400 font-normal ml-1">(PDF, JPG, PNG)</span>
-                </label>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  onChange={e => setModal(m => ({ ...m, file: e.target.files?.[0] ?? null }))}
-                  className="hidden"
-                />
-                <button
-                  onClick={() => fileRef.current?.click()}
-                  className={`w-full px-3 py-2.5 text-sm border border-dashed rounded-xl transition-colors text-left ${
-                    modal.file
-                      ? 'border-primary-400 text-primary-700 bg-primary-50'
-                      : 'border-gray-300 text-gray-400 hover:border-primary-400 hover:text-primary-600'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <Upload size={14} />
-                    {modal.file ? modal.file.name : '파일을 선택하세요'}
-                  </div>
-                </button>
-              </div>
-            </div>
-
-            <div className="flex gap-2 mt-5">
+        </>
+      ) : (
+        <>
+          {/* 등록 현황 탭 */}
+          <div className="flex gap-2">
+            <select
+              value={filterEmpId}
+              onChange={e => setFilterEmpId(e.target.value)}
+              className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
+            >
+              <option value="">전체 직원</option>
+              {employees.map(e => (
+                <option key={e.id} value={e.id}>{e.name} ({e.department})</option>
+              ))}
+            </select>
+            {filterEmpId && (
               <button
-                onClick={() => setModal(m => ({ ...m, open: false }))}
-                className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+                onClick={() => setFilterEmpId('')}
+                className="px-3 py-2 text-xs text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50"
               >
-                취소
+                초기화
               </button>
-              <button
-                onClick={handleUpload}
-                disabled={!modal.employeeId || !modal.period || !modal.file || uploading}
-                className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-600 rounded-xl hover:bg-primary-700 disabled:opacity-40 transition-colors"
-              >
-                {uploading ? '업로드 중...' : '등록'}
-              </button>
-            </div>
+            )}
           </div>
-        </div>
+
+          {filteredList.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-16 text-center">
+              <FileText className="w-8 h-8 text-gray-200 mx-auto mb-3" />
+              <p className="text-sm text-gray-400">등록된 급여명세서가 없습니다</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100 bg-gray-50">
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">직원</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400">부서</th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500">지급월</th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400">실근로일</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400">파일명</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400">전달 문구</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400">기타</th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400">관리</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filteredList.map(slip => (
+                      <tr key={slip.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3 font-medium text-gray-800">{slip.employee?.name ?? '-'}</td>
+                        <td className="px-4 py-3 text-xs text-gray-400">{slip.employee?.department ?? '-'}</td>
+                        <td className="px-4 py-3 text-center text-sm font-semibold text-gray-700">{fmtPeriod(slip.period)}</td>
+                        <td className="px-4 py-3 text-center text-xs text-gray-500">
+                          {slip.work_start && slip.work_end
+                            ? `${slip.work_start.slice(5).replace('-', '/')} ~ ${slip.work_end.slice(5).replace('-', '/')}`
+                            : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-gray-500 max-w-[150px] truncate">{slip.file_name}</td>
+                        <td className="px-4 py-3 text-xs text-gray-600 max-w-[150px] truncate">{slip.message ?? '-'}</td>
+                        <td className="px-4 py-3 text-xs text-amber-600 max-w-[150px] truncate">{slip.admin_note ?? '-'}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => handleDownload(slip)}
+                              className="p-1.5 rounded-lg hover:bg-primary-50 text-primary-600 transition-colors"
+                              title="다운로드"
+                            >
+                              <Download size={14} />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(slip)}
+                              className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 transition-colors"
+                              title="삭제"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   )

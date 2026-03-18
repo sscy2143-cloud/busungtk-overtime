@@ -1,10 +1,51 @@
 import { useState, useEffect, useRef } from 'react'
-import { Receipt, Plus, ChevronUp, Upload, X, Image } from 'lucide-react'
+import { Receipt, Plus, ChevronUp, Upload, X, Image, CheckCircle, AlertTriangle } from 'lucide-react'
+import imageCompression from 'browser-image-compression'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { StatusBadge } from '../components/common/StatusBadge'
 import type { Expense, ExpenseCategory, PaymentMethod, RequestStatus } from '../types'
 import { EXPENSE_CATEGORY_LABEL, PAYMENT_METHOD_LABEL, REQUEST_STATUS_LABEL } from '../types'
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 원본 최대 10MB (압축 전)
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf']
+
+async function processFile(file: File, employeeName: string): Promise<{ file: File; fileName: string } | null> {
+  let processed = file
+
+  // HEIC → JPEG 변환
+  if (file.type === 'image/heic' || file.type === 'image/heif' || file.name.toLowerCase().endsWith('.heic')) {
+    try {
+      const heic2any = (await import('heic2any')).default
+      const blob = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.85 }) as Blob
+      processed = new File([blob], file.name.replace(/\.heic$/i, '.jpg'), { type: 'image/jpeg' })
+    } catch {
+      alert('HEIC 파일 변환에 실패했습니다.')
+      return null
+    }
+  }
+
+  // 이미지 압축 (PDF 제외)
+  if (processed.type.startsWith('image/')) {
+    try {
+      processed = await imageCompression(processed, {
+        maxSizeMB: 1,
+        maxWidthOrHeight: 2048,
+        useWebWorker: true,
+      })
+    } catch {
+      // 압축 실패 시 원본 사용
+    }
+  }
+
+  // 파일명: YYYYMMDD_이름.확장자
+  const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '')
+  const ext = processed.name.split('.').pop() ?? 'jpg'
+  const safeName = employeeName.replace(/[^가-힣a-zA-Z0-9]/g, '')
+  const fileName = `${dateStr}_${safeName}.${ext}`
+
+  return { file: processed, fileName }
+}
 
 const CATEGORIES: ExpenseCategory[] = ['meal', 'transport', 'supplies', 'other']
 const PAYMENT_METHODS: PaymentMethod[] = ['card', 'transfer', 'cash', 'other']
@@ -50,6 +91,7 @@ export function ExpensePage() {
   const [submitting, setSubmitting] = useState(false)
   const [toast, setToast] = useState(false)
   const [detailExp, setDetailExp] = useState<Expense | null>(null)
+  const [cancelModal, setCancelModal] = useState<{ open: boolean; id: string; reason: string }>({ open: false, id: '', reason: '' })
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -66,6 +108,39 @@ export function ExpensePage() {
     if (!error && data) {
       setExpenses(data as Expense[])
     }
+  }
+
+  async function confirmReceipt(id: string) {
+    const now = new Date().toISOString()
+    const ua = navigator.userAgent
+    const isMobile = /Mobile|Android|iPhone/i.test(ua)
+    const browser = /Chrome/.test(ua) ? 'Chrome' : /Safari/.test(ua) ? 'Safari' : /Firefox/.test(ua) ? 'Firefox' : /Edge/.test(ua) ? 'Edge' : 'Other'
+    const os = /Windows/.test(ua) ? 'Windows' : /Mac/.test(ua) ? 'macOS' : /Android/.test(ua) ? 'Android' : /iPhone|iPad/.test(ua) ? 'iOS' : 'Other'
+    const deviceInfo = `${os} / ${browser}${isMobile ? ' (모바일)' : ' (PC)'}`
+
+    const { error } = await supabase
+      .from('expenses')
+      .update({ employee_confirmed_at: now, confirmed_device: deviceInfo })
+      .eq('id', id)
+    if (!error) {
+      setExpenses(prev => prev.map(e => e.id === id ? { ...e, employee_confirmed_at: now, confirmed_device: deviceInfo } : e))
+      if (detailExp?.id === id) setDetailExp(prev => prev ? { ...prev, employee_confirmed_at: now, confirmed_device: deviceInfo } : null)
+    }
+  }
+
+  async function requestCancel() {
+    const { id, reason } = cancelModal
+    if (!reason.trim()) return
+    const now = new Date().toISOString()
+    const { error } = await supabase
+      .from('expenses')
+      .update({ cancel_requested_at: now, cancel_reason: reason.trim() })
+      .eq('id', id)
+    if (!error) {
+      setExpenses(prev => prev.map(e => e.id === id ? { ...e, cancel_requested_at: now, cancel_reason: reason.trim() } : e))
+      if (detailExp?.id === id) setDetailExp(prev => prev ? { ...prev, cancel_requested_at: now, cancel_reason: reason.trim() } : null)
+    }
+    setCancelModal({ open: false, id: '', reason: '' })
   }
 
   const filtered = filter === 'all'
@@ -117,28 +192,45 @@ export function ExpensePage() {
   }
 
   async function uploadReceipt(file: File): Promise<string | null> {
-    const ext = file.name.split('.').pop() ?? 'jpg'
-    const fileName = `${employee?.id}/${Date.now()}.${ext}`
-
-    const { error } = await supabase.storage
-      .from('receipts')
-      .upload(fileName, file, { cacheControl: '3600', upsert: false })
-
-    if (error) {
-      console.error('[ExpensePage] upload error:', error)
+    // 파일 크기 & 타입 검증
+    if (file.size > MAX_FILE_SIZE) {
+      alert('파일 크기가 10MB를 초과합니다.')
+      return null
+    }
+    const isHeic = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')
+    if (!ALLOWED_TYPES.includes(file.type) && !isHeic) {
+      alert('허용되지 않는 파일 형식입니다. (JPG, PNG, WEBP, HEIC, PDF)')
       return null
     }
 
-    const { data: urlData } = supabase.storage
-      .from('receipts')
-      .getPublicUrl(fileName)
+    // 이미지 처리 (HEIC 변환 + 압축 + 파일명 변경)
+    const result = await processFile(file, employee?.name ?? 'unknown')
+    if (!result) return null
 
-    return urlData?.publicUrl ?? null
+    const storagePath = `${employee?.id}/${Date.now()}_${result.fileName}`
+
+    const { error } = await supabase.storage
+      .from('receipts')
+      .upload(storagePath, result.file, { cacheControl: '3600', upsert: false })
+
+    if (error) return null
+
+    // 서명된 URL 사용 (5분 만료)
+    const { data: urlData } = await supabase.storage
+      .from('receipts')
+      .createSignedUrl(storagePath, 300)
+
+    return urlData?.signedUrl ?? null
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!amount || !description.trim()) return
+    const numericAmount = Number(amount)
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      alert('올바른 금액을 입력하세요.')
+      return
+    }
     setSubmitting(true)
 
     let receiptUrl: string | undefined = undefined
@@ -163,7 +255,7 @@ export function ExpensePage() {
         date,
         category,
         payment_method: paymentMethod,
-        amount: Number(amount),
+        amount: numericAmount,
         description: finalDescription,
         ...(receiptUrl ? { receipt_url: receiptUrl } : {}),
       })
@@ -171,7 +263,7 @@ export function ExpensePage() {
       .single()
 
     if (error) {
-      console.error('[ExpensePage] insert error:', error)
+      void error
       setSubmitting(false)
       return
     }
@@ -204,7 +296,7 @@ export function ExpensePage() {
       </div>
 
       {/* 요약 */}
-      <div className="bg-white rounded-xl border border-gray-200 divide-x divide-gray-100 flex overflow-hidden">
+      <div data-tour="expense-summary" className="bg-white rounded-xl border border-gray-200 divide-x divide-gray-100 flex overflow-hidden">
         <div className="flex-1 px-5 py-3.5">
           <p className="text-xs text-gray-400 mb-0.5">승인 대기</p>
           <p className="text-lg font-bold text-warning-600">{formatWon(totalPending)}</p>
@@ -476,7 +568,24 @@ export function ExpensePage() {
                     {formatWon(exp.amount)}
                   </td>
                   <td className="px-3 py-2.5 text-center">
-                    <StatusBadge status={exp.status} />
+                    <div className="flex flex-col items-center gap-1">
+                      <StatusBadge status={exp.status} />
+                      {exp.paid_at && !exp.employee_confirmed_at && !exp.cancel_requested_at && (
+                        <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full bg-primary-50 text-primary-600 animate-pulse whitespace-nowrap">
+                          수령확인 필요
+                        </span>
+                      )}
+                      {exp.employee_confirmed_at && !exp.cancel_requested_at && (
+                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-success-50 text-success-600 whitespace-nowrap">
+                          수령완료
+                        </span>
+                      )}
+                      {exp.cancel_requested_at && (
+                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-warning-50 text-warning-600 whitespace-nowrap">
+                          취소요청중
+                        </span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -623,6 +732,44 @@ export function ExpensePage() {
                         <p className="text-sm text-gray-700 bg-gray-50 rounded-xl px-3 py-2">{detailExp.payment_note}</p>
                       </div>
                     )}
+
+                    {/* 수령확인 / 취소요청 */}
+                    <div className="pt-3 border-t border-gray-100 space-y-2">
+                      {detailExp.cancel_requested_at ? (
+                        <div className="bg-warning-50 border border-warning-200 rounded-xl px-3 py-2.5">
+                          <p className="text-xs font-semibold text-warning-700 mb-1">취소 요청중</p>
+                          <p className="text-xs text-warning-600">{detailExp.cancel_reason}</p>
+                          <p className="text-xs text-gray-400 mt-1">담당자 승인 대기중입니다.</p>
+                        </div>
+                      ) : detailExp.employee_confirmed_at ? (
+                        <>
+                          <div className="flex items-center gap-2 text-success-700 bg-success-50 rounded-xl px-3 py-2.5">
+                            <CheckCircle size={16} />
+                            <div>
+                              <p className="text-xs font-semibold">수령 확인 완료</p>
+                              <p className="text-xs text-success-600">
+                                {new Date(detailExp.employee_confirmed_at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setCancelModal({ open: true, id: detailExp.id, reason: '' })}
+                            className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-warning-700 border border-warning-300 rounded-xl hover:bg-warning-50 transition-colors"
+                          >
+                            <AlertTriangle size={14} />
+                            취소 요청
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => confirmReceipt(detailExp.id)}
+                          className="w-full flex items-center justify-center gap-1.5 py-2.5 text-sm font-semibold text-white bg-success-500 rounded-xl hover:bg-success-600 transition-colors"
+                        >
+                          <CheckCircle size={16} />
+                          수령 확인
+                        </button>
+                      )}
+                    </div>
                   </>
                 ) : (
                   <div className="flex flex-col items-center justify-center h-32 gap-2">
@@ -631,6 +778,34 @@ export function ExpensePage() {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 취소 요청 모달 */}
+      {cancelModal.open && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setCancelModal({ open: false, id: '', reason: '' })} />
+          <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-gray-900">취소 요청</h3>
+              <button onClick={() => setCancelModal({ open: false, id: '', reason: '' })}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <p className="text-xs text-gray-500 mb-3">
+              취소 사유를 입력해주세요. 담당자 승인 후 처리됩니다.
+            </p>
+            <textarea
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
+              rows={3}
+              placeholder="취소 사유를 입력하세요"
+              value={cancelModal.reason}
+              onChange={(e) => setCancelModal(p => ({ ...p, reason: e.target.value }))}
+              autoFocus
+            />
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setCancelModal({ open: false, id: '', reason: '' })} className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50">닫기</button>
+              <button onClick={requestCancel} disabled={!cancelModal.reason.trim()} className="flex-1 py-2.5 text-sm font-semibold text-white bg-warning-500 rounded-xl hover:bg-warning-600 disabled:opacity-40 transition-colors">요청</button>
             </div>
           </div>
         </div>

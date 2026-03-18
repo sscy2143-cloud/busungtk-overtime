@@ -92,6 +92,7 @@ export function Sidebar() {
         {/* 근무 관리 (접히는 그룹) */}
         <div>
           <button
+            data-tour="nav-work"
             onClick={() => setWorkOpen(o => !o)}
             className="flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
           >
@@ -121,6 +122,7 @@ export function Sidebar() {
         {/* 휴가 관리 (직원용, 접히는 그룹) */}
         <div>
           <button
+            data-tour="nav-leave"
             onClick={() => setLeaveEmployeeOpen(o => !o)}
             className="flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
           >
@@ -147,7 +149,7 @@ export function Sidebar() {
           )}
         </div>
 
-        <NavLink to="/expenses" className={navLinkClass}>
+        <NavLink to="/expenses" className={navLinkClass} data-tour="nav-expense">
           <Receipt size={18} />
           경비 제출
         </NavLink>
@@ -290,6 +292,10 @@ export function Sidebar() {
                     <FileText size={16} />
                     급여명세서
                   </NavLink>
+                  <NavLink to="/admin/notices" className={subNavLinkClass}>
+                    <FileText size={16} />
+                    공지사항
+                  </NavLink>
                 </div>
               )}
             </div>
@@ -327,9 +333,16 @@ export function Sidebar() {
           )}
           <div className="min-w-0">
             <p className="text-sm font-semibold text-gray-800 truncate">{employee?.name ?? '사용자'}</p>
-            <p className="text-xs text-gray-400 truncate">{employee?.email ?? ''}</p>
+            <p className="text-xs text-gray-400 truncate">{employee?.department ?? ''}</p>
           </div>
         </div>
+        <NavLink
+          to="/settings"
+          className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors mb-1"
+        >
+          <Settings size={16} />
+          설정
+        </NavLink>
         <button
           onClick={signOut}
           className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-500 hover:text-danger-600 hover:bg-danger-50 rounded-lg transition-colors"

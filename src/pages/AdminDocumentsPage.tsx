@@ -1,5 +1,6 @@
 import { useState, type CSSProperties } from 'react'
-import { FileText, Printer, X } from 'lucide-react'
+import { FileText, Printer, X, BookOpen } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
 type DocId = 'career' | 'employment' | 'severance' | 'resignation'
@@ -27,6 +28,7 @@ const inputSt: CSSProperties = {
 
 export function AdminDocumentsPage() {
   const { employee } = useAuth()
+  const navigate = useNavigate()
   const [openDoc, setOpenDoc] = useState<DocId | null>(null)
 
   const today = new Date()
@@ -341,6 +343,22 @@ export function AdminDocumentsPage() {
       <div>
         <h1 className="text-xl font-bold text-gray-900">자료실</h1>
         <p className="text-sm text-gray-500 mt-0.5">문서 양식을 열람하고 작성 후 인쇄하세요</p>
+      </div>
+
+      {/* 이용 가이드 */}
+      <div className="mb-4">
+        <button
+          onClick={() => navigate('/guide')}
+          className="w-full flex items-center gap-4 p-5 rounded-2xl border-2 bg-primary-50 border-primary-200 hover:shadow-md transition-all text-left"
+        >
+          <div className="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <BookOpen size={24} className="text-primary-600" />
+          </div>
+          <div>
+            <p className="font-bold text-gray-900">부성TK 근태관리 이용 가이드</p>
+            <p className="text-xs text-gray-500 mt-0.5">시스템 사용법 A to Z · PDF 저장/인쇄 가능</p>
+          </div>
+        </button>
       </div>
 
       {/* 문서 목록 */}

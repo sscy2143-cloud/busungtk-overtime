@@ -112,16 +112,20 @@ export function LeaveRequestPage() {
     })
 
     if (error) {
-      console.error('[LeaveRequest] insert error:', error)
+      void error
       setSubmitting(false)
       return
     }
 
     // 사장님에게 SMS 알림 발송
     try {
+      const { data: { session } } = await supabase.auth.getSession()
       await fetch('/api/notify-leave', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
         body: JSON.stringify({
           employeeName: employee?.name ?? '직원',
           leaveType: isOther ? otherSubType : LEAVE_TYPE_LABEL[leaveType],
@@ -131,9 +135,7 @@ export function LeaveRequestPage() {
           reason: finalReason,
         }),
       })
-    } catch (err) {
-      console.error('SMS 알림 발송 실패:', err)
-    }
+    } catch { /* SMS 실패해도 신청은 완료 */ }
 
     setSubmitting(false)
     navigate('/leave')
@@ -157,7 +159,7 @@ export function LeaveRequestPage() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* 유형 선택 */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+        <div data-tour="leave-type-select" className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
           <label className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5">
             <CalendarDays className="w-4 h-4 text-primary-600" />
             휴가 유형
@@ -204,7 +206,7 @@ export function LeaveRequestPage() {
         </div>
 
         {/* 날짜 선택 */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
+        <div data-tour="leave-date-select" className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
           <p className="text-sm font-semibold text-gray-700">날짜 선택</p>
 
           {(isHalfDay || isOther) ? (
