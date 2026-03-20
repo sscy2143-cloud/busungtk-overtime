@@ -13,7 +13,7 @@ import { AdminDashboardPage } from './pages/AdminDashboardPage'
 import { AdminApprovalsPage } from './pages/AdminApprovalsPage'
 import { AdminOvertimeDashboardPage } from './pages/AdminOvertimeDashboardPage'
 import { AdminLeavePage } from './pages/AdminLeavePage'
-import { AdminUsersPage } from './pages/AdminUsersPage'
+
 import { AdminPayrollPage } from './pages/AdminPayrollPage'
 import { AdminLeaveTypesPage } from './pages/AdminLeaveTypesPage'
 import { NotificationsPage } from './pages/NotificationsPage'
@@ -23,7 +23,8 @@ import { AdminDocumentsPage } from './pages/AdminDocumentsPage'
 import { AdminOvertimeEmployeesPage } from './pages/AdminOvertimeEmployeesPage'
 import { AdminOvertimePayPage } from './pages/AdminOvertimePayPage'
 import { AdminLeavePayPage } from './pages/AdminLeavePayPage'
-import { AdminEmployeesPage } from './pages/AdminEmployeesPage'
+
+import { AdminEmployeeManagementPage } from './pages/AdminEmployeeManagementPage'
 import { AdminCompLeavePage } from './pages/AdminCompLeavePage'
 import { AdminPayslipPage } from './pages/AdminPayslipPage'
 import { AdminNoticePage } from './pages/AdminNoticePage'
@@ -31,6 +32,7 @@ import { PayslipListPage } from './pages/PayslipListPage'
 import { NoticeListPage } from './pages/NoticeListPage'
 import { UserGuidePage } from './pages/UserGuidePage'
 import { SettingsPage } from './pages/SettingsPage'
+import { ForcePasswordChangePage } from './pages/ForcePasswordChangePage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -45,6 +47,7 @@ function ActiveEmployeeGuard({ children }: { children: React.ReactNode }) {
   const { employee, isDemo } = useAuth()
   if (isDemo) return <>{children}</>
   if (!employee || !employee.is_active) return <Navigate to="/pending" replace />
+  if (employee.force_password_change) return <Navigate to="/force-password" replace />
   return <>{children}</>
 }
 
@@ -56,20 +59,13 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-function SuperAdminRoute({ children }: { children: React.ReactNode }) {
-  const { employee } = useAuth()
-  if (!employee || employee.role !== 'admin') {
-    return <Navigate to="/" replace />
-  }
-  return <>{children}</>
-}
-
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/pending" element={<ProtectedRoute><PendingApprovalPage /></ProtectedRoute>} />
+        <Route path="/force-password" element={<ProtectedRoute><ForcePasswordChangePage /></ProtectedRoute>} />
         <Route path="/" element={<ProtectedRoute><ActiveEmployeeGuard><AppLayout /></ActiveEmployeeGuard></ProtectedRoute>}>
           <Route index element={<DashboardPage />} />
           <Route path="request" element={<RequestPage />} />
@@ -86,14 +82,14 @@ export default function App() {
           <Route path="admin" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
           <Route path="admin/approvals" element={<AdminRoute><AdminApprovalsPage /></AdminRoute>} />
           <Route path="admin/overtime" element={<AdminRoute><AdminOvertimeDashboardPage /></AdminRoute>} />
-          <Route path="admin/employees" element={<AdminRoute><AdminEmployeesPage /></AdminRoute>} />
+          <Route path="admin/employee-management" element={<AdminRoute><AdminEmployeeManagementPage /></AdminRoute>} />
           <Route path="admin/overtime/employees" element={<AdminRoute><AdminOvertimeEmployeesPage /></AdminRoute>} />
           <Route path="admin/overtime/pay" element={<AdminRoute><AdminOvertimePayPage /></AdminRoute>} />
           <Route path="admin/overtime/leave-pay" element={<AdminRoute><AdminLeavePayPage /></AdminRoute>} />
           <Route path="admin/leave" element={<AdminRoute><AdminLeavePage /></AdminRoute>} />
           <Route path="admin/leave/comp" element={<AdminRoute><AdminCompLeavePage /></AdminRoute>} />
           <Route path="admin/leave-types" element={<AdminRoute><AdminLeaveTypesPage /></AdminRoute>} />
-          <Route path="admin/users" element={<SuperAdminRoute><AdminUsersPage /></SuperAdminRoute>} />
+
           <Route path="admin/expenses" element={<AdminRoute><AdminExpensePage /></AdminRoute>} />
           <Route path="admin/payroll" element={<AdminRoute><AdminPayrollPage /></AdminRoute>} />
           <Route path="admin/documents" element={<AdminRoute><AdminDocumentsPage /></AdminRoute>} />

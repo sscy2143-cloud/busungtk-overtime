@@ -62,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) {
+        setLoading(true)
         fetchEmployee(session.user.id)
       } else {
         setEmployee(null)
@@ -73,12 +74,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   async function fetchEmployee(userId: string) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('employees')
       .select('*')
       .eq('id', userId)
       .single()
 
+    if (error) {
+      console.error('fetchEmployee error:', error.message, error.code)
+    }
     if (data) {
       setEmployee(data)
     }
@@ -129,6 +133,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.auth.updateUser({ password: newPassword })
     if (error) {
       return { success: false, error: '비밀번호 변경에 실패했습니다' }
+    }
+    // 강제 비밀번호 변경 플래그 해제
+    if (employee) {
+      await supabase
+        .from('employees')
+        .update({ force_password_change: false })
+        .eq('id', employee.id)
+      setEmployee({ ...employee, force_password_change: false })
     }
     return { success: true }
   }

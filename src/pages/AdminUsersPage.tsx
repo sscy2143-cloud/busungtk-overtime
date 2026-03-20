@@ -40,6 +40,7 @@ interface ResetPasswordModal {
   userId: string
   name: string
   newPassword: string
+  adminPassword: string
 }
 
 export function AdminUsersPage() {
@@ -60,7 +61,7 @@ export function AdminUsersPage() {
     open: false, employeeNumber: '', name: '', department: '', role: 'employee', password: '', passwordConfirm: '',
   })
   const [resetModal, setResetModal] = useState<ResetPasswordModal>({
-    open: false, userId: '', name: '', newPassword: '',
+    open: false, userId: '', name: '', newPassword: '', adminPassword: '',
   })
   const [actionError, setActionError] = useState('')
   const [actionLoading, setActionLoading] = useState(false)
@@ -166,8 +167,12 @@ export function AdminUsersPage() {
   // 비밀번호 초기화
   async function handleResetPassword() {
     setActionError('')
-    const { userId, newPassword } = resetModal
+    const { userId, newPassword, adminPassword } = resetModal
 
+    if (!adminPassword) {
+      setActionError('본인 비밀번호를 입력하세요')
+      return
+    }
     if (!newPassword) {
       setActionError('새 비밀번호를 입력하세요')
       return
@@ -178,6 +183,16 @@ export function AdminUsersPage() {
     }
 
     setActionLoading(true)
+
+    // 본인 비밀번호 재확인
+    const email = currentUser?.email ?? ''
+    const { error: verifyErr } = await supabase.auth.signInWithPassword({ email, password: adminPassword })
+    if (verifyErr) {
+      setActionError('본인 비밀번호가 올바르지 않습니다')
+      setActionLoading(false)
+      return
+    }
+
     try {
       const res = await fetch('/api/admin-user', {
         method: 'PUT',
@@ -195,7 +210,7 @@ export function AdminUsersPage() {
         return
       }
 
-      setResetModal({ open: false, userId: '', name: '', newPassword: '' })
+      setResetModal({ open: false, userId: '', name: '', newPassword: '', adminPassword: '' })
       alert('비밀번호가 초기화되었습니다')
     } catch {
       setActionError('서버와 통신할 수 없습니다')
@@ -300,7 +315,7 @@ export function AdminUsersPage() {
                     </button>
                   </td>
                   <td className="px-3 py-3 text-center">
-                    <div className="flex items-center justify-center gap-2">
+                    <div className="flex items-center justify-center gap-6">
                       <button
                         onClick={() => openEdit(emp)}
                         disabled={emp.id === currentUser?.id}
@@ -309,7 +324,7 @@ export function AdminUsersPage() {
                         수정
                       </button>
                       <button
-                        onClick={() => setResetModal({ open: true, userId: emp.id, name: emp.name, newPassword: '' })}
+                        onClick={() => setResetModal({ open: true, userId: emp.id, name: emp.name, newPassword: '', adminPassword: '' })}
                         disabled={emp.id === currentUser?.id}
                         className="text-xs text-warning-600 hover:text-warning-700 font-medium disabled:text-gray-300 disabled:cursor-not-allowed"
                         title="비밀번호 초기화"
@@ -454,16 +469,28 @@ export function AdminUsersPage() {
               <span className="font-semibold">{resetModal.name}</span>의 비밀번호를 초기화합니다.
             </p>
 
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">새 비밀번호</label>
-              <input
-                type="password"
-                value={resetModal.newPassword}
-                onChange={(e) => setResetModal((p) => ({ ...p, newPassword: e.target.value }))}
-                placeholder="6자 이상"
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
-                autoFocus
-              />
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">인사담당자 비밀번호 입력</label>
+                <input
+                  type="password"
+                  value={resetModal.adminPassword}
+                  onChange={(e) => { setResetModal((p) => ({ ...p, adminPassword: e.target.value })); setActionError('') }}
+                  placeholder="본인 비밀번호 입력"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">{resetModal.name}의 새 임시 비밀번호</label>
+                <input
+                  type="password"
+                  value={resetModal.newPassword}
+                  onChange={(e) => setResetModal((p) => ({ ...p, newPassword: e.target.value }))}
+                  placeholder="6자 이상"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                />
+              </div>
             </div>
 
             {actionError && <p className="text-xs text-danger-500 mt-2">{actionError}</p>}

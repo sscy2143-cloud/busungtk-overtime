@@ -42,8 +42,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .eq('id', authResult.data.user.id)
     .single()
 
-  if (!caller || caller.role !== 'admin') {
-    return res.status(403).json({ error: '대표 권한이 필요합니다' })
+  if (!caller || (caller.role !== 'admin' && caller.role !== 'manager')) {
+    return res.status(403).json({ error: '관리자 권한이 필요합니다' })
   }
 
   // 서비스 롤 클라이언트 (사용자 생성/비밀번호 변경용)
@@ -93,6 +93,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         employee_type: employeeType || 'office',
         hourly_wage: 0,
         is_active: true,
+        force_password_change: true,
       })
 
     if (empError) {
@@ -123,6 +124,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (error) {
       return res.status(500).json({ error: '비밀번호 초기화 실패' })
     }
+
+    // 강제 비밀번호 변경 플래그 설정
+    await supabaseAdmin
+      .from('employees')
+      .update({ force_password_change: true })
+      .eq('id', userId)
 
     return res.status(200).json({ success: true })
   }

@@ -1,8 +1,26 @@
+import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { LogOut, ShieldAlert } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
 export function PendingApprovalPage() {
-  const { user, signOut } = useAuth()
+  const { user, employee, loading, signOut } = useAuth()
+  const navigate = useNavigate()
+
+  // employee가 로딩되고 활성 상태면 대시보드로 이동
+  useEffect(() => {
+    if (!loading && employee && employee.is_active) {
+      navigate('/', { replace: true })
+    }
+  }, [loading, employee, navigate])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-50">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center px-4">

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Plus, Trash2, X, Megaphone, Paperclip, Download } from 'lucide-react'
+import { Plus, Trash2, X, Megaphone, Paperclip } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'

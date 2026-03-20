@@ -14,7 +14,7 @@ export function LoginPage() {
 
   // 아이콘 3번 클릭 (5초 내) → 개발자 모드
   const clickCountRef = useRef(0)
-  const clickTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   function handleLogoClick() {
     clickCountRef.current += 1

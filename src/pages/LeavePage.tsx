@@ -841,7 +841,6 @@ export function LeavePage() {
 
       {/* 신청 상세 모달 */}
       {detailReq && (() => {
-        const isApproved = detailReq.status === 'approved'
         const isSpecial = detailReq.type === 'special'
         const [specialSubType, specialNote] = isSpecial && detailReq.reason
           ? detailReq.reason.includes(' / ')

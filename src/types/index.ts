@@ -17,6 +17,7 @@ export interface Employee {
   hourly_wage: number
   manager_id: string | null
   is_active: boolean
+  force_password_change?: boolean
   created_at: string
 }
 

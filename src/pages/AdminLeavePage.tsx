@@ -37,7 +37,7 @@ interface SubstituteGrantModal {
 }
 
 export function AdminLeavePage() {
-  const { isDemo, employee } = useAuth()
+  const { employee } = useAuth()
   const [requests, setRequests] = useState<LeaveRequest[]>([])
   const [balances, setBalances] = useState<EmployeeBalance[]>([])
   const [balancesLoading, setBalancesLoading] = useState(false)

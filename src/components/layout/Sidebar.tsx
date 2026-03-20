@@ -9,7 +9,6 @@ import {
   CheckSquare,
   CalendarCheck,
   LogOut,
-  Users,
   DollarSign,
   Receipt,
   ChevronDown,
@@ -61,7 +60,7 @@ export function Sidebar() {
 
   const adminNavBefore: NavItem[] = [
     { to: '/admin', label: '관리자 대시보드', icon: <Shield size={18} /> },
-    { to: '/admin/employees', label: '사원현황', icon: <Contact size={18} /> },
+    { to: '/admin/employee-management', label: '직원 관리', icon: <Contact size={18} /> },
   ]
 
   const adminNavAfter: NavItem[] = [
@@ -69,9 +68,7 @@ export function Sidebar() {
     { to: '/admin/payroll', label: '급여 계산', icon: <DollarSign size={18} /> },
   ]
 
-  const superAdminNav: NavItem[] = [
-    { to: '/admin/users', label: '사용자 관리', icon: <Users size={18} /> },
-  ]
+  const superAdminNav: NavItem[] = []
 
   return (
     <aside className="hidden md:flex flex-col w-64 h-screen fixed left-0 top-0 bg-white border-r border-gray-200 z-30">
@@ -94,7 +91,7 @@ export function Sidebar() {
           <button
             data-tour="nav-work"
             onClick={() => setWorkOpen(o => !o)}
-            className="flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+            className={`flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${workOpen ? 'bg-amber-50 text-amber-800' : 'text-amber-700 hover:bg-amber-50/50'}`}
           >
             <div className="flex items-center gap-3">
               <FileText size={18} />
@@ -124,7 +121,7 @@ export function Sidebar() {
           <button
             data-tour="nav-leave"
             onClick={() => setLeaveEmployeeOpen(o => !o)}
-            className="flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+            className={`flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${leaveEmployeeOpen ? 'bg-amber-50 text-amber-800' : 'text-amber-700 hover:bg-amber-50/50'}`}
           >
             <div className="flex items-center gap-3">
               <Calendar size={18} />
@@ -170,7 +167,7 @@ export function Sidebar() {
             <div>
               <button
                 onClick={() => setOvertimeOpen(o => !o)}
-                className="flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                className={`flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${overtimeOpen ? 'bg-amber-50 text-amber-800' : 'text-amber-700 hover:bg-amber-50/50'}`}
               >
                 <div className="flex items-center gap-3">
                   <CheckSquare size={18} />
@@ -199,7 +196,7 @@ export function Sidebar() {
                   <div>
                     <button
                       onClick={() => setPayOpen(o => !o)}
-                      className="flex items-center justify-between w-full px-3 py-2 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors"
+                      className={`flex items-center justify-between w-full px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${payOpen ? 'bg-amber-50 text-amber-800' : 'text-amber-700 hover:bg-amber-50/50'}`}
                     >
                       <div className="flex items-center gap-3">
                         <Banknote size={16} />
@@ -231,7 +228,7 @@ export function Sidebar() {
             <div>
               <button
                 onClick={() => setLeaveOpen(o => !o)}
-                className="flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                className={`flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${leaveOpen ? 'bg-amber-50 text-amber-800' : 'text-amber-700 hover:bg-amber-50/50'}`}
               >
                 <div className="flex items-center gap-3">
                   <CalendarCheck size={18} />
@@ -271,7 +268,7 @@ export function Sidebar() {
             <div>
               <button
                 onClick={() => setEtcOpen(o => !o)}
-                className="flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                className={`flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${etcOpen ? 'bg-amber-50 text-amber-800' : 'text-amber-700 hover:bg-amber-50/50'}`}
               >
                 <div className="flex items-center gap-3">
                   <Archive size={18} />
