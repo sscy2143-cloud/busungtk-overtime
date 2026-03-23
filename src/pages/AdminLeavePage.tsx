@@ -357,7 +357,6 @@ export function AdminLeavePage() {
     half_am: 'bg-purple-50 text-purple-700',
     half_pm: 'bg-purple-50 text-purple-700',
     special: 'bg-teal-50 text-teal-700',
-    sick: 'bg-orange-50 text-orange-700',
   }
 
   const pendingRequests = requests.filter(r => r.status === 'pending' || r.status === 'manager_approved')

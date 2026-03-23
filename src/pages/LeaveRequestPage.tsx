@@ -7,7 +7,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 
 
-const LEAVE_TYPES: LeaveType[] = ['annual', 'half_am', 'half_pm', 'sick', 'special']
+const LEAVE_TYPES: LeaveType[] = ['annual', 'half_am', 'half_pm', 'special']
 
 const HALF_DAY_TYPES: LeaveType[] = ['half_am', 'half_pm']
 

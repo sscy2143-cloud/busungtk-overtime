@@ -3,7 +3,7 @@ export type EmployeeType = 'office' | 'field'
 export type OvertimeType = 'extended' | 'night' | 'holiday'
 export type RequestStatus = 'pending' | 'manager_approved' | 'approved' | 'rejected' | 'cancelled'
 export type GroupMemberStatus = 'pending_confirm' | 'confirmed' | 'declined'
-export type LeaveType = 'annual' | 'half_am' | 'half_pm' | 'special' | 'sick'
+export type LeaveType = 'annual' | 'half_am' | 'half_pm' | 'special'
 export type WarningLevel = 'normal' | 'caution' | 'warning' | 'exceeded'
 
 export interface Employee {
@@ -150,7 +150,6 @@ export const LEAVE_TYPE_LABEL: Record<LeaveType, string> = {
   half_am: '오전반차',
   half_pm: '오후반차',
   special: '기타',
-  sick: '병가',
 }
 
 export const WARNING_LEVEL_COLOR: Record<WarningLevel, string> = {

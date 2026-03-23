@@ -63,7 +63,7 @@ const TOUR_STEPS: TourStep[] = [
   {
     target: '[data-tour="leave-type-select"]',
     title: '휴가 유형 선택',
-    description: '연차, 오전반차, 오후반차, 병가, 특별휴가 중 선택하세요. 대체휴가가 남아있으면 연차보다 먼저 차감됩니다.',
+    description: '연차, 오전반차, 오후반차, 특별휴가 중 선택하세요. 대체휴가가 남아있으면 연차보다 먼저 차감됩니다.',
     position: 'bottom',
     route: '/leave/request',
   },

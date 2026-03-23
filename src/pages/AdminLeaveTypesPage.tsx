@@ -260,7 +260,7 @@ export function AdminLeaveTypesPage() {
                   type="text"
                   value={form.name}
                   onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                  placeholder="예: 연차, 반차, 병가"
+                  placeholder="예: 연차, 반차, 특별휴가"
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-400"
                 />
               </div>

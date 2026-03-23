@@ -210,7 +210,6 @@ export function UserGuidePage() {
                 <tr><td className="border border-gray-200 px-3 py-2">오전반차</td><td className="border border-gray-200 px-3 py-2">0.5일</td><td className="border border-gray-200 px-3 py-2">오전 중 휴가 (오후 출근)</td></tr>
                 <tr><td className="border border-gray-200 px-3 py-2">오후반차</td><td className="border border-gray-200 px-3 py-2">0.5일</td><td className="border border-gray-200 px-3 py-2">오후 휴가 (오전만 근무)</td></tr>
                 <tr><td className="border border-gray-200 px-3 py-2">기타</td><td className="border border-gray-200 px-3 py-2">별도</td><td className="border border-gray-200 px-3 py-2">경조사, 교육 등 특별휴가</td></tr>
-                <tr><td className="border border-gray-200 px-3 py-2">병가</td><td className="border border-gray-200 px-3 py-2">별도</td><td className="border border-gray-200 px-3 py-2">질병/부상으로 인한 휴가</td></tr>
               </tbody>
             </table>
 
