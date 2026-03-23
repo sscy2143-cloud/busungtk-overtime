@@ -193,11 +193,11 @@ export function RequestPage() {
         <WeeklyGauge currentHours={currentWeeklyHours} />
       </div>
 
-      {/* 주간 연장근무 한도 경고 */}
-      {isOverWeekly && (
+      {/* 주간 연장근무 한도 경고 (관리자만 표시) */}
+      {isOverWeekly && (employee?.role === 'admin' || employee?.role === 'manager') && (
         <div className="flex items-start gap-2 bg-warning-50 border border-warning-400 rounded-xl px-4 py-3 mb-6 text-sm text-warning-500">
           <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-          <span>이번 주 연장근무가 <strong>12시간</strong>을 초과했습니다. 법정 한도를 확인하세요.</span>
+          <span>이번 주 연장근무가 <strong>12시간</strong>을 초과했습니다. 한도를 확인하세요.</span>
         </div>
       )}
 

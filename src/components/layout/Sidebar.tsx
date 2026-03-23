@@ -54,6 +54,13 @@ export function Sidebar() {
         : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
     }`
 
+  const adminNavLinkClass = ({ isActive }: { isActive: boolean }) =>
+    `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+      isActive
+        ? 'bg-amber-50 text-amber-800'
+        : 'text-amber-700 hover:bg-amber-50/50'
+    }`
+
   const mainNav: NavItem[] = [
     { to: '/', label: '대시보드', icon: <LayoutDashboard size={18} /> },
   ]
@@ -157,10 +164,13 @@ export function Sidebar() {
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">관리자</p>
             </div>
             {adminNavBefore.map((item) => (
-              <NavLink key={item.to} to={item.to} className={navLinkClass}>
-                {item.icon}
-                {item.label}
-              </NavLink>
+              <div key={item.to}>
+                <NavLink to={item.to} className={adminNavLinkClass}>
+                  {item.icon}
+                  {item.label}
+                </NavLink>
+                <div className="mx-6 my-2.5 border-b border-gray-100" />
+              </div>
             ))}
 
             {/* 야근 관리 (접히는 그룹) */}
@@ -223,6 +233,7 @@ export function Sidebar() {
                 </div>
               )}
             </div>
+            <div className="mx-6 my-2.5 border-b border-gray-100" />
 
             {/* 휴가 관리 (접히는 그룹) */}
             <div>
@@ -256,12 +267,16 @@ export function Sidebar() {
                 </div>
               )}
             </div>
+            <div className="mx-6 my-2.5 border-b border-gray-100" />
 
             {adminNavAfter.map((item) => (
-              <NavLink key={item.to} to={item.to} className={navLinkClass}>
-                {item.icon}
-                {item.label}
-              </NavLink>
+              <div key={item.to}>
+                <NavLink to={item.to} className={adminNavLinkClass}>
+                  {item.icon}
+                  {item.label}
+                </NavLink>
+                <div className="mx-6 my-2.5 border-b border-gray-100" />
+              </div>
             ))}
 
             {/* 기타 (접히는 그룹) */}

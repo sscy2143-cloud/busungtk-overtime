@@ -50,7 +50,6 @@ export function UserGuidePage() {
             <li><a href="#sec7" className="hover:text-primary-600">급여명세서 확인</a></li>
             <li><a href="#sec8" className="hover:text-primary-600">공지사항 확인</a></li>
             <li><a href="#sec9" className="hover:text-primary-600">알림</a></li>
-            <li><a href="#sec10" className="hover:text-primary-600">관리자 기능 (인사담당/대표)</a></li>
             <li><a href="#sec11" className="hover:text-primary-600">자주 묻는 질문 (FAQ)</a></li>
           </ol>
         </section>
@@ -68,10 +67,9 @@ export function UserGuidePage() {
 
             <h3 className="font-semibold text-gray-800 mt-4">1-2. 로그인</h3>
             <ul className="list-disc list-inside space-y-1 ml-2">
-              <li><strong>Google 계정</strong>으로 로그인합니다</li>
-              <li>"Google로 로그인" 버튼 클릭 → Google 계정 선택 → 자동 로그인</li>
-              <li>최초 로그인 시 관리자 승인이 필요합니다 (승인 대기 화면 표시)</li>
-              <li>관리자가 직원 등록을 완료하면 정상적으로 사용 가능합니다</li>
+              <li>발급받은 <strong>사번</strong>과 <strong>비밀번호</strong>를 입력하여 로그인합니다</li>
+              <li>최초 로그인 시 임시 비밀번호를 변경하는 화면이 표시됩니다</li>
+              <li>새 비밀번호를 설정하면 정상적으로 사용 가능합니다</li>
             </ul>
 
             <h3 className="font-semibold text-gray-800 mt-4">1-3. 로그아웃</h3>
@@ -90,8 +88,7 @@ export function UserGuidePage() {
             <h3 className="font-semibold text-gray-800 mt-4">2-1. 금주 연장근무시간</h3>
             <ul className="list-disc list-inside space-y-1 ml-2">
               <li>이번 주(월~일) 승인된 연장근무 시간을 게이지로 표시</li>
-              <li>법정 주간 연장근무 한도는 <strong>12시간</strong>입니다</li>
-              <li>색상별 의미: 초록(정상) → 노랑(주의, 8시간 이상) → 빨강(위험, 10시간 이상)</li>
+              <li>색상별 의미: 초록 → 노랑(8시간 이상) → 빨강(10시간 이상)</li>
             </ul>
 
             <h3 className="font-semibold text-gray-800 mt-4">2-2. 잔여 연차</h3>
@@ -283,8 +280,7 @@ export function UserGuidePage() {
             <h3 className="font-semibold text-gray-800 mt-4">7-1. 열람 방법</h3>
             <ol className="list-decimal list-inside space-y-1 ml-2">
               <li>대시보드 급여명세서 영역에서 <strong>"보기"</strong> 클릭 또는 <strong>"전체보기"</strong>로 이동</li>
-              <li>보안을 위해 <strong>본인 이메일 재입력</strong>이 필요합니다</li>
-              <li>로그인에 사용한 Google 이메일을 정확히 입력합니다</li>
+              <li>보안을 위해 <strong>본인 인증</strong>이 필요할 수 있습니다</li>
               <li>인증 성공 후 급여명세서 목록을 확인할 수 있습니다</li>
             </ol>
 
@@ -330,91 +326,18 @@ export function UserGuidePage() {
           </div>
         </section>
 
-        {/* 10. 관리자 기능 */}
-        <section id="sec10" className="mb-10">
-          <h2 className="text-lg font-bold text-gray-900 mb-3 pb-2 border-b border-gray-200">10. 관리자 기능 (인사담당/대표)</h2>
-          <div className="space-y-3 text-sm text-gray-700 leading-relaxed">
-            <p className="text-xs text-gray-500 mb-2">* 관리자(manager) 또는 대표(admin) 권한이 있는 경우에만 사용 가능합니다.</p>
-
-            <h3 className="font-semibold text-gray-800 mt-4">10-1. 관리자 대시보드</h3>
-            <ul className="list-disc list-inside space-y-1 ml-2">
-              <li>승인 대기 건수, 전체 직원 현황 등을 한눈에 확인</li>
-            </ul>
-
-            <h3 className="font-semibold text-gray-800 mt-4">10-2. 승인 관리</h3>
-            <ul className="list-disc list-inside space-y-1 ml-2">
-              <li>연장근무 신청을 승인/반려 처리</li>
-              <li>반려 시 사유를 입력합니다</li>
-              <li><strong>승인/반려 권한은 대표(admin)만</strong> 가능합니다</li>
-            </ul>
-
-            <h3 className="font-semibold text-gray-800 mt-4">10-3. 연장근무 현황</h3>
-            <ul className="list-disc list-inside space-y-1 ml-2">
-              <li>전 직원의 연장근무 현황을 대시보드/목록/수당 형태로 확인</li>
-              <li>직원별 주간 근무시간 게이지 확인</li>
-            </ul>
-
-            <h3 className="font-semibold text-gray-800 mt-4">10-4. 휴가 관리</h3>
-            <ul className="list-disc list-inside space-y-1 ml-2">
-              <li>전 직원의 연차 부여/조정/사용 현황 관리</li>
-              <li>보상휴가(대체휴가) 관리</li>
-            </ul>
-
-            <h3 className="font-semibold text-gray-800 mt-4">10-5. 경비 관리</h3>
-            <ul className="list-disc list-inside space-y-1 ml-2">
-              <li>직원 경비 승인/반려 처리</li>
-              <li>지급 처리: 지급금액, 지급방식, 은행/계좌정보, 메모 입력</li>
-              <li>관리자 전용 메모: 직원에게 보이지 않는 내부 메모 작성 가능</li>
-              <li>직원 수령확인 상태 모니터링 (확인 시간, 기기 정보 확인 가능)</li>
-              <li>취소 요청 승인/거절 처리</li>
-              <li>엑셀(CSV) 내보내기 지원</li>
-            </ul>
-
-            <h3 className="font-semibold text-gray-800 mt-4">10-6. 급여명세서 관리</h3>
-            <ul className="list-disc list-inside space-y-1 ml-2">
-              <li><strong>명세서 등록</strong>: 지급월 선택 → 전 직원 목록에서 개별 파일 업로드</li>
-              <li>실근로일 기간 설정 (달력에서 선택)</li>
-              <li>전달 문구: 직원에게 보여지는 메시지</li>
-              <li>기타(관리자 메모): 직원에게 보이지 않는 내부 메모</li>
-              <li><strong>등록 현황</strong>: 전체 등록 내역 조회, 직원별 필터, 다운로드/삭제</li>
-            </ul>
-
-            <h3 className="font-semibold text-gray-800 mt-4">10-7. 공지사항 관리</h3>
-            <ul className="list-disc list-inside space-y-1 ml-2">
-              <li>공지사항 작성/수정/삭제</li>
-              <li>리치 텍스트 에디터: 굵게, 기울임, 밑줄, 글자 색상, 정렬, 목록, 링크, 이미지 삽입 등</li>
-              <li>파일 첨부 기능</li>
-              <li>공지 분류: 공지/업데이트/긴급</li>
-              <li>활성/숨김 토글</li>
-            </ul>
-
-            <h3 className="font-semibold text-gray-800 mt-4">10-8. 직원 관리</h3>
-            <ul className="list-disc list-inside space-y-1 ml-2">
-              <li>직원 정보 조회/수정</li>
-              <li>부서, 직급, 시급, 담당 매니저 설정</li>
-              <li>사용자 관리(admin만): 권한 등급 변경 가능</li>
-            </ul>
-
-            <h3 className="font-semibold text-gray-800 mt-4">10-9. 자료실</h3>
-            <ul className="list-disc list-inside space-y-1 ml-2">
-              <li>경력증명서, 재직증명서, 퇴직금 중간정산서, 사직서 등 서류 양식</li>
-              <li>인쇄 가능한 형태로 제공</li>
-            </ul>
-          </div>
-        </section>
-
         {/* 11. FAQ */}
         <section id="sec11" className="mb-6">
           <h2 className="text-lg font-bold text-gray-900 mb-3 pb-2 border-b border-gray-200">11. 자주 묻는 질문 (FAQ)</h2>
           <div className="space-y-4 text-sm text-gray-700">
             {[
-              { q: 'Q. 로그인이 안 됩니다.', a: 'Google 계정으로만 로그인 가능합니다. 최초 로그인 시 관리자 승인이 필요하며, 승인 전까지 대기 화면이 표시됩니다.' },
+              { q: 'Q. 로그인이 안 됩니다.', a: '발급받은 사번과 비밀번호로 로그인하세요. 비밀번호를 분실한 경우 인사담당자에게 초기화를 요청하세요.' },
               { q: 'Q. 연장근무 신청을 취소하고 싶습니다.', a: '"대기" 상태일 때만 취소 가능합니다. 이미 승인된 건은 관리자에게 문의하세요.' },
               { q: 'Q. 급여명세서가 보이지 않습니다.', a: '관리자가 해당 월 명세서를 등록해야 확인 가능합니다. 이메일 인증 후 열람할 수 있습니다.' },
               { q: 'Q. 경비 수령확인은 꼭 해야 하나요?', a: '네, 지급받은 경비에 대해 수령확인을 해주셔야 처리가 완료됩니다. 대시보드에 알림이 표시됩니다.' },
               { q: 'Q. 경비 수령확인 후 취소하고 싶습니다.', a: '수령확인 후에는 "취소 요청"을 통해 사유를 입력하면 담당자 승인 후 처리됩니다.' },
               { q: 'Q. 모바일에서도 사용 가능한가요?', a: '네, 모바일 브라우저에서 동일하게 사용 가능합니다. 홈 화면에 추가하면 앱처럼 편리하게 이용할 수 있습니다.' },
-              { q: 'Q. 비밀번호를 변경하고 싶습니다.', a: 'Google 계정 로그인 방식이므로 별도 비밀번호가 없습니다. Google 계정 설정에서 비밀번호를 변경하세요.' },
+              { q: 'Q. 비밀번호를 변경하고 싶습니다.', a: '인사담당자에게 비밀번호 초기화를 요청하세요. 임시 비밀번호가 발급되며, 로그인 시 새 비밀번호를 설정할 수 있습니다.' },
             ].map((item, i) => (
               <div key={i} className="bg-gray-50 rounded-xl px-4 py-3">
                 <p className="font-semibold text-gray-800 mb-1">{item.q}</p>

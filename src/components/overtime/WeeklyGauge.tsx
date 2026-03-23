@@ -58,7 +58,7 @@ export function WeeklyGauge({ currentHours, maxHours = 12 }: WeeklyGaugeProps) {
         <span className={`font-bold ${barColor.replace('bg-', 'text-')}`}>
           {currentHours.toFixed(1)}h
         </span>
-        {currentHours >= 12 && <span className="text-danger-500 ml-1">(법정 한도 초과)</span>}
+        {currentHours >= 12 && <span className="text-danger-500 ml-1">(한도 초과)</span>}
       </p>
     </div>
   )

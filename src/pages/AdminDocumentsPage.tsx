@@ -3,9 +3,10 @@ import { FileText, Printer, X, BookOpen } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
-type DocId = 'career' | 'employment' | 'severance' | 'resignation'
+type DocId = 'career' | 'employment' | 'severance' | 'resignation' | 'admin-guide'
 
 const DOCS: { id: DocId; title: string; desc: string; bg: string; iconColor: string }[] = [
+  { id: 'admin-guide', title: '관리자 이용 가이드', desc: '근태관리 시스템 관리자 기능 안내', bg: 'bg-purple-50 border-purple-200', iconColor: 'text-purple-500' },
   { id: 'career', title: '경력증명서', desc: '재직 기간 및 담당 업무 이력 증명', bg: 'bg-blue-50 border-blue-200', iconColor: 'text-blue-500' },
   { id: 'employment', title: '재직증명서', desc: '현재 재직 중임을 증명하는 서류', bg: 'bg-green-50 border-green-200', iconColor: 'text-green-500' },
   { id: 'severance', title: '퇴직금 중간정산서', desc: '퇴직금 중간 정산 신청서', bg: 'bg-orange-50 border-orange-200', iconColor: 'text-orange-500' },
@@ -328,6 +329,109 @@ export function AdminDocumentsPage() {
     )
   }
 
+  function AdminGuideDoc() {
+    const gSt: CSSProperties = { fontFamily: "'Malgun Gothic', dotum, sans-serif", lineHeight: '1.8' }
+    const h2St: CSSProperties = { fontSize: '14pt', fontWeight: 'bold', margin: '24px 0 8px', borderBottom: '1px solid #ccc', paddingBottom: '4px' }
+    const ulSt: CSSProperties = { paddingLeft: '20px', margin: '4px 0', listStyleType: 'disc' }
+    const liSt: CSSProperties = { fontSize: '10pt', marginBottom: '2px' }
+    return (
+      <div style={gSt}>
+        <h1 style={{ textAlign: 'center', fontSize: '18pt', fontWeight: 'bold', margin: '16px 0 24px' }}>관리자 이용 가이드</h1>
+        <p style={{ textAlign: 'center', fontSize: '9pt', color: '#888', marginBottom: '24px' }}>부성TK 근태관리 시스템</p>
+
+        <h2 style={h2St}>1. 관리자 대시보드</h2>
+        <ul style={ulSt}><li style={liSt}>승인 대기 건수, 전체 직원 현황 등을 한눈에 확인</li></ul>
+
+        <h2 style={h2St}>2. 승인 관리</h2>
+        <ul style={ulSt}>
+          <li style={liSt}>연장근무 신청을 승인/반려 처리</li>
+          <li style={liSt}>반려 시 사유를 입력합니다</li>
+          <li style={liSt}>승인/반려 권한은 대표만 가능합니다</li>
+        </ul>
+
+        <h2 style={h2St}>3. 연장근무 현황</h2>
+        <ul style={ulSt}>
+          <li style={liSt}>전 직원의 연장근무 현황을 대시보드/목록/수당 형태로 확인</li>
+          <li style={liSt}>직원별 주간 근무시간 게이지 확인</li>
+        </ul>
+
+        <h2 style={h2St}>4. 휴가 관리</h2>
+        <ul style={ulSt}>
+          <li style={liSt}>전 직원의 연차 부여/조정/사용 현황 관리</li>
+          <li style={liSt}>보상휴가(대체휴가) 관리</li>
+        </ul>
+
+        <h2 style={h2St}>5. 경비 관리</h2>
+        <ul style={ulSt}>
+          <li style={liSt}>직원 경비 승인/반려 처리</li>
+          <li style={liSt}>지급 처리: 지급금액, 지급방식, 은행/계좌정보, 메모 입력</li>
+          <li style={liSt}>관리자 전용 메모: 직원에게 보이지 않는 내부 메모 작성 가능</li>
+          <li style={liSt}>직원 수령확인 상태 모니터링</li>
+          <li style={liSt}>취소 요청 승인/거절 처리</li>
+          <li style={liSt}>엑셀(CSV) 내보내기 지원</li>
+        </ul>
+
+        <h2 style={h2St}>6. 급여명세서 관리</h2>
+        <ul style={ulSt}>
+          <li style={liSt}>명세서 등록: 지급월 선택 → 전 직원 목록에서 개별 파일 업로드</li>
+          <li style={liSt}>실근로일 기간 설정 (달력에서 선택)</li>
+          <li style={liSt}>전달 문구: 직원에게 보여지는 메시지</li>
+          <li style={liSt}>기타(관리자 메모): 직원에게 보이지 않는 내부 메모</li>
+          <li style={liSt}>등록 현황: 전체 등록 내역 조회, 직원별 필터, 다운로드/삭제</li>
+        </ul>
+
+        <h2 style={h2St}>7. 공지사항 관리</h2>
+        <ul style={ulSt}>
+          <li style={liSt}>공지사항 작성/수정/삭제</li>
+          <li style={liSt}>리치 텍스트 에디터 지원 (굵게, 기울임, 목록, 링크, 이미지 등)</li>
+          <li style={liSt}>파일 첨부 / 공지 분류 / 활성·숨김 토글</li>
+        </ul>
+
+        <h2 style={h2St}>8. 직원 관리</h2>
+        <ul style={ulSt}>
+          <li style={liSt}>직원 정보 조회/수정 (기본정보 · 계정관리 · 퇴사관리)</li>
+          <li style={liSt}>부서, 직급, 시급 설정</li>
+          <li style={liSt}>비밀번호 초기화 (인사담당자 비밀번호 재확인 필요)</li>
+          <li style={liSt}>계정 활성화/비활성화</li>
+          <li style={liSt}>직원 추가: 사번, 이름, 임시 비밀번호 → 최초 로그인 시 변경</li>
+        </ul>
+
+        <h2 style={h2St}>9. 자료실</h2>
+        <ul style={ulSt}>
+          <li style={liSt}>경력증명서, 재직증명서, 퇴직금 중간정산서, 사직서 등 서류 양식</li>
+          <li style={liSt}>인쇄 가능한 형태로 제공</li>
+        </ul>
+
+        <h2 style={h2St}>권한 구분</h2>
+        <table style={{ borderCollapse: 'collapse', width: '100%', marginTop: '8px', fontSize: '10pt' }}>
+          <thead>
+            <tr style={{ background: '#eee' }}>
+              <th style={{ border: '1px solid #ccc', padding: '6px 10px', textAlign: 'left' }}>구분</th>
+              <th style={{ border: '1px solid #ccc', padding: '6px 10px', textAlign: 'center' }}>인사담당</th>
+              <th style={{ border: '1px solid #ccc', padding: '6px 10px', textAlign: 'center' }}>대표</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[
+              ['연장근무 승인/반려', '불가', '가능'],
+              ['휴가 관리', '가능', '가능'],
+              ['경비 관리', '가능', '가능'],
+              ['급여명세서 관리', '가능', '가능'],
+              ['직원 계정 관리', '가능', '가능'],
+              ['직원 추가/삭제', '불가', '가능'],
+            ].map(([item, manager, admin]) => (
+              <tr key={item}>
+                <td style={{ border: '1px solid #ccc', padding: '4px 10px' }}>{item}</td>
+                <td style={{ border: '1px solid #ccc', padding: '4px 10px', textAlign: 'center' }}>{manager}</td>
+                <td style={{ border: '1px solid #ccc', padding: '4px 10px', textAlign: 'center' }}>{admin}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* 인쇄 전용 스타일 */}
@@ -406,6 +510,7 @@ export function AdminDocumentsPage() {
 
             {/* 문서 본문 */}
             <div id="print-area" className="p-8" key={openDoc}>
+              {openDoc === 'admin-guide' && AdminGuideDoc()}
               {openDoc === 'career' && CareerDoc()}
               {openDoc === 'employment' && EmploymentDoc()}
               {openDoc === 'severance' && SeveranceDoc()}

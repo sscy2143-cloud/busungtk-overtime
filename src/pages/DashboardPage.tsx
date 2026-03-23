@@ -213,9 +213,9 @@ export function DashboardPage() {
           </p>
         </div>
         <button
-          onClick={() => { localStorage.removeItem('busungtk_onboarding_done'); window.location.reload() }}
+          onClick={() => navigate('/guide')}
           className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-          title="가이드 투어 다시 보기"
+          title="이용 가이드"
         >
           <HelpCircle size={14} />
           <span className="hidden sm:inline">가이드</span>
@@ -258,10 +258,7 @@ export function DashboardPage() {
           <h2 className="text-sm font-semibold text-gray-500 mb-4">금주 연장근무시간</h2>
           <WeeklyGauge hours={weeklyHours} max={maxHours} />
           <p className="text-xs text-gray-400 mt-3">
-            {weeklyHours < 8 && '정상 범위입니다.'}
-            {weeklyHours >= 8 && weeklyHours < 10 && '연장근무 주의 구간입니다.'}
-            {weeklyHours >= 10 && weeklyHours < 12 && '연장근무 경고 구간입니다.'}
-            {weeklyHours >= 12 && '법정 주간 연장근무 한도를 초과했습니다.'}
+            이번 주 {weeklyHours.toFixed(1)}시간 / {maxHours}시간
           </p>
         </div>
 

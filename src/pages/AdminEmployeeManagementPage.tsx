@@ -137,6 +137,11 @@ export function AdminEmployeeManagementPage() {
   })
   const [createError, setCreateError] = useState('')
   const [createLoading, setCreateLoading] = useState(false)
+  const [createMode, setCreateMode] = useState<'single' | 'bulk'>('single')
+  const [bulkRows, setBulkRows] = useState<{ employeeNumber: string; name: string; department: string; password: string }[]>(
+    Array.from({ length: 5 }, () => ({ employeeNumber: '', name: '', department: '', password: '' }))
+  )
+  const [bulkResults, setBulkResults] = useState<{ row: number; name: string; success: boolean; error?: string }[]>([])
 
   const [resignConfirm, setResignConfirm] = useState<{ id: string; name: string } | null>(null)
   const [reinstateConfirm, setReinstateConfirm] = useState<{ id: string; name: string } | null>(null)
@@ -380,6 +385,56 @@ export function AdminEmployeeManagementPage() {
       setCreateModal({ open: false, employeeNumber: '', name: '', department: '', role: 'employee', password: '', passwordConfirm: '' })
     } catch {
       setCreateError('서버와 통신할 수 없습니다')
+    }
+    setCreateLoading(false)
+  }
+
+  async function handleBulkCreate() {
+    const validRows = bulkRows.filter(r => r.employeeNumber.trim() && r.name.trim() && r.password.trim())
+    if (validRows.length === 0) {
+      setCreateError('최소 1명의 정보를 입력하세요')
+      return
+    }
+    const shortPw = validRows.find(r => r.password.length < 6)
+    if (shortPw) {
+      setCreateError(`${shortPw.name || shortPw.employeeNumber}: 비밀번호는 6자 이상이어야 합니다`)
+      return
+    }
+    setCreateLoading(true)
+    setCreateError('')
+    setBulkResults([])
+    const results: typeof bulkResults = []
+    for (let i = 0; i < validRows.length; i++) {
+      const row = validRows[i]
+      try {
+        const res = await fetch('/api/admin-user', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+          },
+          body: JSON.stringify({
+            employeeNumber: row.employeeNumber.trim(),
+            name: row.name.trim(),
+            password: row.password,
+            department: row.department.trim(),
+            role: 'employee',
+          }),
+        })
+        const data = await res.json()
+        results.push({ row: i + 1, name: row.name, success: res.ok, error: res.ok ? undefined : data.error })
+      } catch {
+        results.push({ row: i + 1, name: row.name, success: false, error: '서버 통신 실패' })
+      }
+    }
+    setBulkResults(results)
+    const successCount = results.filter(r => r.success).length
+    if (successCount > 0) {
+      const { data: refreshed } = await supabase.rpc('list_all_employees')
+      if (refreshed) setEmployees(refreshed as Employee[])
+    }
+    if (results.every(r => r.success)) {
+      setBulkRows(Array.from({ length: 5 }, () => ({ employeeNumber: '', name: '', department: '', password: '' })))
     }
     setCreateLoading(false)
   }
@@ -893,108 +948,218 @@ export function AdminEmployeeManagementPage() {
       {/* ==================== Create user modal ==================== */}
       {createModal.open && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => { setCreateModal(p => ({ ...p, open: false })); setCreateError('') }} />
-          <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
+          <div className="absolute inset-0 bg-black/40" onClick={() => { setCreateModal(p => ({ ...p, open: false })); setCreateError(''); setBulkResults([]) }} />
+          <div className={`relative bg-white rounded-2xl w-full ${createMode === 'bulk' ? 'max-w-2xl' : 'max-w-sm'} p-5 shadow-xl max-h-[90vh] overflow-y-auto`}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-base font-bold text-gray-900">신규 직원 등록</h3>
-              <button onClick={() => { setCreateModal(p => ({ ...p, open: false })); setCreateError('') }}>
+              <button onClick={() => { setCreateModal(p => ({ ...p, open: false })); setCreateError(''); setBulkResults([]) }}>
                 <X className="w-5 h-5 text-gray-400" />
               </button>
             </div>
 
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">사번</label>
-                <input
-                  type="text"
-                  value={createModal.employeeNumber}
-                  onChange={e => setCreateModal(p => ({ ...p, employeeNumber: e.target.value }))}
-                  placeholder="예: EMP001"
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">이름</label>
-                <input
-                  type="text"
-                  value={createModal.name}
-                  onChange={e => setCreateModal(p => ({ ...p, name: e.target.value }))}
-                  placeholder="이름 입력"
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
-                />
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-medium text-gray-600">부서</label>
-                  <button onClick={() => setDeptModal(true)} className="text-xs text-primary-500 hover:text-primary-700">부서 관리</button>
-                </div>
-                <select
-                  value={createModal.department}
-                  onChange={e => setCreateModal(p => ({ ...p, department: e.target.value }))}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
+            {/* 모드 탭 */}
+            <div className="flex bg-gray-100 rounded-xl p-0.5 mb-4">
+              {(['single', 'bulk'] as const).map(m => (
+                <button
+                  key={m}
+                  onClick={() => { setCreateMode(m); setCreateError(''); setBulkResults([]) }}
+                  className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-colors ${
+                    createMode === m ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-500'
+                  }`}
                 >
-                  <option value="">선택하세요</option>
-                  {departments.map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">포지션</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['employee', 'manager', 'admin'] as UserRole[]).map(r => (
-                    <button
-                      key={r}
-                      type="button"
-                      onClick={() => setCreateModal(p => ({ ...p, role: r }))}
-                      className={`py-2 text-xs font-medium rounded-xl border transition-colors ${
-                        createModal.role === r
-                          ? 'bg-primary-600 text-white border-primary-600'
-                          : 'bg-white text-gray-600 border-gray-200 hover:border-primary-300'
-                      }`}
-                    >
-                      {ROLE_LABEL[r]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">비밀번호</label>
-                <input
-                  type="password"
-                  value={createModal.password}
-                  onChange={e => setCreateModal(p => ({ ...p, password: e.target.value }))}
-                  placeholder="6자 이상"
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">비밀번호 확인</label>
-                <input
-                  type="password"
-                  value={createModal.passwordConfirm}
-                  onChange={e => setCreateModal(p => ({ ...p, passwordConfirm: e.target.value }))}
-                  placeholder="비밀번호 재입력"
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
-                />
-              </div>
-              {createError && <p className="text-xs text-danger-500">{createError}</p>}
+                  {m === 'single' ? '개별 등록' : '일괄 등록'}
+                </button>
+              ))}
             </div>
 
-            <div className="flex gap-2 mt-5">
-              <button
-                onClick={() => { setCreateModal(p => ({ ...p, open: false })); setCreateError('') }}
-                className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
-              >
-                취소
-              </button>
-              <button
-                onClick={handleCreateUser}
-                disabled={createLoading}
-                className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-600 rounded-xl hover:bg-primary-700 transition-colors disabled:opacity-50"
-              >
-                {createLoading ? '처리중...' : '등록'}
-              </button>
-            </div>
+            {createMode === 'single' ? (
+              <>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">사번</label>
+                    <input
+                      type="text"
+                      value={createModal.employeeNumber}
+                      onChange={e => setCreateModal(p => ({ ...p, employeeNumber: e.target.value }))}
+                      placeholder="예: EMP001"
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                      autoFocus
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">이름</label>
+                    <input
+                      type="text"
+                      value={createModal.name}
+                      onChange={e => setCreateModal(p => ({ ...p, name: e.target.value }))}
+                      placeholder="이름 입력"
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                    />
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-medium text-gray-600">부서</label>
+                      <button onClick={() => setDeptModal(true)} className="text-xs text-primary-500 hover:text-primary-700">부서 관리</button>
+                    </div>
+                    <select
+                      value={createModal.department}
+                      onChange={e => setCreateModal(p => ({ ...p, department: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
+                    >
+                      <option value="">선택하세요</option>
+                      {departments.map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">포지션</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {(['employee', 'manager', 'admin'] as UserRole[]).map(r => (
+                        <button
+                          key={r}
+                          type="button"
+                          onClick={() => setCreateModal(p => ({ ...p, role: r }))}
+                          className={`py-2 text-xs font-medium rounded-xl border transition-colors ${
+                            createModal.role === r
+                              ? 'bg-primary-600 text-white border-primary-600'
+                              : 'bg-white text-gray-600 border-gray-200 hover:border-primary-300'
+                          }`}
+                        >
+                          {ROLE_LABEL[r]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">비밀번호</label>
+                    <input
+                      type="password"
+                      value={createModal.password}
+                      onChange={e => setCreateModal(p => ({ ...p, password: e.target.value }))}
+                      placeholder="6자 이상"
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">비밀번호 확인</label>
+                    <input
+                      type="password"
+                      value={createModal.passwordConfirm}
+                      onChange={e => setCreateModal(p => ({ ...p, passwordConfirm: e.target.value }))}
+                      placeholder="비밀번호 재입력"
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                    />
+                  </div>
+                  {createError && <p className="text-xs text-danger-500">{createError}</p>}
+                </div>
+                <div className="flex gap-2 mt-5">
+                  <button
+                    onClick={() => { setCreateModal(p => ({ ...p, open: false })); setCreateError('') }}
+                    className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+                  >
+                    취소
+                  </button>
+                  <button
+                    onClick={handleCreateUser}
+                    disabled={createLoading}
+                    className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-600 rounded-xl hover:bg-primary-700 transition-colors disabled:opacity-50"
+                  >
+                    {createLoading ? '처리중...' : '등록'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-gray-500 mb-3">사번, 이름, 부서, 비밀번호를 입력하세요. 포지션은 모두 "직원"으로 등록됩니다.</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        <th className="border border-gray-200 px-2 py-2 text-center w-8">#</th>
+                        <th className="border border-gray-200 px-2 py-2 text-left">사번</th>
+                        <th className="border border-gray-200 px-2 py-2 text-left">이름</th>
+                        <th className="border border-gray-200 px-2 py-2 text-left">부서</th>
+                        <th className="border border-gray-200 px-2 py-2 text-left">비밀번호</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bulkRows.map((row, i) => (
+                        <tr key={i}>
+                          <td className="border border-gray-200 px-2 py-1 text-center text-gray-400">{i + 1}</td>
+                          <td className="border border-gray-200 px-1 py-1">
+                            <input
+                              value={row.employeeNumber}
+                              onChange={e => setBulkRows(prev => prev.map((r, idx) => idx === i ? { ...r, employeeNumber: e.target.value } : r))}
+                              placeholder="EMP001"
+                              className="w-full px-1.5 py-1 text-xs border-0 focus:outline-none focus:ring-1 focus:ring-primary-400 rounded"
+                            />
+                          </td>
+                          <td className="border border-gray-200 px-1 py-1">
+                            <input
+                              value={row.name}
+                              onChange={e => setBulkRows(prev => prev.map((r, idx) => idx === i ? { ...r, name: e.target.value } : r))}
+                              placeholder="이름"
+                              className="w-full px-1.5 py-1 text-xs border-0 focus:outline-none focus:ring-1 focus:ring-primary-400 rounded"
+                            />
+                          </td>
+                          <td className="border border-gray-200 px-1 py-1">
+                            <select
+                              value={row.department}
+                              onChange={e => setBulkRows(prev => prev.map((r, idx) => idx === i ? { ...r, department: e.target.value } : r))}
+                              className="w-full px-1 py-1 text-xs border-0 focus:outline-none focus:ring-1 focus:ring-primary-400 rounded bg-transparent"
+                            >
+                              <option value="">-</option>
+                              {departments.map(d => <option key={d} value={d}>{d}</option>)}
+                            </select>
+                          </td>
+                          <td className="border border-gray-200 px-1 py-1">
+                            <input
+                              value={row.password}
+                              onChange={e => setBulkRows(prev => prev.map((r, idx) => idx === i ? { ...r, password: e.target.value } : r))}
+                              placeholder="6자 이상"
+                              className="w-full px-1.5 py-1 text-xs border-0 focus:outline-none focus:ring-1 focus:ring-primary-400 rounded"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <button
+                  onClick={() => setBulkRows(prev => [...prev, { employeeNumber: '', name: '', department: '', password: '' }])}
+                  className="mt-2 text-xs text-primary-500 hover:text-primary-700 font-medium"
+                >
+                  + 행 추가
+                </button>
+
+                {bulkResults.length > 0 && (
+                  <div className="mt-3 space-y-1">
+                    {bulkResults.map((r, i) => (
+                      <p key={i} className={`text-xs ${r.success ? 'text-success-600' : 'text-danger-500'}`}>
+                        {r.row}. {r.name}: {r.success ? '등록 완료' : r.error}
+                      </p>
+                    ))}
+                  </div>
+                )}
+
+                {createError && <p className="text-xs text-danger-500 mt-2">{createError}</p>}
+
+                <div className="flex gap-2 mt-5">
+                  <button
+                    onClick={() => { setCreateModal(p => ({ ...p, open: false })); setCreateError(''); setBulkResults([]) }}
+                    className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+                  >
+                    취소
+                  </button>
+                  <button
+                    onClick={handleBulkCreate}
+                    disabled={createLoading}
+                    className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-600 rounded-xl hover:bg-primary-700 transition-colors disabled:opacity-50"
+                  >
+                    {createLoading ? '처리중...' : `일괄 등록 (${bulkRows.filter(r => r.employeeNumber.trim() && r.name.trim()).length}명)`}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
