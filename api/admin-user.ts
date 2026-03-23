@@ -65,6 +65,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: '비밀번호는 6자 이상이어야 합니다' })
     }
 
+    // 매니저는 employee 역할만 생성 가능 (권한 상승 방지)
+    const requestedRole = role || 'employee'
+    if (caller.role === 'manager' && requestedRole !== 'employee') {
+      return res.status(403).json({ error: '매니저는 일반 직원만 생성할 수 있습니다' })
+    }
+
     const email = `${employeeNumber.toLowerCase()}${EMAIL_DOMAIN}`
 
     // 1. Supabase Auth 사용자 생성
@@ -89,7 +95,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         name,
         email,
         department: department || '',
-        role: role || 'employee',
+        role: requestedRole,
         employee_type: employeeType || 'office',
         hourly_wage: 0,
         is_active: true,
@@ -115,6 +121,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (newPassword.length < 6) {
       return res.status(400).json({ error: '비밀번호는 6자 이상이어야 합니다' })
+    }
+
+    // 매니저는 관리자 비밀번호 초기화 불가
+    if (caller.role === 'manager') {
+      const { data: target } = await supabaseAdmin
+        .from('employees')
+        .select('role')
+        .eq('id', userId)
+        .single()
+      if (target?.role === 'admin') {
+        return res.status(403).json({ error: '관리자 비밀번호는 다른 관리자만 초기화할 수 있습니다' })
+      }
     }
 
     const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
