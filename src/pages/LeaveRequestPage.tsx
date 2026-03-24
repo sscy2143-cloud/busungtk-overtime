@@ -97,10 +97,8 @@ export function LeaveRequestPage() {
     const finalReason = isOther ? otherSubType + (reason.trim() ? ` / ${reason.trim()}` : '') : reason.trim()
     const finalEnd = isHalfDay ? startDate : (endDate || startDate)
 
-    // 연차 신청 시 대체휴가 잔여 있으면 우선 사용
     const useSubstitute = leaveType === 'annual' && substituteRemaining > 0
 
-    // DB에 휴가 신청 저장
     const { error } = await supabase.from('leave_requests').insert({
       employee_id: employee?.id ?? '',
       type: leaveType,
@@ -117,7 +115,6 @@ export function LeaveRequestPage() {
       return
     }
 
-    // 사장님에게 SMS 알림 발송
     try {
       const { data: { session } } = await supabase.auth.getSession()
       await fetch('/api/notify-leave', {
@@ -141,33 +138,35 @@ export function LeaveRequestPage() {
     navigate('/leave')
   }
 
+  const inputClass = "w-full px-3 py-2.5 text-sm border border-dark-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-400 text-dark-800 transition-colors"
+
   return (
     <div className="max-w-lg mx-auto space-y-5">
       {/* 헤더 */}
       <div className="flex items-center gap-3">
         <button
           onClick={() => navigate(-1)}
-          className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors"
+          className="w-9 h-9 flex items-center justify-center rounded-xl bg-dark-50 hover:bg-dark-100 transition-colors"
         >
-          <ChevronLeft className="w-5 h-5 text-gray-600" />
+          <ChevronLeft className="w-5 h-5 text-dark-500" />
         </button>
         <div>
-          <h1 className="text-xl font-bold text-gray-900">휴가 신청</h1>
-          <p className="text-xs text-gray-400">잔여 연차 {remainingDays}일</p>
+          <h1 className="text-xl font-bold text-dark-900">휴가 신청</h1>
+          <p className="text-xs text-dark-400">잔여 연차 {remainingDays}일</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* 유형 선택 */}
-        <div data-tour="leave-type-select" className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-          <label className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5">
-            <CalendarDays className="w-4 h-4 text-primary-600" />
+        <div data-tour="leave-type-select" className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-4">
+          <label className="text-sm font-semibold text-dark-700 mb-3 flex items-center gap-1.5">
+            <CalendarDays className="w-4 h-4 text-primary-500" />
             휴가 유형
           </label>
           <select
             value={leaveType}
             onChange={(e) => handleLeaveTypeChange(e.target.value as LeaveType)}
-            className="w-full mt-2 px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
+            className={`${inputClass} mt-2`}
           >
             {LEAVE_TYPES.map((type) => (
               <option key={type} value={type}>
@@ -178,9 +177,9 @@ export function LeaveRequestPage() {
 
           {/* 대체휴가 우선 사용 안내 */}
           {leaveType === 'annual' && substituteRemaining > 0 && (
-            <div className="mt-3 flex items-start gap-2 bg-teal-50 border border-teal-100 rounded-xl px-3 py-2.5">
-              <span className="text-teal-500 mt-0.5">ℹ</span>
-              <p className="text-xs text-teal-700">
+            <div className="mt-3 flex items-start gap-2 bg-primary-50 border border-primary-100 rounded-xl px-3 py-2.5">
+              <span className="text-primary-500 mt-0.5">ℹ</span>
+              <p className="text-xs text-primary-700">
                 대체휴가 잔여 <span className="font-bold">{substituteRemaining}일</span>이 있어 잔여 연차가 아닌 대체휴가에서 먼저 차감됩니다.
               </p>
             </div>
@@ -189,11 +188,11 @@ export function LeaveRequestPage() {
           {/* 기타 세부 유형 */}
           {isOther && (
             <div className="mt-3">
-              <label className="text-xs text-gray-500 mb-1 block">세부 유형</label>
+              <label className="text-xs text-dark-400 mb-1 block">세부 유형</label>
               <select
                 value={otherSubType}
                 onChange={(e) => setOtherSubType(e.target.value)}
-                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
+                className={inputClass}
               >
                 {OTHER_SUBTYPES.map((s) => (
                   <option key={s.label} value={s.label}>
@@ -206,26 +205,26 @@ export function LeaveRequestPage() {
         </div>
 
         {/* 날짜 선택 */}
-        <div data-tour="leave-date-select" className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
-          <p className="text-sm font-semibold text-gray-700">날짜 선택</p>
+        <div data-tour="leave-date-select" className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-4 space-y-3">
+          <p className="text-sm font-semibold text-dark-700">날짜 선택</p>
 
           {(isHalfDay || isOther) ? (
             <div>
-              <label className="text-xs text-gray-500 mb-1 block">시작일</label>
+              <label className="text-xs text-dark-400 mb-1 block">시작일</label>
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                className={inputClass}
                 required
               />
-              {isHalfDay && <p className="text-xs text-gray-400 mt-1.5">반차는 0.5일 차감됩니다</p>}
-              {isOther && <p className="text-xs text-gray-400 mt-1.5">일수는 {otherSubInfo.days}일 자동 적용됩니다</p>}
+              {isHalfDay && <p className="text-xs text-dark-400 mt-1.5">반차는 0.5일 차감됩니다</p>}
+              {isOther && <p className="text-xs text-dark-400 mt-1.5">일수는 {otherSubInfo.days}일 자동 적용됩니다</p>}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">시작일</label>
+                <label className="text-xs text-dark-400 mb-1 block">시작일</label>
                 <input
                   type="date"
                   value={startDate}
@@ -233,18 +232,18 @@ export function LeaveRequestPage() {
                     setStartDate(e.target.value)
                     if (endDate && e.target.value > endDate) setEndDate(e.target.value)
                   }}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                  className={inputClass}
                   required
                 />
               </div>
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">종료일</label>
+                <label className="text-xs text-dark-400 mb-1 block">종료일</label>
                 <input
                   type="date"
                   value={endDate}
                   min={startDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                  className={inputClass}
                 />
               </div>
             </div>
@@ -253,10 +252,10 @@ export function LeaveRequestPage() {
           {/* 일수 계산 결과 */}
           {calculatedDays > 0 && (
             <div className={`flex items-center justify-between rounded-xl px-3 py-2 ${
-              isOverLimit ? 'bg-danger-50 border border-danger-200' : 'bg-primary-50'
+              isOverLimit ? 'bg-primary-50 border border-primary-300' : 'bg-dark-50'
             }`}>
-              <span className="text-xs text-gray-600">신청 일수 (주말 제외)</span>
-              <span className={`text-sm font-bold ${isOverLimit ? 'text-danger-600' : 'text-primary-700'}`}>
+              <span className="text-xs text-dark-500">신청 일수 (주말 제외)</span>
+              <span className={`text-sm font-bold ${isOverLimit ? 'text-primary-600' : 'text-dark-800'}`}>
                 {calculatedDays}일
               </span>
             </div>
@@ -264,9 +263,9 @@ export function LeaveRequestPage() {
 
           {/* 잔여 초과 경고 */}
           {isOverLimit && (
-            <div className="flex items-center gap-2 bg-danger-50 border border-danger-200 rounded-xl px-3 py-2">
-              <AlertTriangle className="w-4 h-4 text-danger-500 shrink-0" />
-              <p className="text-xs text-danger-600">
+            <div className="flex items-center gap-2 bg-primary-50 border border-primary-200 rounded-xl px-3 py-2">
+              <AlertTriangle className="w-4 h-4 text-primary-500 shrink-0" />
+              <p className="text-xs text-primary-700">
                 잔여 연차({remainingDays}일)를 초과합니다. 신청 일수를 줄여주세요.
               </p>
             </div>
@@ -274,26 +273,26 @@ export function LeaveRequestPage() {
         </div>
 
         {/* 사유 */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-          <label className="text-sm font-semibold text-gray-700 mb-2 block">
-            사유 {!isOther && <span className="text-danger-500">*</span>}
-            {isOther && <span className="text-gray-400 text-xs font-normal ml-1">(선택)</span>}
+        <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-4">
+          <label className="text-sm font-semibold text-dark-700 mb-2 block">
+            사유 {!isOther && <span className="text-primary-500">*</span>}
+            {isOther && <span className="text-dark-300 text-xs font-normal ml-1">(선택)</span>}
           </label>
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder="휴가 사유를 입력하세요"
             rows={3}
-            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
+            className={`${inputClass} resize-none`}
             required
           />
-          <p className="text-xs text-gray-400 mt-1">{reason.length}자</p>
+          <p className="text-xs text-dark-300 mt-1">{reason.length}자</p>
         </div>
 
         {/* 잔여 일수 요약 */}
-        <div className="bg-gray-50 rounded-xl px-4 py-3 flex justify-between items-center">
-          <span className="text-xs text-gray-500">신청 후 잔여 연차</span>
-          <span className={`text-sm font-bold ${isOverLimit ? 'text-danger-600' : 'text-gray-800'}`}>
+        <div className="bg-dark-50 rounded-xl px-4 py-3 flex justify-between items-center">
+          <span className="text-xs text-dark-500">신청 후 잔여 연차</span>
+          <span className={`text-sm font-bold ${isOverLimit ? 'text-primary-600' : 'text-dark-800'}`}>
             {remainingDays - calculatedDays}일
           </span>
         </div>
@@ -302,7 +301,7 @@ export function LeaveRequestPage() {
         <button
           type="submit"
           disabled={!canSubmit || submitting}
-          className="w-full py-3.5 text-sm font-bold text-white bg-primary-600 rounded-2xl hover:bg-primary-700 active:bg-primary-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+          className="w-full py-3.5 text-sm font-bold text-white bg-primary-500 rounded-2xl hover:bg-primary-600 active:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           {submitting ? '신청 중...' : '휴가 신청하기'}
         </button>

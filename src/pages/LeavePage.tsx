@@ -152,49 +152,49 @@ export function LeavePage() {
     <div className="space-y-5">
       {/* 헤더 */}
       <div>
-        <h1 className="text-xl font-bold text-gray-900">휴가현황</h1>
-        <p className="text-sm text-gray-400 mt-0.5">{TODAY_LABEL}</p>
+        <h1 className="text-xl font-bold text-dark-900">휴가현황</h1>
+        <p className="text-sm text-dark-400 mt-0.5">{TODAY_LABEL}</p>
       </div>
 
       {/* 연차 현황 */}
-      <div data-tour="leave-balance-card" className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <div data-tour="leave-balance-card" className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-gray-700">연차 현황</h2>
-          <span className="text-xs text-gray-400">{CURRENT_YEAR}-01-01 ~ {CURRENT_YEAR}-12-31 회계연도 기준</span>
+          <h2 className="text-sm font-semibold text-dark-700">연차 현황</h2>
+          <span className="text-xs text-dark-400">{CURRENT_YEAR}-01-01 ~ {CURRENT_YEAR}-12-31 회계연도 기준</span>
         </div>
 
         {total_days === 0 ? (
-          <p className="text-sm text-gray-400 py-2">아직 발생한 연차가 없습니다.</p>
+          <p className="text-sm text-dark-400 py-2">아직 발생한 연차가 없습니다.</p>
         ) : (
           <div className="mb-3">
-            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div className="h-2 bg-dark-100 rounded-full overflow-hidden">
               <div className="h-full bg-primary-500 rounded-full transition-all duration-500" style={{ width: `${usedPct}%` }} />
             </div>
-            <p className="text-xs text-gray-400 mt-1 text-right">연차 소진율 {usedPct}% ({used_days}/{total_days})</p>
+            <p className="text-xs text-dark-400 mt-1 text-right">연차 소진율 {usedPct}% ({used_days}/{total_days})</p>
           </div>
         )}
 
-        <div className="grid grid-cols-4 gap-2 border-t border-gray-100 pt-3">
+        <div className="grid grid-cols-4 gap-2 border-t border-dark-100 pt-3">
           {[
-            { label: '잔여 연차', value: `${remaining_days}d`, color: 'text-warning-500' },
-            { label: '사용 연차', value: `${used_days}d`, color: 'text-gray-700' },
-            { label: '총 연차', value: `${total_days}d`, color: 'text-gray-700' },
-            { label: '근속연수', value: `${yearsOfService}년차`, color: 'text-gray-700' },
+            { label: '잔여 연차', value: `${remaining_days}d`, color: 'text-primary-500' },
+            { label: '사용 연차', value: `${used_days}d`, color: 'text-dark-700' },
+            { label: '총 연차', value: `${total_days}d`, color: 'text-dark-700' },
+            { label: '근속연수', value: `${yearsOfService}년차`, color: 'text-dark-700' },
           ].map(({ label, value, color }) => (
             <div key={label} className="text-center">
               <p className={`text-base font-bold ${color}`}>{value}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{label}</p>
+              <p className="text-xs text-dark-400 mt-0.5">{label}</p>
             </div>
           ))}
         </div>
       </div>
 
       {/* 신청 내역 */}
-      <div data-tour="leave-requests" className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div data-tour="leave-requests" className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
         {/* 헤더 */}
-        <div className="px-4 pt-3 pb-2 border-b border-gray-100">
+        <div className="px-4 pt-3 pb-2 border-b border-dark-100">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-sm font-semibold text-gray-900">신청 내역</h2>
+            <h2 className="text-sm font-semibold text-dark-900">신청 내역</h2>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => { setHistoryYear(CURRENT_YEAR); setLeaveHistoryModal(true) }}
@@ -213,7 +213,7 @@ export function LeavePage() {
           </div>
           <button
             onClick={() => setShowCalendar(v => !v)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${showCalendar ? 'bg-primary-100 text-primary-700' : 'text-gray-400 bg-gray-50 hover:bg-gray-100 hover:text-gray-600'}`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${showCalendar ? 'bg-primary-100 text-primary-700' : 'text-dark-400 bg-dark-50 hover:bg-dark-100 hover:text-dark-600'}`}
           >
             <Calendar className="w-3.5 h-3.5" />
             캘린더
@@ -250,21 +250,21 @@ export function LeavePage() {
           )
           while (cells.length % 7 !== 0) cells.push(null)
           return (
-            <div className="border-b border-gray-100 px-3 pt-3 pb-4">
+            <div className="border-b border-dark-100 px-3 pt-3 pb-4">
               {/* 월 네비게이션 */}
               <div className="flex items-center justify-between mb-3">
-                <button onClick={() => setCalendarDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} className="p-1 rounded hover:bg-gray-100">
-                  <ChevronLeft className="w-4 h-4 text-gray-500" />
+                <button onClick={() => setCalendarDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} className="p-1 rounded hover:bg-dark-100">
+                  <ChevronLeft className="w-4 h-4 text-dark-500" />
                 </button>
-                <span className="text-sm font-semibold text-gray-800">{year}년 {month + 1}월</span>
-                <button onClick={() => setCalendarDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))} className="p-1 rounded hover:bg-gray-100">
-                  <ChevronRight className="w-4 h-4 text-gray-500" />
+                <span className="text-sm font-semibold text-dark-800">{year}년 {month + 1}월</span>
+                <button onClick={() => setCalendarDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))} className="p-1 rounded hover:bg-dark-100">
+                  <ChevronRight className="w-4 h-4 text-dark-500" />
                 </button>
               </div>
               {/* 요일 헤더 */}
               <div className="grid grid-cols-7 mb-1">
                 {DAY_LABELS.map(d => (
-                  <div key={d} className={`text-center text-xs font-medium py-1 ${d === '일' ? 'text-red-400' : d === '토' ? 'text-blue-400' : 'text-gray-400'}`}>{d}</div>
+                  <div key={d} className={`text-center text-xs font-medium py-1 ${d === '일' ? 'text-red-400' : d === '토' ? 'text-blue-400' : 'text-dark-400'}`}>{d}</div>
                 ))}
               </div>
               {/* 날짜 */}
@@ -279,10 +279,10 @@ export function LeavePage() {
                     <div
                       key={day}
                       onClick={() => dayReqs.length > 0 && setDetailReq(dayReqs[0])}
-                      className={`flex flex-col items-center py-1 rounded-lg ${dayReqs.length > 0 ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                      className={`flex flex-col items-center py-1 rounded-lg ${dayReqs.length > 0 ? 'cursor-pointer hover:bg-dark-50' : ''}`}
                     >
                       <span className={`text-xs w-6 h-6 flex items-center justify-center rounded-full font-medium
-                        ${isToday ? 'bg-primary-500 text-white' : colIdx === 6 ? 'text-red-400' : colIdx === 5 ? 'text-blue-400' : 'text-gray-700'}`}>
+                        ${isToday ? 'bg-primary-500 text-white' : colIdx === 6 ? 'text-red-400' : colIdx === 5 ? 'text-blue-400' : 'text-dark-700'}`}>
                         {day}
                       </span>
                       {dayReqs.length > 0 && (
@@ -301,7 +301,7 @@ export function LeavePage() {
                 {[['대기중', 'bg-primary-400'], ['승인', 'bg-green-400'], ['반려', 'bg-red-300'], ['취소', 'bg-gray-300']].map(([label, cls]) => (
                   <div key={label} className="flex items-center gap-1">
                     <span className={`w-2 h-2 rounded-full ${cls}`} />
-                    <span className="text-xs text-gray-400">{label}</span>
+                    <span className="text-xs text-dark-400">{label}</span>
                   </div>
                 ))}
               </div>
@@ -312,7 +312,7 @@ export function LeavePage() {
         {/* 2칸 레이아웃: 좌측 필터 탭 + 우측 리스트 */}
         <div className="flex min-h-[200px]">
           {/* 좌측: 필터 탭 */}
-          <div className="w-20 shrink-0 border-r border-gray-100 flex flex-col">
+          <div className="w-20 shrink-0 border-r border-dark-100 flex flex-col">
             {([
               { key: 'all', label: '전체' },
               { key: 'pending', label: '대기중' },
@@ -328,11 +328,11 @@ export function LeavePage() {
                   className={`flex flex-col items-center justify-center py-4 text-xs font-medium transition-colors border-b border-gray-50 last:border-b-0 ${
                     requestFilter === key
                       ? 'bg-primary-50 text-primary-700 border-l-2 border-l-primary-500'
-                      : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'
+                      : 'text-dark-400 hover:bg-dark-50 hover:text-dark-600'
                   }`}
                 >
                   <span>{label}</span>
-                  <span className={`mt-0.5 text-xs font-bold ${requestFilter === key ? 'text-primary-600' : 'text-gray-300'}`}>
+                  <span className={`mt-0.5 text-xs font-bold ${requestFilter === key ? 'text-primary-600' : 'text-dark-300'}`}>
                     {count}
                   </span>
                 </button>
@@ -350,27 +350,27 @@ export function LeavePage() {
               if (filtered.length === 0) {
                 return (
                   <div className="flex items-center justify-center h-full py-12">
-                    <p className="text-xs text-gray-400">내역이 없습니다</p>
+                    <p className="text-xs text-dark-400">내역이 없습니다</p>
                   </div>
                 )
               }
 
               return (
-                <div className="divide-y divide-gray-50">
+                <div className="divide-y divide-dark-50">
                   {filtered.map((req, idx) => (
                     <div
                       key={req.id}
-                      className="px-3 py-3 flex items-start gap-2 cursor-pointer hover:bg-gray-50 transition-colors"
+                      className="px-3 py-3 flex items-start gap-2 cursor-pointer hover:bg-dark-50 transition-colors"
                       onClick={() => setDetailReq(req)}
                     >
-                      <span className="shrink-0 text-sm font-bold text-gray-300 w-8 text-center self-center">{idx + 1}</span>
+                      <span className="shrink-0 text-sm font-bold text-dark-300 w-8 text-center self-center">{idx + 1}</span>
                       <div className="self-stretch w-px bg-gray-200 shrink-0 my-1" />
                       <div className="flex-1 min-w-0 flex items-start justify-between gap-4">
                         {/* 좌측: 유형 + 사유 */}
                         <div className="min-w-0">
-                          <span className="text-xs font-medium text-gray-800">{LEAVE_TYPE_LABEL[req.type]}</span>
+                          <span className="text-xs font-medium text-dark-800">{LEAVE_TYPE_LABEL[req.type]}</span>
                           {req.reason && (
-                            <p className="text-xs text-gray-400 truncate mt-0.5">{req.reason}</p>
+                            <p className="text-xs text-dark-400 truncate mt-0.5">{req.reason}</p>
                           )}
                           {req.status === 'rejected' && (req as any).rejection_reason && (
                             <p className="text-xs text-danger-500 mt-0.5 truncate">반려: {(req as any).rejection_reason}</p>
@@ -378,8 +378,8 @@ export function LeavePage() {
                         </div>
                         {/* 우측: 일수(위) + 날짜(아래) */}
                         <div className="shrink-0 text-right">
-                          <p className="text-sm font-bold text-gray-800">{req.days}일</p>
-                          <p className="text-xs text-gray-400 mt-0.5">
+                          <p className="text-sm font-bold text-dark-800">{req.days}일</p>
+                          <p className="text-xs text-dark-400 mt-0.5">
                             {req.start_date}{req.start_date !== req.end_date ? ` ~ ${req.end_date}` : ''}
                           </p>
                         </div>
@@ -404,22 +404,22 @@ export function LeavePage() {
       </div>
 
       {/* 대체휴가 */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
-          <RefreshCw className="w-4 h-4 text-teal-600" />
-          <h2 className="text-sm font-semibold text-gray-700">대체휴가 현황</h2>
+      <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+        <div className="px-4 py-3 border-b border-dark-100 flex items-center gap-2">
+          <RefreshCw className="w-4 h-4 text-primary-500" />
+          <h2 className="text-sm font-semibold text-dark-700">대체휴가 현황</h2>
         </div>
 
         {/* 요약 */}
-        <div className="grid grid-cols-3 divide-x divide-gray-100 border-b border-gray-100">
+        <div className="grid grid-cols-3 divide-x divide-dark-100 border-b border-dark-100">
           {[
-            { label: '총 부여', value: `${substitute_total}일`, color: substitute_total > 0 ? 'text-teal-600' : 'text-gray-300' },
-            { label: '사용', value: `${substitute_used}일`, color: substitute_used > 0 ? 'text-warning-600' : 'text-gray-300' },
-            { label: '잔여', value: `${substituteRemaining}일`, color: substituteRemaining > 0 ? 'text-teal-700 font-bold' : 'text-gray-300' },
+            { label: '총 부여', value: `${substitute_total}일`, color: substitute_total > 0 ? 'text-primary-500' : 'text-dark-300' },
+            { label: '사용', value: `${substitute_used}일`, color: substitute_used > 0 ? 'text-primary-600' : 'text-dark-300' },
+            { label: '잔여', value: `${substituteRemaining}일`, color: substituteRemaining > 0 ? 'text-primary-700 font-bold' : 'text-dark-300' },
           ].map(({ label, value, color }) => (
             <div key={label} className="py-3 text-center">
               <p className={`text-base font-bold ${color}`}>{value}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{label}</p>
+              <p className="text-xs text-dark-400 mt-0.5">{label}</p>
             </div>
           ))}
         </div>
@@ -427,10 +427,10 @@ export function LeavePage() {
         {/* 부여 내역 */}
         {subHistory.length === 0 ? (
           <div className="py-8 text-center">
-            <p className="text-xs text-gray-400">대체휴가 부여 내역이 없습니다</p>
+            <p className="text-xs text-dark-400">대체휴가 부여 내역이 없습니다</p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-dark-50">
             {(() => {
               // FIFO: 오래된 부여 건부터 소진된 것으로 계산
               const sorted = [...subHistory].sort((a, b) => a.created_at.localeCompare(b.created_at))
@@ -445,30 +445,30 @@ export function LeavePage() {
                 const ot = entry.overtime_request
                 const status = statusMap.get(entry.id) ?? 'unused'
                 return (
-                  <div key={entry.id} className="px-3 py-3 flex items-center gap-2 cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => setSubDetailEntry(entry)}>
-                    <span className="shrink-0 text-sm font-bold text-gray-300 w-8 text-center">{idx + 1}</span>
+                  <div key={entry.id} className="px-3 py-3 flex items-center gap-2 cursor-pointer hover:bg-dark-50 transition-colors" onClick={() => setSubDetailEntry(entry)}>
+                    <span className="shrink-0 text-sm font-bold text-dark-300 w-8 text-center">{idx + 1}</span>
                     <div className="self-stretch w-px bg-gray-200 shrink-0 my-1" />
                     {/* 좌측: 제목 */}
-                    <p className="text-sm font-semibold text-gray-800 truncate flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-dark-800 truncate flex-1 min-w-0">
                       {(ot?.site_name || entry.reason || '-').replace(/\s*\([\d.]+[일h시간]+\)/g, '').trim()}
                     </p>
                     {/* 중앙: 부여량 + 시간 + 날짜 */}
                     <div className="text-right shrink-0">
-                      <p className="text-sm font-bold text-teal-700">
+                      <p className="text-sm font-bold text-primary-700">
                         +{entry.granted_days}일
                         {ot?.planned_start && ot?.planned_end && (
-                          <span className="ml-1 text-xs font-medium text-teal-500">{ot.planned_start}~{ot.planned_end}</span>
+                          <span className="ml-1 text-xs font-medium text-primary-400">{ot.planned_start}~{ot.planned_end}</span>
                         )}
                       </p>
-                      <p className="text-xs text-gray-400 mt-0.5">
+                      <p className="text-xs text-dark-400 mt-0.5">
                         {new Date(entry.created_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
                       </p>
                     </div>
                     {/* 우측: 상태 */}
                     <span className={`shrink-0 text-xs font-semibold px-2 py-1 rounded-full ${
-                      status === 'used' ? 'bg-gray-100 text-gray-400' :
-                      status === 'partial' ? 'bg-warning-50 text-warning-600' :
-                      'bg-teal-50 text-teal-700'
+                      status === 'used' ? 'bg-dark-100 text-dark-400' :
+                      status === 'partial' ? 'bg-primary-50 text-primary-600' :
+                      'bg-primary-50 text-primary-700'
                     }`}>
                       {status === 'used' ? '소진완료' : status === 'partial' ? '일부소진' : '미소진'}
                     </span>
@@ -496,24 +496,24 @@ export function LeavePage() {
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
             <div className="absolute inset-0 bg-black/40" onClick={() => setSubDetailEntry(null)} />
             <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-xl">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                <h3 className="text-base font-bold text-gray-900">대체휴가 상세</h3>
-                <button onClick={() => setSubDetailEntry(null)}><X className="w-5 h-5 text-gray-400" /></button>
+              <div className="flex items-center justify-between px-5 py-4 border-b border-dark-100">
+                <h3 className="text-base font-bold text-dark-900">대체휴가 상세</h3>
+                <button onClick={() => setSubDetailEntry(null)}><X className="w-5 h-5 text-dark-400" /></button>
               </div>
               <div className="px-5 py-4 space-y-3">
                 {/* 부여 정보 */}
-                <div className="bg-teal-50 border border-teal-100 rounded-xl px-4 py-3 flex items-center justify-between">
+                <div className="bg-primary-50 border border-primary-100 rounded-xl px-4 py-3 flex items-center justify-between">
                   <div>
-                    <p className="text-xs text-teal-600 font-medium mb-0.5">부여 일수</p>
-                    <p className="text-2xl font-bold text-teal-700">+{e.granted_days}일</p>
+                    <p className="text-xs text-primary-500 font-medium mb-0.5">부여 일수</p>
+                    <p className="text-2xl font-bold text-primary-700">+{e.granted_days}일</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs text-gray-400">처리일</p>
-                    <p className="text-sm text-gray-700 font-medium">
+                    <p className="text-xs text-dark-400">처리일</p>
+                    <p className="text-sm text-dark-700 font-medium">
                       {new Date(e.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
                     </p>
                     {e.granter?.name && (
-                      <p className="text-xs text-gray-400 mt-0.5">처리자: {e.granter.name}</p>
+                      <p className="text-xs text-dark-400 mt-0.5">처리자: {e.granter.name}</p>
                     )}
                   </div>
                 </div>
@@ -521,47 +521,47 @@ export function LeavePage() {
                 {/* 연결된 야근 신청 */}
                 {ot ? (
                   <div>
-                    <p className="text-xs font-semibold text-gray-400 mb-1.5">연결된 야근 신청</p>
-                    <div className="bg-gray-50 rounded-xl p-3 space-y-2 text-sm">
+                    <p className="text-xs font-semibold text-dark-400 mb-1.5">연결된 야근 신청</p>
+                    <div className="bg-dark-50 rounded-xl p-3 space-y-2 text-sm">
                       <div className="flex justify-between">
-                        <span className="text-gray-500">날짜</span>
-                        <span className="font-medium text-gray-800">{ot.date}</span>
+                        <span className="text-dark-500">날짜</span>
+                        <span className="font-medium text-dark-800">{ot.date}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-500">시간</span>
-                        <span className="font-medium text-gray-800">
+                        <span className="text-dark-500">시간</span>
+                        <span className="font-medium text-dark-800">
                           {ot.planned_start} ~ {ot.planned_end}
                           <span className="ml-1 text-primary-600">({calcHours(ot.planned_start, ot.planned_end)}h)</span>
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-500">유형</span>
-                        <span className="font-medium text-gray-800">{TYPE_LABEL[ot.type] ?? ot.type}</span>
+                        <span className="text-dark-500">유형</span>
+                        <span className="font-medium text-dark-800">{TYPE_LABEL[ot.type] ?? ot.type}</span>
                       </div>
                       {ot.site_name && (
                         <div className="flex justify-between">
-                          <span className="text-gray-500">현장</span>
-                          <span className="font-medium text-gray-800 text-right max-w-[180px]">{ot.site_name}</span>
+                          <span className="text-dark-500">현장</span>
+                          <span className="font-medium text-dark-800 text-right max-w-[180px]">{ot.site_name}</span>
                         </div>
                       )}
                     </div>
                     {ot.work_details && (
                       <div className="mt-2">
-                        <p className="text-xs text-gray-400 mb-1">작업내용 상세</p>
-                        <p className="text-sm text-gray-700 bg-gray-50 rounded-xl px-3 py-2">{ot.work_details}</p>
+                        <p className="text-xs text-dark-400 mb-1">작업내용 상세</p>
+                        <p className="text-sm text-dark-700 bg-dark-50 rounded-xl px-3 py-2">{ot.work_details}</p>
                       </div>
                     )}
                     {ot.reason && (
                       <div className="mt-2">
-                        <p className="text-xs text-gray-400 mb-1">기타</p>
-                        <p className="text-sm text-gray-700 bg-gray-50 rounded-xl px-3 py-2">{ot.reason}</p>
+                        <p className="text-xs text-dark-400 mb-1">기타</p>
+                        <p className="text-sm text-dark-700 bg-dark-50 rounded-xl px-3 py-2">{ot.reason}</p>
                       </div>
                     )}
                   </div>
                 ) : (
                   <div>
-                    <p className="text-xs font-semibold text-gray-400 mb-1.5">사유</p>
-                    <p className="text-sm text-gray-700 bg-gray-50 rounded-xl px-3 py-2">{e.reason}</p>
+                    <p className="text-xs font-semibold text-dark-400 mb-1.5">사유</p>
+                    <p className="text-sm text-dark-700 bg-dark-50 rounded-xl px-3 py-2">{e.reason}</p>
                   </div>
                 )}
               </div>
@@ -576,16 +576,16 @@ export function LeavePage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setEditModal((p) => ({ ...p, open: false }))} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-gray-900">휴가 신청 수정</h3>
-              <button onClick={() => setEditModal((p) => ({ ...p, open: false }))}><X className="w-5 h-5 text-gray-400" /></button>
+              <h3 className="text-base font-bold text-dark-900">휴가 신청 수정</h3>
+              <button onClick={() => setEditModal((p) => ({ ...p, open: false }))}><X className="w-5 h-5 text-dark-400" /></button>
             </div>
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">유형</label>
+                <label className="block text-xs font-medium text-dark-600 mb-1">유형</label>
                 <select
                   value={editModal.type}
                   onChange={(e) => setEditModal((p) => ({ ...p, type: e.target.value as LeaveType }))}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                  className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
                 >
                   {Object.entries(LEAVE_TYPE_LABEL).map(([k, v]) => (
                     <option key={k} value={k}>{v}</option>
@@ -594,29 +594,29 @@ export function LeavePage() {
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">시작일</label>
+                  <label className="block text-xs font-medium text-dark-600 mb-1">시작일</label>
                   <input type="date" value={editModal.start_date}
                     onChange={(e) => setEditModal((p) => ({ ...p, start_date: e.target.value }))}
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400" />
+                    className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">종료일</label>
+                  <label className="block text-xs font-medium text-dark-600 mb-1">종료일</label>
                   <input type="date" value={editModal.end_date}
                     onChange={(e) => setEditModal((p) => ({ ...p, end_date: e.target.value }))}
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400" />
+                    className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400" />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">사유</label>
+                <label className="block text-xs font-medium text-dark-600 mb-1">사유</label>
                 <textarea value={editModal.reason}
                   onChange={(e) => setEditModal((p) => ({ ...p, reason: e.target.value }))}
                   rows={2}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-primary-400" />
+                  className="w-full border border-dark-200 rounded-xl px-3 py-2.5 text-sm text-dark-800 resize-none focus:outline-none focus:ring-2 focus:ring-primary-400" />
               </div>
             </div>
             <div className="flex gap-2 mt-4">
               <button onClick={() => setEditModal((p) => ({ ...p, open: false }))}
-                className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50">
+                className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50">
                 취소
               </button>
               <button onClick={handleEdit} disabled={!editModal.start_date || !editModal.reason.trim()}
@@ -634,13 +634,13 @@ export function LeavePage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setCancelModal({ open: false, id: '' })} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-gray-900">휴가 신청 취소</h3>
-              <button onClick={() => setCancelModal({ open: false, id: '' })}><X className="w-5 h-5 text-gray-400" /></button>
+              <h3 className="text-base font-bold text-dark-900">휴가 신청 취소</h3>
+              <button onClick={() => setCancelModal({ open: false, id: '' })}><X className="w-5 h-5 text-dark-400" /></button>
             </div>
-            <p className="text-sm text-gray-600 mb-4">이 휴가 신청을 취소하시겠습니까?</p>
+            <p className="text-sm text-dark-600 mb-4">이 휴가 신청을 취소하시겠습니까?</p>
             <div className="flex gap-2">
               <button onClick={() => setCancelModal({ open: false, id: '' })}
-                className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50">
+                className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50">
                 돌아가기
               </button>
               <button onClick={handleCancel}
@@ -658,43 +658,43 @@ export function LeavePage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setLeaveHistoryModal(false)} />
           <div className="relative bg-white w-full sm:max-w-2xl sm:rounded-2xl shadow-xl flex flex-col max-h-[90vh]">
             {/* 헤더 */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
-              <h3 className="text-base font-bold text-gray-900">연차내역</h3>
-              <button onClick={() => setLeaveHistoryModal(false)}><X className="w-5 h-5 text-gray-400" /></button>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-dark-100 shrink-0">
+              <h3 className="text-base font-bold text-dark-900">연차내역</h3>
+              <button onClick={() => setLeaveHistoryModal(false)}><X className="w-5 h-5 text-dark-400" /></button>
             </div>
 
             {/* 연도 네비게이션 */}
-            <div className="flex items-center justify-center gap-4 px-5 py-3 border-b border-gray-100 shrink-0">
+            <div className="flex items-center justify-center gap-4 px-5 py-3 border-b border-dark-100 shrink-0">
               <button
                 onClick={() => setHistoryYear((y) => y - 1)}
-                className="p-1 rounded hover:bg-gray-100 transition-colors"
+                className="p-1 rounded hover:bg-dark-100 transition-colors"
               >
-                <ChevronRight className="w-4 h-4 text-gray-500 rotate-180" />
+                <ChevronRight className="w-4 h-4 text-dark-500 rotate-180" />
               </button>
-              <span className="text-sm font-semibold text-gray-800">
+              <span className="text-sm font-semibold text-dark-800">
                 {historyYear}-01-01 ~ {historyYear}-12-31
               </span>
               <button
                 onClick={() => setHistoryYear((y) => y + 1)}
                 disabled={historyYear >= CURRENT_YEAR}
-                className="p-1 rounded hover:bg-gray-100 transition-colors disabled:opacity-30"
+                className="p-1 rounded hover:bg-dark-100 transition-colors disabled:opacity-30"
               >
-                <ChevronRight className="w-4 h-4 text-gray-500" />
+                <ChevronRight className="w-4 h-4 text-dark-500" />
               </button>
             </div>
 
             {/* 연차 현황 요약 (해당 연도) */}
-            <div className="px-5 py-4 border-b border-gray-100 shrink-0">
-              <p className="text-xs font-semibold text-gray-500 mb-3">잔여연차</p>
+            <div className="px-5 py-4 border-b border-dark-100 shrink-0">
+              <p className="text-xs font-semibold text-dark-500 mb-3">잔여연차</p>
               <div className="grid grid-cols-3 gap-3">
                 {[
                   { label: '잔여 연차', value: historyYear === CURRENT_YEAR ? `${remaining_days}d` : '-', color: 'text-primary-600' },
-                  { label: '사용 연차', value: historyYear === CURRENT_YEAR ? `${used_days}d` : `${historyRequests.reduce((s, r) => s + r.days, 0)}d`, color: 'text-warning-600' },
-                  { label: '총 연차', value: historyYear === CURRENT_YEAR ? `${total_days}d` : '-', color: 'text-gray-700' },
+                  { label: '사용 연차', value: historyYear === CURRENT_YEAR ? `${used_days}d` : `${historyRequests.reduce((s, r) => s + r.days, 0)}d`, color: 'text-primary-600' },
+                  { label: '총 연차', value: historyYear === CURRENT_YEAR ? `${total_days}d` : '-', color: 'text-dark-700' },
                 ].map(({ label, value, color }) => (
-                  <div key={label} className="text-center bg-gray-50 rounded-xl py-3">
+                  <div key={label} className="text-center bg-dark-50 rounded-xl py-3">
                     <p className={`text-lg font-bold ${color}`}>{value}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{label}</p>
+                    <p className="text-xs text-dark-400 mt-0.5">{label}</p>
                   </div>
                 ))}
               </div>
@@ -703,14 +703,14 @@ export function LeavePage() {
             {/* 월별 사용 내역 테이블 */}
             <div className="overflow-y-auto flex-1">
               <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-gray-50 border-b border-gray-100">
+                <thead className="sticky top-0 bg-dark-50 border-b border-dark-100">
                   <tr>
-                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500">연월</th>
-                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500">사용 일수</th>
-                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500">내역</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-dark-500">연월</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-dark-500">사용 일수</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-dark-500">내역</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody className="divide-y divide-dark-50">
                   {monthlyHistory.map(({ monthKey, usedDays, reqs }) => {
                     const isThisMonth = monthKey === `${CURRENT_YEAR}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
                     return (
@@ -719,14 +719,14 @@ export function LeavePage() {
                         onClick={() => reqs.length > 0 && setHistoryDetailMonth({ monthKey, reqs })}
                         className={`transition-colors ${reqs.length > 0 ? 'cursor-pointer hover:bg-primary-50/30' : ''} ${isThisMonth ? 'bg-primary-50/40' : ''}`}
                       >
-                        <td className="px-4 py-3 text-sm text-gray-700 font-medium">
+                        <td className="px-4 py-3 text-sm text-dark-700 font-medium">
                           {monthKey}
                           {isThisMonth && (
                             <span className="ml-1.5 text-xs text-primary-600 font-semibold">이번달</span>
                           )}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <span className={usedDays > 0 ? 'text-warning-600 font-semibold' : 'text-gray-400'}>
+                          <span className={usedDays > 0 ? 'text-primary-600 font-semibold' : 'text-dark-400'}>
                             {usedDays > 0 ? `${usedDays}일` : '0일'}
                           </span>
                         </td>
@@ -734,13 +734,13 @@ export function LeavePage() {
                           {reqs.length > 0 ? (
                             <div className="grid grid-cols-2 gap-1">
                               {reqs.map((r) => (
-                                <span key={r.id} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-center truncate">
+                                <span key={r.id} className="text-xs bg-dark-100 text-dark-600 px-2 py-0.5 rounded-full text-center truncate">
                                   {LEAVE_TYPE_LABEL[r.type]} {r.days}일
                                 </span>
                               ))}
                             </div>
                           ) : (
-                            <span className="text-xs text-gray-300">-</span>
+                            <span className="text-xs text-dark-300">-</span>
                           )}
                         </td>
                       </tr>
@@ -760,12 +760,12 @@ export function LeavePage() {
           <div className="fixed inset-0 z-60 flex items-end sm:items-center justify-center px-4">
             <div className="absolute inset-0 bg-black/50" onClick={() => setHistoryDetailMonth(null)} />
             <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-xl max-h-[80vh] flex flex-col">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-dark-100 shrink-0">
                 <div>
-                  <h3 className="text-base font-bold text-gray-900">{monthKey} 신청내역</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">총 {reqs.reduce((s, r) => s + r.days, 0)}일 사용</p>
+                  <h3 className="text-base font-bold text-dark-900">{monthKey} 신청내역</h3>
+                  <p className="text-xs text-dark-400 mt-0.5">총 {reqs.reduce((s, r) => s + r.days, 0)}일 사용</p>
                 </div>
-                <button onClick={() => setHistoryDetailMonth(null)}><X className="w-5 h-5 text-gray-400" /></button>
+                <button onClick={() => setHistoryDetailMonth(null)}><X className="w-5 h-5 text-dark-400" /></button>
               </div>
               <div className="overflow-y-auto flex-1 px-4 py-3 space-y-3">
                 {reqs.map((req) => {
@@ -775,21 +775,21 @@ export function LeavePage() {
                     : ['', req.reason ?? '']
                   const displayReason = isSpecial ? specialNote : req.reason
                   return (
-                    <div key={req.id} className="bg-gray-50 rounded-xl p-4 space-y-2.5">
+                    <div key={req.id} className="bg-dark-50 rounded-xl p-4 space-y-2.5">
                       {/* 상태 + 유형 */}
                       <div className="flex items-center justify-between">
                         <div>
-                          <span className="text-sm font-semibold text-gray-800">{LEAVE_TYPE_LABEL[req.type]}</span>
+                          <span className="text-sm font-semibold text-dark-800">{LEAVE_TYPE_LABEL[req.type]}</span>
                           {isSpecial && specialSubType && (
-                            <p className="text-xs text-gray-500 mt-0.5">{specialSubType}</p>
+                            <p className="text-xs text-dark-500 mt-0.5">{specialSubType}</p>
                           )}
                         </div>
                         <StatusBadge status={req.status} />
                       </div>
                       {/* 기간 / 일수 */}
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-gray-500">기간</span>
-                        <span className="text-gray-800 font-medium">
+                        <span className="text-dark-500">기간</span>
+                        <span className="text-dark-800 font-medium">
                           {req.start_date}{req.start_date !== req.end_date ? ` ~ ${req.end_date}` : ''}
                           <span className="ml-1 text-primary-600 font-semibold">({req.days}일)</span>
                         </span>
@@ -797,15 +797,15 @@ export function LeavePage() {
                       {/* 사유 */}
                       {displayReason && (
                         <div>
-                          <p className="text-xs text-gray-400 mb-1">신청 사유</p>
-                          <p className="text-xs text-gray-700 bg-white rounded-lg px-3 py-2 border border-gray-100">{displayReason}</p>
+                          <p className="text-xs text-dark-400 mb-1">신청 사유</p>
+                          <p className="text-xs text-dark-700 bg-white rounded-lg px-3 py-2 border border-dark-100">{displayReason}</p>
                         </div>
                       )}
                       {/* 승인 정보 */}
                       {req.status === 'approved' && req.approved_at && (
                         <div className="flex items-center justify-between text-xs">
-                          <span className="text-gray-400">승인일</span>
-                          <span className="text-gray-600">
+                          <span className="text-dark-400">승인일</span>
+                          <span className="text-dark-600">
                             {new Date(req.approved_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
                           </span>
                         </div>
@@ -820,13 +820,13 @@ export function LeavePage() {
                       {/* 대체휴가 차감 여부 */}
                       {req.use_substitute && (
                         <div className="flex items-center gap-1.5">
-                          <span className="text-xs bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full font-medium">대체휴가 차감</span>
+                          <span className="text-xs bg-primary-50 text-primary-700 px-2 py-0.5 rounded-full font-medium">대체휴가 차감</span>
                         </div>
                       )}
                       {/* 신청일 */}
-                      <div className="flex items-center justify-between text-xs pt-1 border-t border-gray-200">
-                        <span className="text-gray-400">신청일</span>
-                        <span className="text-gray-500">
+                      <div className="flex items-center justify-between text-xs pt-1 border-t border-dark-200">
+                        <span className="text-dark-400">신청일</span>
+                        <span className="text-dark-500">
                           {new Date(req.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
                         </span>
                       </div>
@@ -852,72 +852,72 @@ export function LeavePage() {
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
             <div className="absolute inset-0 bg-black/40" onClick={() => setDetailReq(null)} />
             <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-xl">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                <h3 className="text-base font-bold text-gray-900">휴가 신청 상세</h3>
-                <button onClick={() => setDetailReq(null)}><X className="w-5 h-5 text-gray-400" /></button>
+              <div className="flex items-center justify-between px-5 py-4 border-b border-dark-100">
+                <h3 className="text-base font-bold text-dark-900">휴가 신청 상세</h3>
+                <button onClick={() => setDetailReq(null)}><X className="w-5 h-5 text-dark-400" /></button>
               </div>
               <div className="px-5 py-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-400">상태</span>
+                  <span className="text-xs text-dark-400">상태</span>
                   <StatusBadge status={detailReq.status} />
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-400">휴가 종류</span>
+                  <span className="text-xs text-dark-400">휴가 종류</span>
                   <div className="text-right">
-                    <span className="text-sm font-medium text-gray-800">{LEAVE_TYPE_LABEL[detailReq.type]}</span>
+                    <span className="text-sm font-medium text-dark-800">{LEAVE_TYPE_LABEL[detailReq.type]}</span>
                     {isSpecial && specialSubType && (
-                      <p className="text-xs text-gray-500 mt-0.5">{specialSubType}</p>
+                      <p className="text-xs text-dark-500 mt-0.5">{specialSubType}</p>
                     )}
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-400">기간</span>
-                  <span className="text-sm text-gray-800">
+                  <span className="text-xs text-dark-400">기간</span>
+                  <span className="text-sm text-dark-800">
                     {detailReq.start_date}{detailReq.start_date !== detailReq.end_date && ` ~ ${detailReq.end_date}`}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-400">일수</span>
-                  <span className="text-sm font-semibold text-gray-800">{detailReq.days}일</span>
+                  <span className="text-xs text-dark-400">일수</span>
+                  <span className="text-sm font-semibold text-dark-800">{detailReq.days}일</span>
                 </div>
                 {displayReason && (
                   <div>
-                    <p className="text-xs text-gray-400 mb-1">신청 사유</p>
-                    <p className="text-sm text-gray-700 bg-gray-50 rounded-xl px-3 py-2">{displayReason}</p>
+                    <p className="text-xs text-dark-400 mb-1">신청 사유</p>
+                    <p className="text-sm text-dark-700 bg-dark-50 rounded-xl px-3 py-2">{displayReason}</p>
                   </div>
                 )}
-                <div className="pt-2 border-t border-gray-100">
-                  <p className="text-xs text-gray-400 mb-3">승인현황</p>
+                <div className="pt-2 border-t border-dark-100">
+                  <p className="text-xs text-dark-400 mb-3">승인현황</p>
                   <div className="space-y-2">
                     {/* 대표 */}
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-gray-600 font-medium">대표</span>
+                      <span className="text-dark-600 font-medium">대표</span>
                       {detailReq.status === 'rejected' ? (
                         <span className="text-danger-500 font-semibold">반려</span>
                       ) : adminApproved.at ? (
                         <span className="text-success-600 font-semibold">승인완료</span>
                       ) : (
-                        <span className="text-gray-400">미승인</span>
+                        <span className="text-dark-400">미승인</span>
                       )}
                     </div>
                     {adminApproved.at && (
-                      <p className="text-xs text-gray-400 text-right -mt-1">
+                      <p className="text-xs text-dark-400 text-right -mt-1">
                         {new Date(adminApproved.at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
                       </p>
                     )}
                     {/* 인사담당자 */}
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-gray-600 font-medium">인사담당자</span>
+                      <span className="text-dark-600 font-medium">인사담당자</span>
                       {detailReq.status === 'rejected' ? (
                         <span className="text-danger-500 font-semibold">반려</span>
                       ) : managerApproved.at ? (
                         <span className="text-success-600 font-semibold">승인완료</span>
                       ) : (
-                        <span className="text-gray-400">미승인</span>
+                        <span className="text-dark-400">미승인</span>
                       )}
                     </div>
                     {managerApproved.at && (
-                      <p className="text-xs text-gray-400 text-right -mt-1">
+                      <p className="text-xs text-dark-400 text-right -mt-1">
                         {new Date(managerApproved.at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
                       </p>
                     )}
@@ -930,8 +930,8 @@ export function LeavePage() {
                   </div>
                 )}
                 <div className="flex items-center justify-between pt-1">
-                  <span className="text-xs text-gray-400">신청일</span>
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-dark-400">신청일</span>
+                  <span className="text-xs text-dark-500">
                     {new Date(detailReq.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
                   </span>
                 </div>
@@ -963,30 +963,30 @@ export function LeavePage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setSubHistoryModal({ open: false, entries: [] })} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl max-h-[70vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                <RefreshCw className="w-4 h-4 text-teal-600" />대체휴가 부여 이력
+              <h3 className="text-base font-bold text-dark-900 flex items-center gap-2">
+                <RefreshCw className="w-4 h-4 text-primary-500" />대체휴가 부여 이력
               </h3>
-              <button onClick={() => setSubHistoryModal({ open: false, entries: [] })}><X className="w-5 h-5 text-gray-400" /></button>
+              <button onClick={() => setSubHistoryModal({ open: false, entries: [] })}><X className="w-5 h-5 text-dark-400" /></button>
             </div>
             {subHistoryModal.entries.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-6">부여 이력이 없습니다</p>
+              <p className="text-sm text-dark-400 text-center py-6">부여 이력이 없습니다</p>
             ) : (
               <div className="space-y-3">
                 {subHistoryModal.entries.map((entry) => (
-                  <div key={entry.id} className="bg-gray-50 rounded-xl p-3">
+                  <div key={entry.id} className="bg-dark-50 rounded-xl p-3">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-semibold text-teal-700">+{entry.granted_days}일</span>
-                      <span className="text-xs text-gray-400">
+                      <span className="text-sm font-semibold text-primary-700">+{entry.granted_days}일</span>
+                      <span className="text-xs text-dark-400">
                         {new Date(entry.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric' })}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-600">{entry.reason}</p>
+                    <p className="text-xs text-dark-600">{entry.reason}</p>
                   </div>
                 ))}
               </div>
             )}
             <button onClick={() => setSubHistoryModal({ open: false, entries: [] })}
-              className="w-full mt-4 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50">
+              className="w-full mt-4 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50">
               닫기
             </button>
           </div>

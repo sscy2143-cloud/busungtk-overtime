@@ -79,7 +79,6 @@ export function RequestPage() {
   const [submitting, setSubmitting] = useState(false)
   const [toast, setToast] = useState(false)
 
-  // 노션 스케줄
   interface NotionSchedule {
     id: string
     title: string
@@ -121,12 +120,10 @@ export function RequestPage() {
     setForceHoliday(false)
   }
 
-  // 자동 판정
   const autoHoliday = date ? isHolidayDate(date) : false
   const holidayName = date ? getHolidayName(date) : null
   const effectiveHoliday = autoHoliday || forceHoliday
 
-  // 실시간 분류 계산
   const breakdown = useMemo(() => {
     if (!date || !startTime || !endTime) return null
     return calculateOvertimeBreakdown(date, startTime, endTime, forceHoliday)
@@ -151,10 +148,9 @@ export function RequestPage() {
       planned_start: startTime,
       planned_end: endTime,
       reason: reason.trim(),
-      is_retroactive: true, // 사후 제출이므로 항상 true
+      is_retroactive: true,
       group_member_ids: groupIds,
     }
-
 
     const groupId = groupIds.length > 0 ? crypto.randomUUID() : null
 
@@ -178,15 +174,17 @@ export function RequestPage() {
       return
     }
 
-
     setSubmitting(false)
     showToast()
     setTimeout(() => navigate('/requests'), 800)
   }
 
+  const inputClass = "w-full px-3 py-2.5 text-sm border border-dark-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-400 transition-colors"
+  const labelClass = "block text-sm font-semibold text-dark-700 mb-1.5"
+
   return (
     <div className="max-w-lg mx-auto px-4 py-6 pb-24">
-      <h1 className="text-xl font-bold text-gray-900 mb-6">야근 제출</h1>
+      <h1 className="text-xl font-bold text-dark-900 mb-6">야근 제출</h1>
 
       {/* 주간 게이지 */}
       <div data-tour="overtime-gauge" className="mb-6">
@@ -195,7 +193,7 @@ export function RequestPage() {
 
       {/* 주간 연장근무 한도 경고 (관리자만 표시) */}
       {isOverWeekly && (employee?.role === 'admin' || employee?.role === 'manager') && (
-        <div className="flex items-start gap-2 bg-warning-50 border border-warning-400 rounded-xl px-4 py-3 mb-6 text-sm text-warning-500">
+        <div className="flex items-start gap-2 bg-primary-50 border border-primary-200 rounded-xl px-4 py-3 mb-6 text-sm text-primary-700">
           <AlertTriangle size={16} className="shrink-0 mt-0.5" />
           <span>이번 주 연장근무가 <strong>12시간</strong>을 초과했습니다. 한도를 확인하세요.</span>
         </div>
@@ -206,9 +204,9 @@ export function RequestPage() {
         {schedules.length > 0 && (
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-sm font-medium text-gray-700">
+              <label className={labelClass}>
                 <span className="flex items-center gap-1.5">
-                  <Calendar size={15} />
+                  <Calendar size={15} className="text-primary-500" />
                   노션 작업 일정
                 </span>
               </label>
@@ -218,14 +216,14 @@ export function RequestPage() {
                 rel="noopener noreferrer"
                 className="text-xs text-primary-500 hover:underline"
               >
-                노션 바로가기 →
+                노션 바로가기
               </a>
             </div>
             <div className="relative">
               <select
                 value={selectedScheduleId}
                 onChange={(e) => handleScheduleSelect(e.target.value)}
-                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-400 appearance-none pr-8"
+                className={`${inputClass} appearance-none pr-8`}
               >
                 <option value="">일정을 선택하거나 아래에서 직접 입력하세요</option>
                 {schedules.map(s => (
@@ -234,21 +232,21 @@ export function RequestPage() {
                   </option>
                 ))}
               </select>
-              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-dark-300 pointer-events-none" />
             </div>
-            <p className="text-xs text-gray-400 mt-1.5">노션에 등록된 최근 2주치 작업 일정입니다.</p>
-            <p className="text-xs text-gray-400 mt-0.5">선택하면 날짜, 현장명, 내용이 자동으로 채워집니다.</p>
+            <p className="text-xs text-dark-400 mt-1.5">노션에 등록된 최근 2주치 작업 일정입니다.</p>
+            <p className="text-xs text-dark-400 mt-0.5">선택하면 날짜, 현장명, 내용이 자동으로 채워집니다.</p>
           </div>
         )}
         {scheduleLoading && (
-          <p className="text-xs text-gray-400">스케줄 불러오는 중...</p>
+          <p className="text-xs text-dark-400">스케줄 불러오는 중...</p>
         )}
 
         {/* 날짜 */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+          <label className={labelClass}>
             <span className="flex items-center gap-1.5">
-              <Calendar size={15} />
+              <Calendar size={15} className="text-primary-500" />
               근무 날짜
             </span>
           </label>
@@ -260,50 +258,48 @@ export function RequestPage() {
               setForceHoliday(false)
             }}
             required
-            className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-400"
+            className={inputClass}
           />
 
-          {/* 휴일 자동 감지 배지 */}
           {date && (autoHoliday || forceHoliday) && (
-            <div className="flex items-center gap-1.5 mt-2 px-3 py-1.5 bg-orange-50 border border-orange-200 rounded-lg">
-              <span className="text-xs font-medium text-orange-700">
+            <div className="flex items-center gap-1.5 mt-2 px-3 py-1.5 bg-primary-50 border border-primary-200 rounded-lg">
+              <span className="text-xs font-medium text-primary-700">
                 {holidayName ? `${holidayName} (휴일근로 적용)` : '휴일근로 적용'}
               </span>
             </div>
           )}
 
-          {/* 공휴일 수동 지정 (자동 감지 안 된 경우만) */}
           {date && !autoHoliday && (
             <label className="flex items-center gap-2 mt-2 cursor-pointer">
               <input
                 type="checkbox"
                 checked={forceHoliday}
                 onChange={(e) => setForceHoliday(e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-400"
+                className="w-4 h-4 rounded border-dark-300 text-primary-500 focus:ring-primary-400"
               />
-              <span className="text-xs text-gray-500">공휴일/임시공휴일로 지정</span>
+              <span className="text-xs text-dark-400">공휴일/임시공휴일로 지정</span>
             </label>
           )}
         </div>
 
         {/* 시간 */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+          <label className={labelClass}>
             <span className="flex items-center gap-1.5">
-              <Clock size={15} />
+              <Clock size={15} className="text-primary-500" />
               근무 시간
             </span>
           </label>
-          <p className="text-xs text-gray-400 mt-1 mb-3">휴게시간을 반영하여 정규 근무 이후 연장근무를 시작한 시각과 종료한 시각을 입력하세요.</p>
+          <p className="text-xs text-dark-400 mt-1 mb-3">휴게시간을 반영하여 정규 근무 이후 연장근무를 시작한 시각과 종료한 시각을 입력하세요.</p>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-gray-400 mb-1 block">시작</label>
+              <label className="text-xs text-dark-400 mb-1 block">시작</label>
               <select
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
                 required
-                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-400"
+                className={inputClass}
               >
                 <option value="">선택</option>
                 {timeOptions.map((t) => (
@@ -312,12 +308,12 @@ export function RequestPage() {
               </select>
             </div>
             <div>
-              <label className="text-xs text-gray-400 mb-1 block">종료</label>
+              <label className="text-xs text-dark-400 mb-1 block">종료</label>
               <select
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
                 required
-                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-400"
+                className={inputClass}
               >
                 <option value="">선택</option>
                 {timeOptions.map((t) => (
@@ -330,48 +326,43 @@ export function RequestPage() {
 
         {/* 자동 분류 결과 */}
         {breakdown && breakdown.totalMinutes > 0 && (
-          <div className="bg-gray-50 rounded-2xl border border-gray-200 p-4 space-y-3">
+          <div className="bg-dark-50 rounded-2xl border border-dark-100 p-4 space-y-3">
             <div className="flex items-center gap-1.5">
-              <Info size={14} className="text-primary-600" />
-              <span className="text-sm font-semibold text-gray-700">자동 분류 결과</span>
+              <Info size={14} className="text-primary-500" />
+              <span className="text-sm font-semibold text-dark-700">자동 분류 결과</span>
             </div>
 
-            <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+            <div className="flex items-center gap-2 text-xs text-dark-500 mb-1">
               <span>총 {formatMinutes(breakdown.totalMinutes)}</span>
-              <span className="text-gray-300">|</span>
+              <span className="text-dark-200">|</span>
               <span className={`font-medium px-2 py-0.5 rounded-full ${
-                effectiveHoliday ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
+                effectiveHoliday ? 'bg-primary-100 text-primary-700' : 'bg-dark-100 text-dark-700'
               }`}>
                 {effectiveHoliday ? '휴일' : '평일'}
               </span>
-              <span className="font-medium text-gray-600">
+              <span className="font-medium text-dark-600">
                 {OVERTIME_TYPE_LABEL[breakdown.primaryType]}
               </span>
             </div>
 
-            {/* 수당 항목별 표시 */}
             <div className="space-y-1.5">
               {breakdown.payItems.map((item, i) => (
                 <div
                   key={i}
-                  className="flex items-center justify-between bg-white rounded-xl px-3 py-2 border border-gray-100"
+                  className="flex items-center justify-between bg-white rounded-xl px-3 py-2 border border-dark-100"
                 >
                   <div className="flex items-center gap-2">
                     <span className={`w-2 h-2 rounded-full ${
-                      item.multiplier >= 2.5 ? 'bg-danger-500' :
-                      item.multiplier >= 2.0 ? 'bg-warning-500' :
-                      'bg-primary-500'
+                      item.multiplier >= 2.0 ? 'bg-dark-800' : 'bg-primary-500'
                     }`} />
-                    <span className="text-sm text-gray-700">{item.label}</span>
+                    <span className="text-sm text-dark-700">{item.label}</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-gray-900">
+                    <span className="text-sm font-medium text-dark-900">
                       {formatMinutes(item.minutes)}
                     </span>
                     <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
-                      item.multiplier >= 2.5 ? 'bg-danger-50 text-danger-700' :
-                      item.multiplier >= 2.0 ? 'bg-warning-50 text-warning-700' :
-                      'bg-primary-50 text-primary-700'
+                      item.multiplier >= 2.0 ? 'bg-dark-100 text-dark-800' : 'bg-primary-50 text-primary-700'
                     }`}>
                       x{item.multiplier}
                     </span>
@@ -384,8 +375,8 @@ export function RequestPage() {
 
         {/* 현장명 */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            현장명 <span className="text-danger-500">*</span>
+          <label className={labelClass}>
+            현장명 <span className="text-primary-500">*</span>
           </label>
           <input
             type="text"
@@ -393,14 +384,14 @@ export function RequestPage() {
             onChange={(e) => setSiteName(e.target.value)}
             placeholder="현장명을 입력하세요 (예: 폴라리스 홀, R5)"
             required
-            className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-400"
+            className={inputClass}
           />
         </div>
 
         {/* 작업내용 */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            내용 <span className="text-danger-500">*</span>
+          <label className={labelClass}>
+            내용 <span className="text-primary-500">*</span>
           </label>
           <input
             type="text"
@@ -408,22 +399,19 @@ export function RequestPage() {
             onChange={(e) => setWorkDetails(e.target.value)}
             placeholder="내용을 입력하세요 (예: 워크인냉장고 콤프 교체)"
             required
-            className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-400"
+            className={inputClass}
           />
         </div>
 
-
         {/* 기타 */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            기타
-          </label>
+          <label className={labelClass}>기타</label>
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={2}
             placeholder="추가 메모가 있으면 입력하세요"
-            className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-400 resize-none"
+            className={`${inputClass} resize-none`}
           />
         </div>
 
@@ -432,12 +420,12 @@ export function RequestPage() {
           <button
             type="button"
             onClick={() => setGroupOpen((v) => !v)}
-            className="flex items-center gap-2 text-sm font-medium text-primary-600"
+            className="flex items-center gap-2 text-sm font-semibold text-primary-500"
           >
             <Users size={16} />
             함께 근무한 직원 추가
             {groupIds.length > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 bg-primary-100 text-primary-700 text-xs rounded-full">
+              <span className="ml-1 px-1.5 py-0.5 bg-primary-50 text-primary-600 text-xs rounded-full font-bold">
                 {groupIds.length}명
               </span>
             )}
@@ -457,7 +445,7 @@ export function RequestPage() {
         <button
           type="submit"
           disabled={submitting || !breakdown || breakdown.totalMinutes <= 0}
-          className="w-full py-3 bg-primary-600 text-white font-semibold rounded-xl hover:bg-primary-700 disabled:opacity-60 transition-colors mt-2"
+          className="w-full py-3.5 bg-primary-500 text-white font-bold rounded-xl hover:bg-primary-600 disabled:opacity-50 transition-colors mt-2"
         >
           {submitting ? '제출 중...' : '제출하기'}
         </button>
@@ -465,7 +453,7 @@ export function RequestPage() {
 
       {/* 토스트 */}
       {toast && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-sm px-5 py-3 rounded-full shadow-lg z-50">
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-dark-900 text-white text-sm px-5 py-3 rounded-full shadow-lg z-50">
           제출이 완료되었습니다
         </div>
       )}
