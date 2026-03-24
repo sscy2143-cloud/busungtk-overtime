@@ -11,12 +11,11 @@ export function BottomNav() {
 
   const navItemClass = ({ isActive }: { isActive: boolean }) =>
     `flex flex-col items-center justify-center gap-0.5 flex-1 py-2 text-xs transition-colors ${
-      isActive ? 'text-primary-600' : 'text-gray-400 hover:text-gray-600'
+      isActive ? 'text-primary-500' : 'text-dark-300 hover:text-dark-500'
     }`
 
   return (
     <>
-      {/* 드롭업 오버레이 */}
       {moreOpen && (
         <div
           className="md:hidden fixed inset-0 z-40 bg-black/30"
@@ -24,38 +23,37 @@ export function BottomNav() {
         />
       )}
 
-      {/* 드롭업 메뉴 */}
       {moreOpen && (
-        <div className="md:hidden fixed bottom-16 right-4 z-50 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden w-48">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-            <span className="text-sm font-semibold text-gray-700">더보기</span>
-            <button onClick={() => setMoreOpen(false)} className="text-gray-400 hover:text-gray-600">
+        <div className="md:hidden fixed bottom-16 right-4 z-50 bg-white rounded-2xl shadow-xl border border-dark-100 overflow-hidden w-48">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-dark-100">
+            <span className="text-sm font-semibold text-dark-700">더보기</span>
+            <button onClick={() => setMoreOpen(false)} className="text-dark-300 hover:text-dark-500">
               <X size={16} />
             </button>
           </div>
           <button
-            className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+            className="flex items-center gap-3 w-full px-4 py-3 text-sm text-dark-700 hover:bg-dark-50"
             onClick={() => { navigate('/leave'); setMoreOpen(false) }}
           >
             <Calendar size={18} className="text-primary-500" />
             휴가현황
           </button>
           <button
-            className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+            className="flex items-center gap-3 w-full px-4 py-3 text-sm text-dark-700 hover:bg-dark-50"
             onClick={() => { navigate('/leave/request'); setMoreOpen(false) }}
           >
             <FileText size={18} className="text-primary-500" />
             휴가신청
           </button>
           <button
-            className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+            className="flex items-center gap-3 w-full px-4 py-3 text-sm text-dark-700 hover:bg-dark-50"
             onClick={() => { navigate('/notifications'); setMoreOpen(false) }}
           >
             <Bell size={18} className="text-primary-500" />
             알림
           </button>
           <button
-            className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+            className="flex items-center gap-3 w-full px-4 py-3 text-sm text-dark-700 hover:bg-dark-50"
             onClick={() => { navigate('/expenses'); setMoreOpen(false) }}
           >
             <Receipt size={18} className="text-primary-500" />
@@ -64,28 +62,28 @@ export function BottomNav() {
           {isAdmin && (
             <>
               <button
-                className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+                className="flex items-center gap-3 w-full px-4 py-3 text-sm text-dark-700 hover:bg-dark-50"
                 onClick={() => { navigate('/admin/overtime/employees'); setMoreOpen(false) }}
               >
                 <UserSquare2 size={18} className="text-primary-500" />
                 직원별 현황
               </button>
               <button
-                className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+                className="flex items-center gap-3 w-full px-4 py-3 text-sm text-dark-700 hover:bg-dark-50"
                 onClick={() => { navigate('/admin/overtime/pay'); setMoreOpen(false) }}
               >
                 <Banknote size={18} className="text-primary-500" />
                 연장근무수당
               </button>
               <button
-                className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+                className="flex items-center gap-3 w-full px-4 py-3 text-sm text-dark-700 hover:bg-dark-50"
                 onClick={() => { navigate('/admin/expenses'); setMoreOpen(false) }}
               >
                 <Receipt size={18} className="text-primary-500" />
                 경비 관리
               </button>
               <button
-                className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+                className="flex items-center gap-3 w-full px-4 py-3 text-sm text-dark-700 hover:bg-dark-50"
                 onClick={() => { navigate('/admin/payroll'); setMoreOpen(false) }}
               >
                 <DollarSign size={18} className="text-primary-500" />
@@ -94,7 +92,7 @@ export function BottomNav() {
             </>
           )}
           <button
-            className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+            className="flex items-center gap-3 w-full px-4 py-3 text-sm text-dark-700 hover:bg-dark-50"
             onClick={() => { setMoreOpen(false) }}
           >
             <Settings size={18} className="text-primary-500" />
@@ -103,8 +101,7 @@ export function BottomNav() {
         </div>
       )}
 
-      {/* 하단 탭바 */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 flex">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-dark-100 flex">
         <NavLink to="/" end className={navItemClass}>
           <Home size={20} />
           <span>홈</span>
@@ -123,7 +120,7 @@ export function BottomNav() {
         )}
 
         <button
-          className="flex flex-col items-center justify-center gap-0.5 flex-1 py-2 text-xs text-gray-400 hover:text-gray-600"
+          className="flex flex-col items-center justify-center gap-0.5 flex-1 py-2 text-xs text-dark-300 hover:text-dark-500"
           onClick={() => setMoreOpen(true)}
         >
           <MoreHorizontal size={20} />

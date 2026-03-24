@@ -6,7 +6,7 @@ import { OnboardingTour } from '../common/OnboardingTour'
 
 export function AppLayout() {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#f5f5f7]">
       {/* PC: 좌측 사이드바 */}
       <Sidebar />
 

@@ -1,17 +1,30 @@
 @import "tailwindcss";
 
 @theme {
-  /* Kitchen Orange — 브랜드 메인 컬러 #FF7300 */
-  --color-primary-50:  #fff4e6;
-  --color-primary-100: #ffe9cc;
-  --color-primary-200: #ffd099;
-  --color-primary-300: #ffb866;
-  --color-primary-400: #ff9f33;
-  --color-primary-500: #ff7300;
-  --color-primary-600: #cc5c00;
-  --color-primary-700: #994500;
-  --color-primary-800: #662e00;
-  --color-primary-900: #331700;
+  /* Red-Orange 브랜드 메인 컬러 */
+  --color-primary-50:  #fff5f0;
+  --color-primary-100: #ffe8db;
+  --color-primary-200: #ffd0b5;
+  --color-primary-300: #ffb088;
+  --color-primary-400: #ff8c55;
+  --color-primary-500: #ff6b2c;
+  --color-primary-600: #e85520;
+  --color-primary-700: #c24418;
+  --color-primary-800: #9c3612;
+  --color-primary-900: #7a2d0e;
+
+  /* Dark (블랙 계열) */
+  --color-dark-50:  #f7f7f8;
+  --color-dark-100: #eeeef0;
+  --color-dark-200: #d9d9dd;
+  --color-dark-300: #b8b8bf;
+  --color-dark-400: #91919c;
+  --color-dark-500: #6e6e7a;
+  --color-dark-600: #4a4a54;
+  --color-dark-700: #35353d;
+  --color-dark-800: #24242b;
+  --color-dark-900: #18181d;
+  --color-dark-950: #0f0f12;
 
   --color-warning-50: #fffbeb;
   --color-warning-400: #fbbf24;
@@ -32,8 +45,8 @@
 
 body {
   font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background-color: #f4f4f4;
-  color: #282828;
+  background-color: #f5f5f7;
+  color: #1a1a1a;
   margin: 0;
 }
 

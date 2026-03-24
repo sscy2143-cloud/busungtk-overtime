@@ -43,22 +43,32 @@ export function Sidebar() {
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
       isActive
-        ? 'bg-primary-50 text-primary-700'
-        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+        ? 'bg-primary-50 text-primary-600'
+        : 'text-dark-500 hover:bg-dark-50 hover:text-dark-800'
     }`
 
   const subNavLinkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
       isActive
-        ? 'bg-primary-50 text-primary-700'
-        : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
+        ? 'bg-primary-50 text-primary-600'
+        : 'text-dark-400 hover:bg-dark-50 hover:text-dark-700'
+    }`
+
+  const groupBtnClass = (open: boolean) =>
+    `flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+      open ? 'bg-dark-50 text-dark-800' : 'text-dark-600 hover:bg-dark-50'
+    }`
+
+  const adminGroupBtnClass = (open: boolean) =>
+    `flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+      open ? 'bg-primary-50 text-dark-800' : 'text-dark-700 hover:bg-primary-50/50'
     }`
 
   const adminNavLinkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
       isActive
-        ? 'bg-amber-50 text-amber-800'
-        : 'text-amber-700 hover:bg-amber-50/50'
+        ? 'bg-primary-50 text-dark-800'
+        : 'text-dark-700 hover:bg-primary-50/50'
     }`
 
   const mainNav: NavItem[] = [
@@ -78,10 +88,10 @@ export function Sidebar() {
   const superAdminNav: NavItem[] = []
 
   return (
-    <aside className="hidden md:flex flex-col w-64 h-screen fixed left-0 top-0 bg-white border-r border-gray-200 z-30">
+    <aside className="hidden md:flex flex-col w-64 h-screen fixed left-0 top-0 bg-white border-r border-dark-100 z-30">
       {/* 로고 */}
-      <div className="px-5 py-5 border-b border-gray-100">
-        <span className="text-lg font-bold text-primary-700">부성TK 근태관리</span>
+      <div className="px-5 py-5 border-b border-dark-100">
+        <span className="text-lg font-bold text-dark-900">부성TK <span className="text-primary-500">근태관리</span></span>
       </div>
 
       {/* 메뉴 */}
@@ -93,12 +103,12 @@ export function Sidebar() {
           </NavLink>
         ))}
 
-        {/* 근무 관리 (접히는 그룹) */}
+        {/* 근무 관리 */}
         <div>
           <button
             data-tour="nav-work"
             onClick={() => setWorkOpen(o => !o)}
-            className={`flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${workOpen ? 'bg-amber-50 text-amber-800' : 'text-amber-700 hover:bg-amber-50/50'}`}
+            className={groupBtnClass(workOpen)}
           >
             <div className="flex items-center gap-3">
               <FileText size={18} />
@@ -110,7 +120,7 @@ export function Sidebar() {
             />
           </button>
           {workOpen && (
-            <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-100 pl-3">
+            <div className="ml-4 mt-0.5 space-y-0.5 border-l border-dark-100 pl-3">
               <NavLink to="/requests" className={subNavLinkClass}>
                 <FileText size={16} />
                 근무 현황
@@ -123,12 +133,12 @@ export function Sidebar() {
           )}
         </div>
 
-        {/* 휴가 관리 (직원용, 접히는 그룹) */}
+        {/* 휴가 관리 (직원용) */}
         <div>
           <button
             data-tour="nav-leave"
             onClick={() => setLeaveEmployeeOpen(o => !o)}
-            className={`flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${leaveEmployeeOpen ? 'bg-amber-50 text-amber-800' : 'text-amber-700 hover:bg-amber-50/50'}`}
+            className={groupBtnClass(leaveEmployeeOpen)}
           >
             <div className="flex items-center gap-3">
               <Calendar size={18} />
@@ -140,7 +150,7 @@ export function Sidebar() {
             />
           </button>
           {leaveEmployeeOpen && (
-            <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-100 pl-3">
+            <div className="ml-4 mt-0.5 space-y-0.5 border-l border-dark-100 pl-3">
               <NavLink to="/leave" end className={subNavLinkClass}>
                 <CalendarCheck size={16} />
                 휴가현황
@@ -160,8 +170,8 @@ export function Sidebar() {
 
         {isAdmin && (
           <>
-            <div className="mt-4 mb-2 px-3">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">관리자</p>
+            <div className="mt-10 mb-3 px-3 pt-5 border-t border-dark-100">
+              <p className="text-xs font-extrabold text-dark-800 tracking-wide">관리자</p>
             </div>
             {adminNavBefore.map((item) => (
               <div key={item.to}>
@@ -169,15 +179,15 @@ export function Sidebar() {
                   {item.icon}
                   {item.label}
                 </NavLink>
-                <div className="mx-6 my-2.5 border-b border-gray-100" />
+                <div className="mx-6 my-2 border-b border-dark-50" />
               </div>
             ))}
 
-            {/* 야근 관리 (접히는 그룹) */}
+            {/* 야근 관리 */}
             <div>
               <button
                 onClick={() => setOvertimeOpen(o => !o)}
-                className={`flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${overtimeOpen ? 'bg-amber-50 text-amber-800' : 'text-amber-700 hover:bg-amber-50/50'}`}
+                className={adminGroupBtnClass(overtimeOpen)}
               >
                 <div className="flex items-center gap-3">
                   <CheckSquare size={18} />
@@ -189,7 +199,7 @@ export function Sidebar() {
                 />
               </button>
               {overtimeOpen && (
-                <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-100 pl-3">
+                <div className="ml-4 mt-0.5 space-y-0.5 border-l border-dark-100 pl-3">
                   <NavLink to="/admin/overtime" end className={subNavLinkClass}>
                     <Clock size={16} />
                     대시보드
@@ -202,11 +212,10 @@ export function Sidebar() {
                     <UserSquare2 size={16} />
                     직원별 현황
                   </NavLink>
-                  {/* 수당계산 (접히는 그룹) */}
                   <div>
                     <button
                       onClick={() => setPayOpen(o => !o)}
-                      className={`flex items-center justify-between w-full px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${payOpen ? 'bg-amber-50 text-amber-800' : 'text-amber-700 hover:bg-amber-50/50'}`}
+                      className={`flex items-center justify-between w-full px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${payOpen ? 'bg-primary-50 text-dark-800' : 'text-dark-700 hover:bg-primary-50/50'}`}
                     >
                       <div className="flex items-center gap-3">
                         <Banknote size={16} />
@@ -218,7 +227,7 @@ export function Sidebar() {
                       />
                     </button>
                     {payOpen && (
-                      <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-100 pl-3">
+                      <div className="ml-4 mt-0.5 space-y-0.5 border-l border-dark-100 pl-3">
                         <NavLink to="/admin/overtime/pay" className={subNavLinkClass}>
                           <Banknote size={14} />
                           연장근무수당
@@ -233,13 +242,13 @@ export function Sidebar() {
                 </div>
               )}
             </div>
-            <div className="mx-6 my-2.5 border-b border-gray-100" />
+            <div className="mx-6 my-2 border-b border-dark-50" />
 
-            {/* 휴가 관리 (접히는 그룹) */}
+            {/* 휴가 관리 (관리자) */}
             <div>
               <button
                 onClick={() => setLeaveOpen(o => !o)}
-                className={`flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${leaveOpen ? 'bg-amber-50 text-amber-800' : 'text-amber-700 hover:bg-amber-50/50'}`}
+                className={adminGroupBtnClass(leaveOpen)}
               >
                 <div className="flex items-center gap-3">
                   <CalendarCheck size={18} />
@@ -251,7 +260,7 @@ export function Sidebar() {
                 />
               </button>
               {leaveOpen && (
-                <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-100 pl-3">
+                <div className="ml-4 mt-0.5 space-y-0.5 border-l border-dark-100 pl-3">
                   <NavLink to="/admin/leave" end className={subNavLinkClass}>
                     <CalendarCheck size={16} />
                     휴가 현황
@@ -267,7 +276,7 @@ export function Sidebar() {
                 </div>
               )}
             </div>
-            <div className="mx-6 my-2.5 border-b border-gray-100" />
+            <div className="mx-6 my-2 border-b border-dark-50" />
 
             {adminNavAfter.map((item) => (
               <div key={item.to}>
@@ -275,15 +284,15 @@ export function Sidebar() {
                   {item.icon}
                   {item.label}
                 </NavLink>
-                <div className="mx-6 my-2.5 border-b border-gray-100" />
+                <div className="mx-6 my-2 border-b border-dark-50" />
               </div>
             ))}
 
-            {/* 기타 (접히는 그룹) */}
+            {/* 기타 */}
             <div>
               <button
                 onClick={() => setEtcOpen(o => !o)}
-                className={`flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${etcOpen ? 'bg-amber-50 text-amber-800' : 'text-amber-700 hover:bg-amber-50/50'}`}
+                className={adminGroupBtnClass(etcOpen)}
               >
                 <div className="flex items-center gap-3">
                   <Archive size={18} />
@@ -295,7 +304,7 @@ export function Sidebar() {
                 />
               </button>
               {etcOpen && (
-                <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-100 pl-3">
+                <div className="ml-4 mt-0.5 space-y-0.5 border-l border-dark-100 pl-3">
                   <NavLink to="/admin/documents" className={subNavLinkClass}>
                     <FolderOpen size={16} />
                     자료실
@@ -314,8 +323,8 @@ export function Sidebar() {
 
             {isSuperAdmin && (
               <>
-                <div className="mt-4 mb-2 px-3">
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">시스템</p>
+                <div className="mt-5 mb-2 px-3">
+                  <p className="text-[11px] font-bold text-dark-300 uppercase tracking-wider">시스템</p>
                 </div>
                 {superAdminNav.map((item) => (
                   <NavLink key={item.to} to={item.to} className={navLinkClass}>
@@ -330,7 +339,7 @@ export function Sidebar() {
       </nav>
 
       {/* 프로필 + 로그아웃 */}
-      <div className="px-4 py-4 border-t border-gray-100">
+      <div className="px-4 py-4 border-t border-dark-100">
         <div className="flex items-center gap-3 mb-3">
           {employee?.avatar_url ? (
             <img
@@ -339,25 +348,25 @@ export function Sidebar() {
               className="w-9 h-9 rounded-full object-cover flex-shrink-0"
             />
           ) : (
-            <div className="w-9 h-9 rounded-full bg-primary-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+            <div className="w-9 h-9 rounded-full bg-primary-500 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
               {employee?.name?.charAt(0) ?? 'U'}
             </div>
           )}
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-gray-800 truncate">{employee?.name ?? '사용자'}</p>
-            <p className="text-xs text-gray-400 truncate">{employee?.department ?? ''}</p>
+            <p className="text-sm font-semibold text-dark-800 truncate">{employee?.name ?? '사용자'}</p>
+            <p className="text-xs text-dark-400 truncate">{employee?.department ?? ''}</p>
           </div>
         </div>
         <NavLink
           to="/settings"
-          className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors mb-1"
+          className="flex items-center gap-2 w-full px-3 py-2 text-sm text-dark-400 hover:text-dark-700 hover:bg-dark-50 rounded-lg transition-colors mb-1"
         >
           <Settings size={16} />
           설정
         </NavLink>
         <button
           onClick={signOut}
-          className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-500 hover:text-danger-600 hover:bg-danger-50 rounded-lg transition-colors"
+          className="flex items-center gap-2 w-full px-3 py-2 text-sm text-dark-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
         >
           <LogOut size={16} />
           로그아웃
