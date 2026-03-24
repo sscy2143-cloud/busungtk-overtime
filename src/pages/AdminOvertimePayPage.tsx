@@ -139,21 +139,21 @@ export function AdminOvertimePayPage() {
 
   if (loading) return (
     <div className="flex items-center justify-center py-20">
-      <p className="text-sm text-gray-400">불러오는 중...</p>
+      <p className="text-sm text-dark-400">불러오는 중...</p>
     </div>
   )
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">연장근무수당</h1>
-        <p className="text-sm text-gray-500 mt-0.5">시급을 입력하면 수당을 자동으로 계산합니다</p>
+        <h1 className="text-xl font-bold text-dark-900">연장근무수당</h1>
+        <p className="text-sm text-dark-500 mt-0.5">시급을 입력하면 수당을 자동으로 계산합니다</p>
       </div>
 
       {/* 계산 기준 안내 */}
-      <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 space-y-2">
-        <p className="text-xs font-semibold text-blue-700">수당 계산 기준 (근로기준법)</p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 text-xs text-blue-600">
+      <div className="bg-primary-50 border border-blue-100 rounded-xl px-4 py-3 space-y-2">
+        <p className="text-xs font-semibold text-primary-700">수당 계산 기준 (근로기준법)</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 text-xs text-primary-600">
           <span>연장근로 × 1.5배</span>
           <span>야간근로(연장+야간) × 2.0배</span>
           <span>휴일근로(8h 이내) × 1.5배</span>
@@ -161,34 +161,34 @@ export function AdminOvertimePayPage() {
           <span>휴일+야간 × 2.0배</span>
           <span>휴일초과+야간 × 2.5배</span>
         </div>
-        <p className="text-xs text-blue-400">* 시급은 사원현황에서 설정하거나 여기서 직접 수정할 수 있습니다</p>
+        <p className="text-xs text-dark-400">* 시급은 사원현황에서 설정하거나 여기서 직접 수정할 수 있습니다</p>
       </div>
 
       {/* 대체휴가 제외 안내 */}
       {compLeaveExcludedCount > 0 && (
-        <div className="flex items-center gap-2 bg-teal-50 border border-teal-200 rounded-xl px-4 py-2.5 text-xs text-teal-700">
+        <div className="flex items-center gap-2 bg-dark-50 border border-primary-200 rounded-xl px-4 py-2.5 text-xs text-dark-700">
           <span>대체휴가로 처리된 야근 <span className="font-semibold">{compLeaveExcludedCount}건</span>은 수당 계산에서 제외됩니다</span>
         </div>
       )}
 
       {/* 월 선택 */}
       <div className="flex items-center gap-2 justify-end">
-        <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-          <ChevronLeft className="w-4 h-4 text-gray-600" />
+        <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-dark-100 transition-colors">
+          <ChevronLeft className="w-4 h-4 text-dark-600" />
         </button>
-        <span className="text-sm font-semibold text-gray-700 min-w-[80px] text-center">{calYear}년 {calMonth}월</span>
+        <span className="text-sm font-semibold text-dark-700 min-w-[80px] text-center">{calYear}년 {calMonth}월</span>
         <button
           onClick={nextMonth}
           disabled={calYear === now.getFullYear() && calMonth === now.getMonth() + 1}
-          className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-30 transition-colors"
+          className="p-1.5 rounded-lg hover:bg-dark-100 disabled:opacity-30 transition-colors"
         >
-          <ChevronRight className="w-4 h-4 text-gray-600" />
+          <ChevronRight className="w-4 h-4 text-dark-600" />
         </button>
       </div>
 
       {payTable.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-16 text-center">
-          <p className="text-sm text-gray-400">해당 월 승인된 야근 데이터가 없습니다</p>
+        <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] py-16 text-center">
+          <p className="text-sm text-dark-400">해당 월 승인된 야근 데이터가 없습니다</p>
         </div>
       ) : (
         <>
@@ -198,22 +198,22 @@ export function AdminOvertimePayPage() {
             </div>
           )}
 
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50">
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">직원</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400">부서</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 whitespace-nowrap">시급</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 whitespace-nowrap">총 근무</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-blue-600 whitespace-nowrap">연장수당</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-indigo-600 whitespace-nowrap">야간수당</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-orange-600 whitespace-nowrap">휴일수당</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 whitespace-nowrap">수당 합계</th>
+                  <tr className="border-b border-dark-100 bg-dark-50">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-dark-500">직원</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-dark-400">부서</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-dark-600 whitespace-nowrap">시급</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-dark-500 whitespace-nowrap">총 근무</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-primary-600 whitespace-nowrap">연장수당</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-dark-700 whitespace-nowrap">야간수당</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-primary-600 whitespace-nowrap">휴일수당</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-dark-700 whitespace-nowrap">수당 합계</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody className="divide-y divide-dark-50">
                   {payTable.map((row) => {
                     const wage = getWage(row.empId, row.dbWage)
                     const extendedPay = (row.extended / 60) * wage * 1.5
@@ -227,9 +227,9 @@ export function AdminOvertimePayPage() {
                     const isEditing = editingEmpId === row.empId
 
                     return (
-                      <tr key={row.empId} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 font-medium text-gray-800">{row.name}</td>
-                        <td className="px-4 py-3 text-xs text-gray-400">{row.department}</td>
+                      <tr key={row.empId} className="hover:bg-dark-50 transition-colors">
+                        <td className="px-4 py-3 font-medium text-dark-800">{row.name}</td>
+                        <td className="px-4 py-3 text-xs text-dark-400">{row.department}</td>
                         <td className="px-4 py-3">
                           {isEditing ? (
                             <div className="flex items-center gap-1 justify-center">
@@ -248,37 +248,37 @@ export function AdminOvertimePayPage() {
                               <button onClick={() => confirmEdit(row.empId)} className="p-1 text-success-600 hover:text-success-700">
                                 <Check size={14} />
                               </button>
-                              <button onClick={cancelEdit} className="p-1 text-gray-400 hover:text-gray-600">
+                              <button onClick={cancelEdit} className="p-1 text-dark-400 hover:text-dark-600">
                                 <X size={14} />
                               </button>
                             </div>
                           ) : (
                             <button
                               onClick={() => startEdit(row.empId, wage)}
-                              className="flex items-center gap-1.5 mx-auto text-xs font-medium text-gray-700 hover:text-primary-700 group"
+                              className="flex items-center gap-1.5 mx-auto text-xs font-medium text-dark-700 hover:text-primary-700 group"
                             >
                               {wage > 0
                                 ? <span>{wage.toLocaleString('ko-KR')}원</span>
-                                : <span className="text-gray-300">미설정</span>
+                                : <span className="text-dark-300">미설정</span>
                               }
-                              <Edit2 size={11} className="text-gray-300 group-hover:text-primary-500" />
+                              <Edit2 size={11} className="text-dark-300 group-hover:text-primary-500" />
                             </button>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-right text-xs text-gray-500">{fmtH(row.totalMinutes)}</td>
-                        <td className="px-4 py-3 text-right text-xs text-blue-600">
-                          {wage > 0 ? fmtWon(extendedPay) : <span className="text-gray-200">-</span>}
+                        <td className="px-4 py-3 text-right text-xs text-dark-500">{fmtH(row.totalMinutes)}</td>
+                        <td className="px-4 py-3 text-right text-xs text-primary-600">
+                          {wage > 0 ? fmtWon(extendedPay) : <span className="text-dark-200">-</span>}
                         </td>
-                        <td className="px-4 py-3 text-right text-xs text-indigo-600">
-                          {wage > 0 ? fmtWon(nightPay) : <span className="text-gray-200">-</span>}
+                        <td className="px-4 py-3 text-right text-xs text-dark-700">
+                          {wage > 0 ? fmtWon(nightPay) : <span className="text-dark-200">-</span>}
                         </td>
-                        <td className="px-4 py-3 text-right text-xs text-orange-600">
-                          {wage > 0 ? fmtWon(holidayPay) : <span className="text-gray-200">-</span>}
+                        <td className="px-4 py-3 text-right text-xs text-primary-600">
+                          {wage > 0 ? fmtWon(holidayPay) : <span className="text-dark-200">-</span>}
                         </td>
-                        <td className="px-4 py-3 text-right font-bold text-gray-800">
+                        <td className="px-4 py-3 text-right font-bold text-dark-800">
                           {wage > 0
                             ? fmtWon(total)
-                            : <span className="text-gray-300 font-normal text-xs">시급 입력 필요</span>
+                            : <span className="text-dark-300 font-normal text-xs">시급 입력 필요</span>
                           }
                         </td>
                       </tr>
@@ -286,8 +286,8 @@ export function AdminOvertimePayPage() {
                   })}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t-2 border-gray-200 bg-gray-50">
-                    <td className="px-4 py-3 font-semibold text-gray-700 text-sm" colSpan={7}>
+                  <tr className="border-t-2 border-dark-200 bg-dark-50">
+                    <td className="px-4 py-3 font-semibold text-dark-700 text-sm" colSpan={7}>
                       {calYear}년 {calMonth}월 총 지급 수당
                     </td>
                     <td className="px-4 py-3 text-right font-bold text-primary-700 text-base">

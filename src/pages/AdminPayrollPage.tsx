@@ -154,16 +154,16 @@ export function AdminPayrollPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">급여 계산</h1>
-        <p className="text-sm text-gray-500 mt-0.5">야근 수당 계산 및 시급을 관리합니다</p>
+        <h1 className="text-xl font-bold text-dark-900">급여 계산</h1>
+        <p className="text-sm text-dark-500 mt-0.5">야근 수당 계산 및 시급을 관리합니다</p>
       </div>
 
       {/* 탭 */}
-      <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
+      <div className="flex bg-dark-100 rounded-xl p-1 gap-1">
         <button
           onClick={() => setTab('payroll')}
           className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5 ${
-            tab === 'payroll' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+            tab === 'payroll' ? 'bg-white text-dark-900 shadow-[0_1px_3px_rgba(0,0,0,0.04)]' : 'text-dark-500'
           }`}
         >
           <Calculator className="w-4 h-4" />
@@ -172,7 +172,7 @@ export function AdminPayrollPage() {
         <button
           onClick={() => setTab('wages')}
           className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5 ${
-            tab === 'wages' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+            tab === 'wages' ? 'bg-white text-dark-900 shadow-[0_1px_3px_rgba(0,0,0,0.04)]' : 'text-dark-500'
           }`}
         >
           <DollarSign className="w-4 h-4" />
@@ -184,17 +184,17 @@ export function AdminPayrollPage() {
       {tab === 'payroll' && (
         <div className="space-y-4">
           <div className="flex items-center gap-3 flex-wrap">
-            <label className="text-sm font-medium text-gray-700">기간</label>
+            <label className="text-sm font-medium text-dark-700">기간</label>
             <input
               type="month"
               value={month}
               onChange={(e) => setMonth(e.target.value)}
-              className="px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+              className="px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
             />
             <select
               value={selectedEmployee}
               onChange={(e) => setSelectedEmployee(e.target.value)}
-              className="px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+              className="px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
             >
               <option value="all">전체</option>
               {employees.map(emp => (
@@ -203,9 +203,9 @@ export function AdminPayrollPage() {
             </select>
           </div>
 
-          <div className="bg-blue-50 rounded-2xl p-4">
-            <p className="text-xs font-semibold text-blue-700 mb-2">수당 배율 기준 (근로기준법)</p>
-            <div className="grid grid-cols-2 gap-2 text-xs text-blue-600">
+          <div className="bg-primary-50 rounded-2xl p-4">
+            <p className="text-xs font-semibold text-primary-700 mb-2">수당 배율 기준 (근로기준법)</p>
+            <div className="grid grid-cols-2 gap-2 text-xs text-primary-600">
               <span>연장근로: 시급 x {PAY_MULTIPLIER.extended}</span>
               <span>야간근로 (연장 중복): 시급 x {PAY_MULTIPLIER.night_overlap}</span>
               <span>휴일근로 (8h 이내): 시급 x {PAY_MULTIPLIER.holiday_base}</span>
@@ -214,42 +214,42 @@ export function AdminPayrollPage() {
           </div>
 
           {filteredRows.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
-              <Calculator className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-              <p className="text-sm font-medium text-gray-500 mb-1">수당 데이터가 없습니다</p>
-              <p className="text-xs text-gray-400">직원들의 야근 제출 데이터가 쌓이면 여기에 표시됩니다</p>
+            <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-12 text-center">
+              <Calculator className="w-12 h-12 text-dark-200 mx-auto mb-3" />
+              <p className="text-sm font-medium text-dark-500 mb-1">수당 데이터가 없습니다</p>
+              <p className="text-xs text-dark-400">직원들의 야근 제출 데이터가 쌓이면 여기에 표시됩니다</p>
             </div>
           ) : (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-gray-50 border-b border-gray-100">
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">이름</th>
-                    <th className="text-center px-3 py-3 text-xs font-semibold text-gray-500">시급</th>
-                    <th className="text-center px-3 py-3 text-xs font-semibold text-gray-500">연장</th>
-                    <th className="text-center px-3 py-3 text-xs font-semibold text-gray-500">야간</th>
-                    <th className="text-center px-3 py-3 text-xs font-semibold text-gray-500">휴일</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">총 수당</th>
+                  <tr className="bg-dark-50 border-b border-dark-100">
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-dark-500">이름</th>
+                    <th className="text-center px-3 py-3 text-xs font-semibold text-dark-500">시급</th>
+                    <th className="text-center px-3 py-3 text-xs font-semibold text-dark-500">연장</th>
+                    <th className="text-center px-3 py-3 text-xs font-semibold text-dark-500">야간</th>
+                    <th className="text-center px-3 py-3 text-xs font-semibold text-dark-500">휴일</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-dark-500">총 수당</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-dark-100">
                   {filteredRows.map((row) => (
-                    <tr key={row.employee.id} className="hover:bg-gray-50">
+                    <tr key={row.employee.id} className="hover:bg-dark-50">
                       <td className="px-4 py-3">
-                        <p className="font-semibold text-gray-900">{row.employee.name}</p>
-                        <p className="text-xs text-gray-400">{row.employee.department || '-'}</p>
+                        <p className="font-semibold text-dark-900">{row.employee.name}</p>
+                        <p className="text-xs text-dark-400">{row.employee.department || '-'}</p>
                       </td>
-                      <td className="px-3 py-3 text-center text-gray-600">{formatWon(row.employee.hourly_wage)}</td>
-                      <td className="px-3 py-3 text-center text-gray-600">
+                      <td className="px-3 py-3 text-center text-dark-600">{formatWon(row.employee.hourly_wage)}</td>
+                      <td className="px-3 py-3 text-center text-dark-600">
                         {row.extendedHours > 0 ? `${row.extendedHours.toFixed(1)}h` : '-'}
                       </td>
-                      <td className="px-3 py-3 text-center text-gray-600">
+                      <td className="px-3 py-3 text-center text-dark-600">
                         {row.nightHours > 0 ? `${row.nightHours.toFixed(1)}h` : '-'}
                       </td>
-                      <td className="px-3 py-3 text-center text-gray-600">
+                      <td className="px-3 py-3 text-center text-dark-600">
                         {row.holidayHours > 0 ? `${row.holidayHours.toFixed(1)}h` : '-'}
                       </td>
-                      <td className="px-4 py-3 text-right font-bold text-gray-900">{formatWon(Math.round(row.totalPay))}</td>
+                      <td className="px-4 py-3 text-right font-bold text-dark-900">{formatWon(Math.round(row.totalPay))}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -263,39 +263,39 @@ export function AdminPayrollPage() {
       {tab === 'wages' && (
         <div>
           {employees.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
-              <DollarSign className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-              <p className="text-sm font-medium text-gray-500 mb-1">등록된 직원이 없습니다</p>
-              <p className="text-xs text-gray-400">사용자 관리에서 직원을 등록하면 시급을 설정할 수 있습니다</p>
+            <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-12 text-center">
+              <DollarSign className="w-12 h-12 text-dark-200 mx-auto mb-3" />
+              <p className="text-sm font-medium text-dark-500 mb-1">등록된 직원이 없습니다</p>
+              <p className="text-xs text-dark-400">사용자 관리에서 직원을 등록하면 시급을 설정할 수 있습니다</p>
             </div>
           ) : (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-gray-50 border-b border-gray-100">
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">이름</th>
-                    <th className="text-left px-3 py-3 text-xs font-semibold text-gray-500">부서</th>
-                    <th className="text-center px-3 py-3 text-xs font-semibold text-gray-500">포지션</th>
-                    <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">시급</th>
-                    <th className="text-center px-3 py-3 text-xs font-semibold text-gray-500">수정</th>
+                  <tr className="bg-dark-50 border-b border-dark-100">
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-dark-500">이름</th>
+                    <th className="text-left px-3 py-3 text-xs font-semibold text-dark-500">부서</th>
+                    <th className="text-center px-3 py-3 text-xs font-semibold text-dark-500">포지션</th>
+                    <th className="text-right px-3 py-3 text-xs font-semibold text-dark-500">시급</th>
+                    <th className="text-center px-3 py-3 text-xs font-semibold text-dark-500">수정</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-dark-100">
                   {employees.map((emp) => (
-                    <tr key={emp.id} className="hover:bg-gray-50">
+                    <tr key={emp.id} className="hover:bg-dark-50">
                       <td className="px-4 py-3">
-                        <p className="font-semibold text-gray-900">{emp.name}</p>
-                        <p className="text-xs text-gray-400">{emp.email}</p>
+                        <p className="font-semibold text-dark-900">{emp.name}</p>
+                        <p className="text-xs text-dark-400">{emp.email}</p>
                       </td>
-                      <td className="px-3 py-3 text-gray-600">{emp.department || '-'}</td>
+                      <td className="px-3 py-3 text-dark-600">{emp.department || '-'}</td>
                       <td className="px-3 py-3 text-center">
-                        <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                        <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-dark-100 text-dark-600">
                           {emp.role === 'employee' ? '직원' : emp.role === 'manager' ? '인사담당' : '대표'}
                         </span>
                       </td>
-                      <td className="px-3 py-3 text-right font-medium text-gray-900">{formatWon(emp.hourly_wage)}</td>
+                      <td className="px-3 py-3 text-right font-medium text-dark-900">{formatWon(emp.hourly_wage)}</td>
                       <td className="px-3 py-3 text-center">
-                        <button onClick={() => openWageEdit(emp)} className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors">
+                        <button onClick={() => openWageEdit(emp)} className="p-1.5 text-dark-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors">
                           <Edit3 className="w-4 h-4" />
                         </button>
                       </td>
@@ -314,17 +314,17 @@ export function AdminPayrollPage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setWageModal({ open: false, employee: null, wage: '' })} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-gray-900">시급 수정</h3>
-              <button onClick={() => setWageModal({ open: false, employee: null, wage: '' })}><X className="w-5 h-5 text-gray-400" /></button>
+              <h3 className="text-base font-bold text-dark-900">시급 수정</h3>
+              <button onClick={() => setWageModal({ open: false, employee: null, wage: '' })}><X className="w-5 h-5 text-dark-400" /></button>
             </div>
-            <p className="text-sm text-gray-600 mb-4"><span className="font-semibold">{wageModal.employee.name}</span>의 시급을 수정합니다</p>
+            <p className="text-sm text-dark-600 mb-4"><span className="font-semibold">{wageModal.employee.name}</span>의 시급을 수정합니다</p>
             <div className="relative">
-              <input type="number" value={wageModal.wage} onChange={(e) => setWageModal((p) => ({ ...p, wage: e.target.value }))} className="w-full px-3 py-3 pr-10 text-lg font-bold text-gray-900 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400 text-right" min="0" step="100" />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">원</span>
+              <input type="number" value={wageModal.wage} onChange={(e) => setWageModal((p) => ({ ...p, wage: e.target.value }))} className="w-full px-3 py-3 pr-10 text-lg font-bold text-dark-900 border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400 text-right" min="0" step="100" />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-dark-400">원</span>
             </div>
             <div className="flex gap-2 mt-4">
-              <button onClick={() => setWageModal({ open: false, employee: null, wage: '' })} className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50">취소</button>
-              <button onClick={saveWage} disabled={!wageModal.wage || Number(wageModal.wage) < 0} className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-600 rounded-xl hover:bg-primary-700 disabled:opacity-40 transition-colors">저장</button>
+              <button onClick={() => setWageModal({ open: false, employee: null, wage: '' })} className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50">취소</button>
+              <button onClick={saveWage} disabled={!wageModal.wage || Number(wageModal.wage) < 0} className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-600 disabled:opacity-40 transition-colors">저장</button>
             </div>
           </div>
         </div>

@@ -12,8 +12,8 @@ const ROLE_LABEL: Record<UserRole, string> = {
 }
 
 const ROLE_COLOR: Record<UserRole, string> = {
-  employee: 'bg-blue-50 text-blue-700',
-  manager: 'bg-green-50 text-green-700',
+  employee: 'bg-primary-50 text-primary-700',
+  manager: 'bg-dark-50 text-dark-700',
   admin: 'bg-purple-50 text-purple-700',
 }
 
@@ -102,42 +102,42 @@ export function AdminEmployeesPage() {
 
   if (loading) return (
     <div className="flex items-center justify-center py-20">
-      <p className="text-sm text-gray-400">불러오는 중...</p>
+      <p className="text-sm text-dark-400">불러오는 중...</p>
     </div>
   )
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">사원현황</h1>
-        <p className="text-sm text-gray-500 mt-0.5">재직자 및 퇴직자 정보를 관리합니다</p>
+        <h1 className="text-xl font-bold text-dark-900">사원현황</h1>
+        <p className="text-sm text-dark-500 mt-0.5">재직자 및 퇴직자 정보를 관리합니다</p>
       </div>
 
       {/* 요약 카드 */}
       <div className="grid grid-cols-3 gap-3">
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 text-center">
-          <Users className="w-5 h-5 text-gray-400 mx-auto mb-1" />
-          <p className="text-2xl font-bold text-gray-900">{employees.length}</p>
-          <p className="text-xs text-gray-500">전체</p>
+        <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-4 text-center">
+          <Users className="w-5 h-5 text-dark-400 mx-auto mb-1" />
+          <p className="text-2xl font-bold text-dark-900">{employees.length}</p>
+          <p className="text-xs text-dark-500">전체</p>
         </div>
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 text-center">
+        <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-4 text-center">
           <UserCheck className="w-5 h-5 text-success-500 mx-auto mb-1" />
           <p className="text-2xl font-bold text-success-600">{activeEmps.length}</p>
-          <p className="text-xs text-gray-500">재직</p>
+          <p className="text-xs text-dark-500">재직</p>
         </div>
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 text-center">
-          <UserX className="w-5 h-5 text-gray-400 mx-auto mb-1" />
-          <p className="text-2xl font-bold text-gray-500">{resignedEmps.length}</p>
-          <p className="text-xs text-gray-500">퇴직</p>
+        <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-4 text-center">
+          <UserX className="w-5 h-5 text-dark-400 mx-auto mb-1" />
+          <p className="text-2xl font-bold text-dark-500">{resignedEmps.length}</p>
+          <p className="text-xs text-dark-500">퇴직</p>
         </div>
       </div>
 
       {/* 탭 */}
-      <div className="flex bg-gray-100 rounded-xl p-1 gap-1 w-fit">
+      <div className="flex bg-dark-100 rounded-xl p-1 gap-1 w-fit">
         <button
           onClick={() => setTab('active')}
           className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-            tab === 'active' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            tab === 'active' ? 'bg-white text-dark-900 shadow-[0_1px_3px_rgba(0,0,0,0.04)]' : 'text-dark-500 hover:text-dark-700'
           }`}
         >
           재직자 {activeEmps.length}
@@ -145,7 +145,7 @@ export function AdminEmployeesPage() {
         <button
           onClick={() => setTab('resigned')}
           className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-            tab === 'resigned' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            tab === 'resigned' ? 'bg-white text-dark-900 shadow-[0_1px_3px_rgba(0,0,0,0.04)]' : 'text-dark-500 hover:text-dark-700'
           }`}
         >
           퇴직자 {resignedEmps.length}
@@ -154,45 +154,45 @@ export function AdminEmployeesPage() {
 
       {/* 직원 목록 */}
       {displayEmps.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-16 text-center">
-          <p className="text-sm text-gray-400">{tab === 'active' ? '재직 중인 직원이 없습니다' : '퇴직자가 없습니다'}</p>
+        <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] py-16 text-center">
+          <p className="text-sm text-dark-400">{tab === 'active' ? '재직 중인 직원이 없습니다' : '퇴직자가 없습니다'}</p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">이름</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500">부서</th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500">고용형태</th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500">권한</th>
-                  <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500">시급</th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500">등록일</th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500">관리</th>
+                <tr className="bg-dark-50 border-b border-dark-100">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-dark-500">이름</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-dark-500">부서</th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold text-dark-500">고용형태</th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold text-dark-500">권한</th>
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-dark-500">시급</th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold text-dark-500">등록일</th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold text-dark-500">관리</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-dark-50">
                 {displayEmps.map(emp => (
-                  <tr key={emp.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={emp.id} className="hover:bg-dark-50 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${emp.is_active ? 'bg-primary-100' : 'bg-gray-100'}`}>
-                          <span className={`text-xs font-bold ${emp.is_active ? 'text-primary-700' : 'text-gray-400'}`}>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${emp.is_active ? 'bg-primary-100' : 'bg-dark-100'}`}>
+                          <span className={`text-xs font-bold ${emp.is_active ? 'text-primary-700' : 'text-dark-400'}`}>
                             {emp.name.charAt(0)}
                           </span>
                         </div>
-                        <span className={`font-medium ${emp.is_active ? 'text-gray-900' : 'text-gray-400'}`}>
+                        <span className={`font-medium ${emp.is_active ? 'text-dark-900' : 'text-dark-400'}`}>
                           {emp.name}
                         </span>
                       </div>
                     </td>
-                    <td className="px-3 py-3 text-xs text-gray-500">{emp.department || '-'}</td>
+                    <td className="px-3 py-3 text-xs text-dark-500">{emp.department || '-'}</td>
                     <td className="px-3 py-3 text-center">
                       <span className={`text-xs px-2 py-0.5 rounded-full ${
                         emp.employee_type === 'field'
-                          ? 'bg-orange-50 text-orange-700'
-                          : 'bg-blue-50 text-blue-700'
+                          ? 'bg-primary-50 text-primary-700'
+                          : 'bg-primary-50 text-primary-700'
                       }`}>
                         {EMP_TYPE_LABEL[emp.employee_type]}
                       </span>
@@ -202,13 +202,13 @@ export function AdminEmployeesPage() {
                         {ROLE_LABEL[emp.role]}
                       </span>
                     </td>
-                    <td className="px-3 py-3 text-right text-xs font-medium text-gray-700">
+                    <td className="px-3 py-3 text-right text-xs font-medium text-dark-700">
                       {emp.hourly_wage > 0
                         ? `${emp.hourly_wage.toLocaleString('ko-KR')}원`
-                        : <span className="text-gray-300">미설정</span>
+                        : <span className="text-dark-300">미설정</span>
                       }
                     </td>
-                    <td className="px-3 py-3 text-center text-xs text-gray-400">
+                    <td className="px-3 py-3 text-center text-xs text-dark-400">
                       {new Date(emp.created_at).toLocaleDateString('ko-KR', {
                         year: 'numeric', month: '2-digit', day: '2-digit',
                       })}
@@ -225,7 +225,7 @@ export function AdminEmployeesPage() {
                           <button
                             onClick={() => setResignConfirm({ id: emp.id, name: emp.name })}
                             disabled={emp.id === currentUser?.id}
-                            className="text-xs text-gray-400 hover:text-warning-600 font-medium disabled:opacity-30 disabled:cursor-not-allowed"
+                            className="text-xs text-dark-400 hover:text-warning-600 font-medium disabled:opacity-30 disabled:cursor-not-allowed"
                           >
                             퇴직
                           </button>
@@ -239,7 +239,7 @@ export function AdminEmployeesPage() {
                             </button>
                             <button
                               onClick={() => navigate('/admin/overtime/employees')}
-                              className="text-xs text-gray-400 hover:text-gray-600 font-medium"
+                              className="text-xs text-dark-400 hover:text-dark-600 font-medium"
                             >
                               이력
                             </button>
@@ -261,30 +261,30 @@ export function AdminEmployeesPage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setEditEmp(null)} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-gray-900">직원 정보 수정</h3>
-              <button onClick={() => setEditEmp(null)}><X className="w-5 h-5 text-gray-400" /></button>
+              <h3 className="text-base font-bold text-dark-900">직원 정보 수정</h3>
+              <button onClick={() => setEditEmp(null)}><X className="w-5 h-5 text-dark-400" /></button>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">이름</label>
+              <label className="block text-xs font-medium text-dark-600 mb-1">이름</label>
               <input
                 defaultValue={editEmp.name}
                 onChange={e => setEditEmp(p => p ? { ...p, name: e.target.value } : p)}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">부서</label>
+              <label className="block text-xs font-medium text-dark-600 mb-1">부서</label>
               <input
                 defaultValue={editEmp.department}
                 onChange={e => setEditEmp(p => p ? { ...p, department: e.target.value } : p)}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">고용형태</label>
+              <label className="block text-xs font-medium text-dark-600 mb-1">고용형태</label>
               <div className="grid grid-cols-2 gap-2">
                 {(['office', 'field'] as EmployeeType[]).map(t => (
                   <button
@@ -293,8 +293,8 @@ export function AdminEmployeesPage() {
                     onClick={() => setEditEmp(p => p ? { ...p, employeeType: t } : p)}
                     className={`py-2 text-xs font-medium rounded-xl border transition-colors ${
                       editEmp.employeeType === t
-                        ? 'bg-primary-600 text-white border-primary-600'
-                        : 'bg-white text-gray-600 border-gray-200 hover:border-primary-300'
+                        ? 'bg-primary-500 text-white border-primary-600'
+                        : 'bg-white text-dark-600 border-dark-200 hover:border-primary-300'
                     }`}
                   >
                     {EMP_TYPE_LABEL[t]}
@@ -304,7 +304,7 @@ export function AdminEmployeesPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">권한</label>
+              <label className="block text-xs font-medium text-dark-600 mb-1">권한</label>
               <div className="grid grid-cols-3 gap-2">
                 {(['employee', 'manager', 'admin'] as UserRole[]).map(r => (
                   <button
@@ -313,8 +313,8 @@ export function AdminEmployeesPage() {
                     onClick={() => setEditEmp(p => p ? { ...p, role: r } : p)}
                     className={`py-2 text-xs font-medium rounded-xl border transition-colors ${
                       editEmp.role === r
-                        ? 'bg-primary-600 text-white border-primary-600'
-                        : 'bg-white text-gray-600 border-gray-200 hover:border-primary-300'
+                        ? 'bg-primary-500 text-white border-primary-600'
+                        : 'bg-white text-dark-600 border-dark-200 hover:border-primary-300'
                     }`}
                   >
                     {ROLE_LABEL[r]}
@@ -324,27 +324,27 @@ export function AdminEmployeesPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">시급 (원)</label>
+              <label className="block text-xs font-medium text-dark-600 mb-1">시급 (원)</label>
               <input
                 type="number"
                 defaultValue={editEmp.hourlyWage}
                 onChange={e => setEditEmp(p => p ? { ...p, hourlyWage: e.target.value } : p)}
                 placeholder="예: 10000"
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
               />
-              <p className="text-xs text-gray-400 mt-1">연장근무수당 자동 계산에 사용됩니다</p>
+              <p className="text-xs text-dark-400 mt-1">연장근무수당 자동 계산에 사용됩니다</p>
             </div>
 
             <div className="flex gap-2 pt-1">
               <button
                 onClick={() => setEditEmp(null)}
-                className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+                className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50"
               >
                 취소
               </button>
               <button
                 onClick={saveEdit}
-                className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-600 rounded-xl hover:bg-primary-700 transition-colors"
+                className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-600 transition-colors"
               >
                 저장
               </button>
@@ -359,21 +359,21 @@ export function AdminEmployeesPage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setResignConfirm(null)} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-base font-bold text-gray-900">퇴직 처리</h3>
-              <button onClick={() => setResignConfirm(null)}><X className="w-5 h-5 text-gray-400" /></button>
+              <h3 className="text-base font-bold text-dark-900">퇴직 처리</h3>
+              <button onClick={() => setResignConfirm(null)}><X className="w-5 h-5 text-dark-400" /></button>
             </div>
-            <p className="text-sm text-gray-600 mb-3">
+            <p className="text-sm text-dark-600 mb-3">
               <span className="font-semibold">{resignConfirm.name}</span>님을 퇴직 처리하시겠습니까?
             </p>
-            <div className="bg-blue-50 rounded-xl px-3 py-2.5 mb-4 space-y-1">
-              <p className="text-xs text-blue-700">· 퇴직 처리 후 해당 직원은 로그인이 비활성화됩니다</p>
-              <p className="text-xs text-blue-700">· 야근, 휴가, 급여 등 모든 이력은 보존됩니다</p>
-              <p className="text-xs text-blue-700">· 언제든지 복직 처리할 수 있습니다</p>
+            <div className="bg-primary-50 rounded-xl px-3 py-2.5 mb-4 space-y-1">
+              <p className="text-xs text-primary-700">· 퇴직 처리 후 해당 직원은 로그인이 비활성화됩니다</p>
+              <p className="text-xs text-primary-700">· 야근, 휴가, 급여 등 모든 이력은 보존됩니다</p>
+              <p className="text-xs text-primary-700">· 언제든지 복직 처리할 수 있습니다</p>
             </div>
             <div className="flex gap-2">
               <button
                 onClick={() => setResignConfirm(null)}
-                className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+                className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50"
               >
                 취소
               </button>
@@ -394,17 +394,17 @@ export function AdminEmployeesPage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setReinstateConfirm(null)} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-base font-bold text-gray-900">복직 처리</h3>
-              <button onClick={() => setReinstateConfirm(null)}><X className="w-5 h-5 text-gray-400" /></button>
+              <h3 className="text-base font-bold text-dark-900">복직 처리</h3>
+              <button onClick={() => setReinstateConfirm(null)}><X className="w-5 h-5 text-dark-400" /></button>
             </div>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-dark-600 mb-4">
               <span className="font-semibold">{reinstateConfirm.name}</span>님을 복직 처리하시겠습니까?
-              <br /><span className="text-xs text-gray-400">로그인이 다시 활성화됩니다.</span>
+              <br /><span className="text-xs text-dark-400">로그인이 다시 활성화됩니다.</span>
             </p>
             <div className="flex gap-2">
               <button
                 onClick={() => setReinstateConfirm(null)}
-                className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+                className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50"
               >
                 취소
               </button>

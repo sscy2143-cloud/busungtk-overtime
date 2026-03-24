@@ -7,10 +7,10 @@ type DocId = 'career' | 'employment' | 'severance' | 'resignation' | 'admin-guid
 
 const DOCS: { id: DocId; title: string; desc: string; bg: string; iconColor: string }[] = [
   { id: 'admin-guide', title: '관리자 이용 가이드', desc: '근태관리 시스템 관리자 기능 안내', bg: 'bg-purple-50 border-purple-200', iconColor: 'text-purple-500' },
-  { id: 'career', title: '경력증명서', desc: '재직 기간 및 담당 업무 이력 증명', bg: 'bg-blue-50 border-blue-200', iconColor: 'text-blue-500' },
-  { id: 'employment', title: '재직증명서', desc: '현재 재직 중임을 증명하는 서류', bg: 'bg-green-50 border-green-200', iconColor: 'text-green-500' },
-  { id: 'severance', title: '퇴직금 중간정산서', desc: '퇴직금 중간 정산 신청서', bg: 'bg-orange-50 border-orange-200', iconColor: 'text-orange-500' },
-  { id: 'resignation', title: '사직서', desc: '퇴직 의사를 표명하는 서류', bg: 'bg-red-50 border-red-200', iconColor: 'text-red-500' },
+  { id: 'career', title: '경력증명서', desc: '재직 기간 및 담당 업무 이력 증명', bg: 'bg-primary-50 border-primary-100', iconColor: 'text-primary-500' },
+  { id: 'employment', title: '재직증명서', desc: '현재 재직 중임을 증명하는 서류', bg: 'bg-dark-50 border-green-200', iconColor: 'text-dark-700' },
+  { id: 'severance', title: '퇴직금 중간정산서', desc: '퇴직금 중간 정산 신청서', bg: 'bg-primary-50 border-primary-200', iconColor: 'text-primary-500' },
+  { id: 'resignation', title: '사직서', desc: '퇴직 의사를 표명하는 서류', bg: 'bg-primary-50 border-primary-200', iconColor: 'text-primary-500' },
 ]
 
 const th: CSSProperties = {
@@ -445,8 +445,8 @@ export function AdminDocumentsPage() {
       `}</style>
 
       <div>
-        <h1 className="text-xl font-bold text-gray-900">자료실</h1>
-        <p className="text-sm text-gray-500 mt-0.5">문서 양식을 열람하고 작성 후 인쇄하세요</p>
+        <h1 className="text-xl font-bold text-dark-900">자료실</h1>
+        <p className="text-sm text-dark-500 mt-0.5">문서 양식을 열람하고 작성 후 인쇄하세요</p>
       </div>
 
       {/* 이용 가이드 */}
@@ -459,8 +459,8 @@ export function AdminDocumentsPage() {
             <BookOpen size={24} className="text-primary-600" />
           </div>
           <div>
-            <p className="font-bold text-gray-900">부성TK 근태관리 이용 가이드</p>
-            <p className="text-xs text-gray-500 mt-0.5">시스템 사용법 A to Z · PDF 저장/인쇄 가능</p>
+            <p className="font-bold text-dark-900">부성TK 근태관리 이용 가이드</p>
+            <p className="text-xs text-dark-500 mt-0.5">시스템 사용법 A to Z · PDF 저장/인쇄 가능</p>
           </div>
         </button>
       </div>
@@ -475,8 +475,8 @@ export function AdminDocumentsPage() {
           >
             <FileText className={`w-10 h-10 ${doc.iconColor}`} />
             <div>
-              <p className="text-sm font-bold text-gray-900 text-center">{doc.title}</p>
-              <p className="text-xs text-gray-500 mt-1 text-center leading-relaxed">{doc.desc}</p>
+              <p className="text-sm font-bold text-dark-900 text-center">{doc.title}</p>
+              <p className="text-xs text-dark-500 mt-1 text-center leading-relaxed">{doc.desc}</p>
             </div>
           </button>
         ))}
@@ -487,21 +487,21 @@ export function AdminDocumentsPage() {
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 py-8 px-4">
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl">
             {/* 모달 헤더 */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 no-print">
-              <h2 className="text-base font-bold text-gray-900">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-dark-100 no-print">
+              <h2 className="text-base font-bold text-dark-900">
                 {DOCS.find(d => d.id === openDoc)?.title}
               </h2>
               <div className="flex items-center gap-2">
                 <button
                   onClick={handlePrint}
-                  className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-semibold rounded-xl hover:bg-primary-700 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white text-sm font-semibold rounded-xl hover:bg-primary-600 transition-colors"
                 >
                   <Printer className="w-4 h-4" />
                   인쇄
                 </button>
                 <button
                   onClick={() => setOpenDoc(null)}
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+                  className="p-2 text-dark-400 hover:text-dark-600 hover:bg-dark-100 rounded-xl transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>

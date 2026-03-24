@@ -139,12 +139,12 @@ export function AdminLeaveTypesPage() {
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">휴가 종류 관리</h1>
-          <p className="text-sm text-gray-500 mt-0.5">휴가 종류를 추가, 수정, 삭제합니다</p>
+          <h1 className="text-xl font-bold text-dark-900">휴가 종류 관리</h1>
+          <p className="text-sm text-dark-500 mt-0.5">휴가 종류를 추가, 수정, 삭제합니다</p>
         </div>
         <button
           onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-semibold rounded-xl hover:bg-primary-700 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white text-sm font-semibold rounded-xl hover:bg-primary-600 transition-colors"
         >
           <Plus size={16} />
           새로 만들기
@@ -152,31 +152,31 @@ export function AdminLeaveTypesPage() {
       </div>
 
       {/* 테이블 */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-dark-200 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
         {loading ? (
-          <p className="text-center text-sm text-gray-400 py-10">불러오는 중...</p>
+          <p className="text-center text-sm text-dark-400 py-10">불러오는 중...</p>
         ) : types.length === 0 ? (
-          <p className="text-center text-sm text-gray-400 py-10">
+          <p className="text-center text-sm text-dark-400 py-10">
             등록된 휴가 종류가 없습니다. 새로 만들기를 눌러 추가해주세요.
           </p>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">이름</th>
-                <th className="text-center px-3 py-3 text-xs font-semibold text-gray-500">연차 소비</th>
-                <th className="text-center px-3 py-3 text-xs font-semibold text-gray-500">연차소진일</th>
-                <th className="text-center px-3 py-3 text-xs font-semibold text-gray-500">부재일</th>
-                <th className="text-center px-3 py-3 text-xs font-semibold text-gray-500">순서</th>
-                <th className="text-center px-3 py-3 text-xs font-semibold text-gray-500">상태</th>
-                <th className="text-center px-3 py-3 text-xs font-semibold text-gray-500">액션</th>
+              <tr className="bg-dark-50 border-b border-dark-100">
+                <th className="text-left px-4 py-3 text-xs font-semibold text-dark-500">이름</th>
+                <th className="text-center px-3 py-3 text-xs font-semibold text-dark-500">연차 소비</th>
+                <th className="text-center px-3 py-3 text-xs font-semibold text-dark-500">연차소진일</th>
+                <th className="text-center px-3 py-3 text-xs font-semibold text-dark-500">부재일</th>
+                <th className="text-center px-3 py-3 text-xs font-semibold text-dark-500">순서</th>
+                <th className="text-center px-3 py-3 text-xs font-semibold text-dark-500">상태</th>
+                <th className="text-center px-3 py-3 text-xs font-semibold text-dark-500">액션</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-dark-100">
               {types.map((type) => (
-                <tr key={type.id} className="hover:bg-gray-50 transition-colors">
+                <tr key={type.id} className="hover:bg-dark-50 transition-colors">
                   <td className="px-4 py-3">
-                    <span className="font-semibold text-gray-900">{type.name}</span>
+                    <span className="font-semibold text-dark-900">{type.name}</span>
                   </td>
                   <td className="px-3 py-3 text-center">
                     {type.consumes_annual ? (
@@ -184,27 +184,27 @@ export function AdminLeaveTypesPage() {
                         O
                       </span>
                     ) : (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-dark-100 text-dark-500">
                         X
                       </span>
                     )}
                   </td>
-                  <td className="px-3 py-3 text-center text-sm text-gray-700">
+                  <td className="px-3 py-3 text-center text-sm text-dark-700">
                     {type.annual_days}
                   </td>
-                  <td className="px-3 py-3 text-center text-sm text-gray-700">
+                  <td className="px-3 py-3 text-center text-sm text-dark-700">
                     {type.absence_days}
                   </td>
-                  <td className="px-3 py-3 text-center text-sm text-gray-500">
+                  <td className="px-3 py-3 text-center text-sm text-dark-500">
                     {type.sort_order}
                   </td>
                   <td className="px-3 py-3 text-center">
                     {type.is_active ? (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-dark-100 text-dark-700">
                         활성
                       </span>
                     ) : (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-400">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-dark-100 text-dark-400">
                         비활성
                       </span>
                     )}
@@ -213,14 +213,14 @@ export function AdminLeaveTypesPage() {
                     <div className="flex items-center justify-center gap-1.5">
                       <button
                         onClick={() => openEdit(type)}
-                        className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                        className="p-1.5 text-dark-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
                         title="수정"
                       >
                         <Pencil size={14} />
                       </button>
                       <button
                         onClick={() => handleDelete(type)}
-                        className="p-1.5 text-gray-400 hover:text-danger-600 hover:bg-danger-50 rounded-lg transition-colors"
+                        className="p-1.5 text-dark-400 hover:text-danger-600 hover:bg-danger-50 rounded-lg transition-colors"
                         title="삭제"
                       >
                         <Trash2 size={14} />
@@ -241,10 +241,10 @@ export function AdminLeaveTypesPage() {
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
             {/* 모달 헤더 */}
             <div className="flex items-center justify-between mb-5">
-              <h3 className="text-base font-bold text-gray-900">
+              <h3 className="text-base font-bold text-dark-900">
                 {editingType ? '휴가 종류 수정' : '새 휴가 종류'}
               </h3>
-              <button onClick={closeModal} className="text-gray-400 hover:text-gray-600">
+              <button onClick={closeModal} className="text-dark-400 hover:text-dark-600">
                 <X size={20} />
               </button>
             </div>
@@ -253,7 +253,7 @@ export function AdminLeaveTypesPage() {
             <div className="space-y-4">
               {/* 이름 */}
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                <label className="block text-xs font-semibold text-dark-600 mb-1.5">
                   이름 <span className="text-danger-500">*</span>
                 </label>
                 <input
@@ -261,21 +261,21 @@ export function AdminLeaveTypesPage() {
                   value={form.name}
                   onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
                   placeholder="예: 연차, 반차, 특별휴가"
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                  className="w-full border border-dark-200 rounded-xl px-3 py-2.5 text-sm text-dark-800 focus:outline-none focus:ring-2 focus:ring-primary-400"
                 />
               </div>
 
               {/* 연차 소비 토글 */}
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-semibold text-gray-600">연차 소비</p>
-                  <p className="text-xs text-gray-400 mt-0.5">이 휴가가 연차를 차감하는지 여부</p>
+                  <p className="text-xs font-semibold text-dark-600">연차 소비</p>
+                  <p className="text-xs text-dark-400 mt-0.5">이 휴가가 연차를 차감하는지 여부</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setForm((p) => ({ ...p, consumes_annual: !p.consumes_annual }))}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    form.consumes_annual ? 'bg-primary-600' : 'bg-gray-200'
+                    form.consumes_annual ? 'bg-primary-500' : 'bg-dark-200'
                   }`}
                 >
                   <span
@@ -289,52 +289,52 @@ export function AdminLeaveTypesPage() {
               {/* 연차소진일 / 부재일 */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">연차소진일</label>
+                  <label className="block text-xs font-semibold text-dark-600 mb-1.5">연차소진일</label>
                   <input
                     type="number"
                     step="0.5"
                     min="0"
                     value={form.annual_days}
                     onChange={(e) => setForm((p) => ({ ...p, annual_days: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                    className="w-full border border-dark-200 rounded-xl px-3 py-2.5 text-sm text-dark-800 focus:outline-none focus:ring-2 focus:ring-primary-400"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">부재일</label>
+                  <label className="block text-xs font-semibold text-dark-600 mb-1.5">부재일</label>
                   <input
                     type="number"
                     step="0.5"
                     min="0"
                     value={form.absence_days}
                     onChange={(e) => setForm((p) => ({ ...p, absence_days: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                    className="w-full border border-dark-200 rounded-xl px-3 py-2.5 text-sm text-dark-800 focus:outline-none focus:ring-2 focus:ring-primary-400"
                   />
                 </div>
               </div>
 
               {/* 정렬 순서 */}
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">정렬 순서</label>
+                <label className="block text-xs font-semibold text-dark-600 mb-1.5">정렬 순서</label>
                 <input
                   type="number"
                   min="0"
                   value={form.sort_order}
                   onChange={(e) => setForm((p) => ({ ...p, sort_order: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                  className="w-full border border-dark-200 rounded-xl px-3 py-2.5 text-sm text-dark-800 focus:outline-none focus:ring-2 focus:ring-primary-400"
                 />
               </div>
 
               {/* 활성 상태 토글 */}
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-semibold text-gray-600">활성 상태</p>
-                  <p className="text-xs text-gray-400 mt-0.5">비활성 시 휴가 신청 목록에서 제외</p>
+                  <p className="text-xs font-semibold text-dark-600">활성 상태</p>
+                  <p className="text-xs text-dark-400 mt-0.5">비활성 시 휴가 신청 목록에서 제외</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setForm((p) => ({ ...p, is_active: !p.is_active }))}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    form.is_active ? 'bg-primary-600' : 'bg-gray-200'
+                    form.is_active ? 'bg-primary-500' : 'bg-dark-200'
                   }`}
                 >
                   <span
@@ -350,14 +350,14 @@ export function AdminLeaveTypesPage() {
             <div className="flex gap-2 mt-5">
               <button
                 onClick={closeModal}
-                className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+                className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50 transition-colors"
               >
                 취소
               </button>
               <button
                 onClick={handleSave}
                 disabled={!form.name.trim() || saving}
-                className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-600 rounded-xl hover:bg-primary-700 disabled:opacity-40 transition-colors"
+                className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-600 disabled:opacity-40 transition-colors"
               >
                 {saving ? '저장 중...' : editingType ? '수정' : '추가'}
               </button>

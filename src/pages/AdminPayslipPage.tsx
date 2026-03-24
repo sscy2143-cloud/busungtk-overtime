@@ -165,21 +165,21 @@ export function AdminPayslipPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <p className="text-sm text-gray-400">불러오는 중...</p>
+        <p className="text-sm text-dark-400">불러오는 중...</p>
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold text-gray-900">급여명세서 관리</h1>
+      <h1 className="text-xl font-bold text-dark-900">급여명세서 관리</h1>
 
       {/* 탭 */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit">
+      <div className="flex gap-1 bg-dark-100 p-1 rounded-lg w-fit">
         <button
           onClick={() => setTab('register')}
           className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-            tab === 'register' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            tab === 'register' ? 'bg-white text-dark-900 shadow-[0_1px_3px_rgba(0,0,0,0.04)]' : 'text-dark-500 hover:text-dark-700'
           }`}
         >
           명세서 등록
@@ -187,7 +187,7 @@ export function AdminPayslipPage() {
         <button
           onClick={() => setTab('list')}
           className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-            tab === 'list' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            tab === 'list' ? 'bg-white text-dark-900 shadow-[0_1px_3px_rgba(0,0,0,0.04)]' : 'text-dark-500 hover:text-dark-700'
           }`}
         >
           등록 현황
@@ -197,43 +197,43 @@ export function AdminPayslipPage() {
       {tab === 'register' ? (
         <>
           {/* 기간 선택 */}
-          <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
-            <label className="text-sm font-medium text-gray-600">지급월</label>
+          <div className="bg-white rounded-xl border border-dark-200 p-4 flex items-center gap-3">
+            <label className="text-sm font-medium text-dark-600">지급월</label>
             <input
               type="month"
               value={period}
               onChange={e => setPeriod(e.target.value)}
-              className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400"
+              className="px-3 py-2 text-sm border border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400"
             />
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-dark-400">
               {employees.length}명 재직 중 · {payslips.filter(s => s.period === period).length}명 등록 완료
             </span>
           </div>
 
           {/* 사원 리스트 */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50">
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 w-28">직원</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">파일</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">실근로일</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">전달 문구</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">기타 (관리자 메모)</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 w-20">등록</th>
+                  <tr className="border-b border-dark-100 bg-dark-50">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-dark-500 w-28">직원</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-dark-500">파일</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-dark-500">실근로일</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-dark-500">전달 문구</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-dark-500">기타 (관리자 메모)</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-dark-400 w-20">등록</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody className="divide-y divide-dark-50">
                   {employees.map(emp => {
                     const row = rowForms[emp.id]
                     if (!row) return null
                     const existing = payslips.find(s => s.employee_id === emp.id && s.period === period)
                     return (
-                      <tr key={emp.id} className={`transition-colors ${row.done ? 'bg-green-50/50' : 'hover:bg-gray-50'}`}>
+                      <tr key={emp.id} className={`transition-colors ${row.done ? 'bg-dark-50/50' : 'hover:bg-dark-50'}`}>
                         <td className="px-4 py-3">
-                          <p className="font-medium text-gray-800 text-sm">{emp.name}</p>
-                          <p className="text-xs text-gray-400">{emp.department}</p>
+                          <p className="font-medium text-dark-800 text-sm">{emp.name}</p>
+                          <p className="text-xs text-dark-400">{emp.department}</p>
                         </td>
                         <td className="px-4 py-3">
                           <input
@@ -245,7 +245,7 @@ export function AdminPayslipPage() {
                           />
                           {existing && !row.file ? (
                             <div className="flex items-center gap-2">
-                              <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+                              <span className="text-xs text-dark-700 font-medium flex items-center gap-1">
                                 <Check size={12} />
                                 {existing.file_name}
                               </span>
@@ -262,7 +262,7 @@ export function AdminPayslipPage() {
                               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs border border-dashed rounded-lg transition-colors ${
                                 row.file
                                   ? 'border-primary-400 text-primary-700 bg-primary-50'
-                                  : 'border-gray-300 text-gray-400 hover:border-primary-400'
+                                  : 'border-dark-200 text-dark-400 hover:border-primary-400'
                               }`}
                             >
                               <Upload size={12} />
@@ -276,14 +276,14 @@ export function AdminPayslipPage() {
                               type="date"
                               value={row.workStart}
                               onChange={e => updateRow(emp.id, { workStart: e.target.value })}
-                              className="w-[120px] px-1.5 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-400"
+                              className="w-[120px] px-1.5 py-1.5 text-xs border border-dark-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-400"
                             />
-                            <span className="text-xs text-gray-400">~</span>
+                            <span className="text-xs text-dark-400">~</span>
                             <input
                               type="date"
                               value={row.workEnd}
                               onChange={e => updateRow(emp.id, { workEnd: e.target.value })}
-                              className="w-[120px] px-1.5 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-400"
+                              className="w-[120px] px-1.5 py-1.5 text-xs border border-dark-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-400"
                             />
                           </div>
                         </td>
@@ -293,7 +293,7 @@ export function AdminPayslipPage() {
                             value={row.message}
                             onChange={e => updateRow(emp.id, { message: e.target.value })}
                             placeholder="직원에게 전달할 문구"
-                            className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-400"
+                            className="w-full px-2 py-1.5 text-xs border border-dark-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-400"
                           />
                         </td>
                         <td className="px-4 py-3">
@@ -302,17 +302,17 @@ export function AdminPayslipPage() {
                             value={row.adminNote}
                             onChange={e => updateRow(emp.id, { adminNote: e.target.value })}
                             placeholder="관리자 메모 (직원 비공개)"
-                            className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-400 bg-amber-50/30"
+                            className="w-full px-2 py-1.5 text-xs border border-dark-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-400 bg-primary-50/30"
                           />
                         </td>
                         <td className="px-4 py-3 text-center">
                           {row.done && !row.file ? (
-                            <span className="text-xs text-green-600 font-medium">완료</span>
+                            <span className="text-xs text-dark-700 font-medium">완료</span>
                           ) : (
                             <button
                               onClick={() => handleUploadRow(emp.id)}
                               disabled={!row.file || row.uploading}
-                              className="px-3 py-1.5 text-xs font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-40 transition-colors"
+                              className="px-3 py-1.5 text-xs font-medium text-white bg-primary-500 rounded-lg hover:bg-primary-600 disabled:opacity-40 transition-colors"
                             >
                               {row.uploading ? '...' : '등록'}
                             </button>
@@ -333,7 +333,7 @@ export function AdminPayslipPage() {
             <select
               value={filterEmpId}
               onChange={e => setFilterEmpId(e.target.value)}
-              className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
+              className="px-3 py-2 text-sm border border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
             >
               <option value="">전체 직원</option>
               {employees.map(e => (
@@ -343,7 +343,7 @@ export function AdminPayslipPage() {
             {filterEmpId && (
               <button
                 onClick={() => setFilterEmpId('')}
-                className="px-3 py-2 text-xs text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50"
+                className="px-3 py-2 text-xs text-dark-500 border border-dark-200 rounded-lg hover:bg-dark-50"
               >
                 초기화
               </button>
@@ -351,40 +351,40 @@ export function AdminPayslipPage() {
           </div>
 
           {filteredList.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-16 text-center">
-              <FileText className="w-8 h-8 text-gray-200 mx-auto mb-3" />
-              <p className="text-sm text-gray-400">등록된 급여명세서가 없습니다</p>
+            <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] py-16 text-center">
+              <FileText className="w-8 h-8 text-dark-200 mx-auto mb-3" />
+              <p className="text-sm text-dark-400">등록된 급여명세서가 없습니다</p>
             </div>
           ) : (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-gray-100 bg-gray-50">
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">직원</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400">부서</th>
-                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500">지급월</th>
-                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400">실근로일</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400">파일명</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400">전달 문구</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400">기타</th>
-                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400">관리</th>
+                    <tr className="border-b border-dark-100 bg-dark-50">
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-dark-500">직원</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-dark-400">부서</th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-dark-500">지급월</th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-dark-400">실근로일</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-dark-400">파일명</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-dark-400">전달 문구</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-dark-400">기타</th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-dark-400">관리</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-dark-50">
                     {filteredList.map(slip => (
-                      <tr key={slip.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 font-medium text-gray-800">{slip.employee?.name ?? '-'}</td>
-                        <td className="px-4 py-3 text-xs text-gray-400">{slip.employee?.department ?? '-'}</td>
-                        <td className="px-4 py-3 text-center text-sm font-semibold text-gray-700">{fmtPeriod(slip.period)}</td>
-                        <td className="px-4 py-3 text-center text-xs text-gray-500">
+                      <tr key={slip.id} className="hover:bg-dark-50 transition-colors">
+                        <td className="px-4 py-3 font-medium text-dark-800">{slip.employee?.name ?? '-'}</td>
+                        <td className="px-4 py-3 text-xs text-dark-400">{slip.employee?.department ?? '-'}</td>
+                        <td className="px-4 py-3 text-center text-sm font-semibold text-dark-700">{fmtPeriod(slip.period)}</td>
+                        <td className="px-4 py-3 text-center text-xs text-dark-500">
                           {slip.work_start && slip.work_end
                             ? `${slip.work_start.slice(5).replace('-', '/')} ~ ${slip.work_end.slice(5).replace('-', '/')}`
                             : '-'}
                         </td>
-                        <td className="px-4 py-3 text-xs text-gray-500 max-w-[150px] truncate">{slip.file_name}</td>
-                        <td className="px-4 py-3 text-xs text-gray-600 max-w-[150px] truncate">{slip.message ?? '-'}</td>
-                        <td className="px-4 py-3 text-xs text-amber-600 max-w-[150px] truncate">{slip.admin_note ?? '-'}</td>
+                        <td className="px-4 py-3 text-xs text-dark-500 max-w-[150px] truncate">{slip.file_name}</td>
+                        <td className="px-4 py-3 text-xs text-dark-600 max-w-[150px] truncate">{slip.message ?? '-'}</td>
+                        <td className="px-4 py-3 text-xs text-primary-600 max-w-[150px] truncate">{slip.admin_note ?? '-'}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-center gap-2">
                             <button
@@ -396,7 +396,7 @@ export function AdminPayslipPage() {
                             </button>
                             <button
                               onClick={() => handleDelete(slip)}
-                              className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 transition-colors"
+                              className="p-1.5 rounded-lg hover:bg-primary-50 text-primary-400 transition-colors"
                               title="삭제"
                             >
                               <Trash2 size={14} />

@@ -29,11 +29,11 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
 
   const btnClass = (active: boolean) =>
     `px-2 py-1 text-xs rounded transition-colors ${
-      active ? 'bg-primary-100 text-primary-700 font-bold' : 'text-gray-500 hover:bg-gray-100'
+      active ? 'bg-primary-100 text-primary-700 font-bold' : 'text-dark-500 hover:bg-dark-100'
     }`
 
   return (
-    <div className="flex flex-wrap gap-1 border-b border-gray-200 px-3 py-2 bg-gray-50 rounded-t-xl">
+    <div className="flex flex-wrap gap-1 border-b border-dark-200 px-3 py-2 bg-dark-50 rounded-t-xl">
       <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} className={btnClass(editor.isActive('bold'))} title="굵게">
         <strong>B</strong>
       </button>
@@ -47,7 +47,7 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
         <s>S</s>
       </button>
 
-      <div className="w-px h-5 bg-gray-200 mx-1 self-center" />
+      <div className="w-px h-5 bg-dark-200 mx-1 self-center" />
 
       <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} className={btnClass(editor.isActive('heading', { level: 2 }))} title="제목">
         H2
@@ -56,7 +56,7 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
         H3
       </button>
 
-      <div className="w-px h-5 bg-gray-200 mx-1 self-center" />
+      <div className="w-px h-5 bg-dark-200 mx-1 self-center" />
 
       <button type="button" onClick={() => editor.chain().focus().toggleBulletList().run()} className={btnClass(editor.isActive('bulletList'))} title="글머리 기호">
         • 목록
@@ -65,7 +65,7 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
         1. 목록
       </button>
 
-      <div className="w-px h-5 bg-gray-200 mx-1 self-center" />
+      <div className="w-px h-5 bg-dark-200 mx-1 self-center" />
 
       <button type="button" onClick={() => editor.chain().focus().setTextAlign('left').run()} className={btnClass(editor.isActive({ textAlign: 'left' }))} title="왼쪽 정렬">
         ≡←
@@ -77,17 +77,17 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
         →≡
       </button>
 
-      <div className="w-px h-5 bg-gray-200 mx-1 self-center" />
+      <div className="w-px h-5 bg-dark-200 mx-1 self-center" />
 
       {/* 글자 색상 */}
       <div className="flex items-center gap-1">
-        <span className="text-xs text-gray-400">색:</span>
+        <span className="text-xs text-dark-400">색:</span>
         {['#000000', '#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#8b5cf6'].map(color => (
           <button
             key={color}
             type="button"
             onClick={() => editor.chain().focus().setColor(color).run()}
-            className="w-5 h-5 rounded border border-gray-200 hover:scale-110 transition-transform"
+            className="w-5 h-5 rounded border border-dark-200 hover:scale-110 transition-transform"
             style={{ backgroundColor: color }}
             title={color}
           />
@@ -95,14 +95,14 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
         <button
           type="button"
           onClick={() => editor.chain().focus().unsetColor().run()}
-          className="text-xs text-gray-400 hover:text-gray-600 px-1"
+          className="text-xs text-dark-400 hover:text-dark-600 px-1"
           title="색상 초기화"
         >
           ✕
         </button>
       </div>
 
-      <div className="w-px h-5 bg-gray-200 mx-1 self-center" />
+      <div className="w-px h-5 bg-dark-200 mx-1 self-center" />
 
       <button
         type="button"
@@ -119,7 +119,7 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
         <button
           type="button"
           onClick={() => editor.chain().focus().unsetLink().run()}
-          className="text-xs text-red-400 hover:text-red-600 px-1"
+          className="text-xs text-primary-400 hover:text-primary-600 px-1"
           title="링크 제거"
         >
           링크해제
@@ -286,19 +286,19 @@ export function AdminNoticePage() {
   }
 
   const categoryBadge = (cat: string) => {
-    const cls = cat === '업데이트' ? 'bg-blue-50 text-blue-600'
-      : cat === '공지' ? 'bg-amber-50 text-amber-600'
-      : 'bg-red-50 text-red-500'
+    const cls = cat === '업데이트' ? 'bg-primary-50 text-primary-600'
+      : cat === '공지' ? 'bg-primary-50 text-primary-600'
+      : 'bg-primary-50 text-primary-500'
     return `inline-flex text-xs font-semibold px-2 py-0.5 rounded-full ${cls}`
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between">
-        <h1 className="text-xl font-bold text-gray-900">공지사항 관리</h1>
+        <h1 className="text-xl font-bold text-dark-900">공지사항 관리</h1>
         <button
           onClick={openNew}
-          className="flex items-center gap-1.5 px-4 py-2 bg-primary-600 text-white text-sm font-semibold rounded-lg hover:bg-primary-700 transition-colors"
+          className="flex items-center gap-1.5 px-4 py-2 bg-primary-500 text-white text-sm font-semibold rounded-lg hover:bg-primary-600 transition-colors"
         >
           <Plus size={16} />
           공지 등록
@@ -308,37 +308,37 @@ export function AdminNoticePage() {
       {/* 목록 */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <p className="text-sm text-gray-400">불러오는 중...</p>
+          <p className="text-sm text-dark-400">불러오는 중...</p>
         </div>
       ) : notices.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-16 text-center">
-          <Megaphone className="w-8 h-8 text-gray-200 mx-auto mb-3" />
-          <p className="text-sm text-gray-400">등록된 공지사항이 없습니다</p>
+        <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] py-16 text-center">
+          <Megaphone className="w-8 h-8 text-dark-200 mx-auto mb-3" />
+          <p className="text-sm text-dark-400">등록된 공지사항이 없습니다</p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">분류</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">제목</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400">첨부</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400">상태</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400">등록일</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400">관리</th>
+                <tr className="border-b border-dark-100 bg-dark-50">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-dark-500">분류</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-dark-500">제목</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-dark-400">첨부</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-dark-400">상태</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-dark-400">등록일</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-dark-400">관리</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-dark-50">
                 {notices.map(notice => (
-                  <tr key={notice.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={notice.id} className="hover:bg-dark-50 transition-colors">
                     <td className="px-4 py-3">
                       <span className={categoryBadge(notice.category)}>{notice.category}</span>
                     </td>
                     <td className="px-4 py-3">
                       <button
                         onClick={() => openEdit(notice)}
-                        className="text-sm font-medium text-gray-800 hover:text-primary-600 text-left"
+                        className="text-sm font-medium text-dark-800 hover:text-primary-600 text-left"
                       >
                         {notice.title}
                       </button>
@@ -353,7 +353,7 @@ export function AdminNoticePage() {
                           <Paperclip size={14} />
                         </button>
                       ) : (
-                        <span className="text-gray-300">-</span>
+                        <span className="text-dark-300">-</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -361,21 +361,21 @@ export function AdminNoticePage() {
                         onClick={() => handleToggleActive(notice)}
                         className={`text-xs font-medium px-2 py-1 rounded-full transition-colors ${
                           notice.is_active
-                            ? 'bg-green-50 text-green-600 hover:bg-green-100'
-                            : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                            ? 'bg-dark-50 text-dark-700 hover:bg-dark-100'
+                            : 'bg-dark-100 text-dark-400 hover:bg-dark-200'
                         }`}
                       >
                         {notice.is_active ? '게시중' : '숨김'}
                       </button>
                     </td>
-                    <td className="px-4 py-3 text-center text-xs text-gray-400">
+                    <td className="px-4 py-3 text-center text-xs text-dark-400">
                       {new Date(notice.created_at).toLocaleDateString('ko-KR')}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center">
                         <button
                           onClick={() => handleDelete(notice)}
-                          className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 transition-colors"
+                          className="p-1.5 rounded-lg hover:bg-primary-50 text-primary-400 transition-colors"
                           title="삭제"
                         >
                           <Trash2 size={14} />
@@ -396,19 +396,19 @@ export function AdminNoticePage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowModal(false)} />
           <div className="relative bg-white rounded-2xl w-full max-w-2xl p-5 shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-gray-900">
+              <h3 className="text-base font-bold text-dark-900">
                 {editId ? '공지 수정' : '공지 등록'}
               </h3>
               <button onClick={() => setShowModal(false)}>
-                <X size={18} className="text-gray-400" />
+                <X size={18} className="text-dark-400" />
               </button>
             </div>
 
             <div className="space-y-4">
               {/* 분류 */}
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  분류 <span className="text-red-500">*</span>
+                <label className="block text-xs font-medium text-dark-600 mb-1.5">
+                  분류 <span className="text-primary-500">*</span>
                 </label>
                 <div className="flex gap-2">
                   {CATEGORIES.map(cat => (
@@ -419,7 +419,7 @@ export function AdminNoticePage() {
                       className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
                         formCategory === cat
                           ? 'border-primary-400 bg-primary-50 text-primary-700'
-                          : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                          : 'border-dark-200 text-dark-500 hover:border-dark-200'
                       }`}
                     >
                       {cat}
@@ -430,22 +430,22 @@ export function AdminNoticePage() {
 
               {/* 제목 */}
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  제목 <span className="text-red-500">*</span>
+                <label className="block text-xs font-medium text-dark-600 mb-1.5">
+                  제목 <span className="text-primary-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={formTitle}
                   onChange={e => setFormTitle(e.target.value)}
                   placeholder="공지 제목을 입력하세요"
-                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                  className="w-full px-3 py-2.5 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
                 />
               </div>
 
               {/* 리치 텍스트 에디터 */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-medium text-gray-600">내용</label>
+                  <label className="block text-xs font-medium text-dark-600">내용</label>
                   <button
                     type="button"
                     onClick={handleImageInsert}
@@ -454,7 +454,7 @@ export function AdminNoticePage() {
                     이미지 삽입
                   </button>
                 </div>
-                <div className="border border-gray-200 rounded-xl overflow-hidden">
+                <div className="border border-dark-200 rounded-xl overflow-hidden">
                   <EditorToolbar editor={editor} />
                   <EditorContent editor={editor} />
                 </div>
@@ -462,8 +462,8 @@ export function AdminNoticePage() {
 
               {/* 첨부파일 */}
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  첨부파일 <span className="text-gray-400 font-normal">(선택)</span>
+                <label className="block text-xs font-medium text-dark-600 mb-1.5">
+                  첨부파일 <span className="text-dark-400 font-normal">(선택)</span>
                 </label>
                 <input
                   ref={fileRef}
@@ -480,7 +480,7 @@ export function AdminNoticePage() {
                   className={`flex items-center gap-2 w-full px-3 py-2.5 text-sm border border-dashed rounded-xl transition-colors text-left ${
                     formFile || existingFile
                       ? 'border-primary-400 text-primary-700 bg-primary-50'
-                      : 'border-gray-300 text-gray-400 hover:border-primary-400'
+                      : 'border-dark-200 text-dark-400 hover:border-primary-400'
                   }`}
                 >
                   <Paperclip size={14} />
@@ -490,7 +490,7 @@ export function AdminNoticePage() {
                   <button
                     type="button"
                     onClick={() => { setFormFile(null); setExistingFile(null) }}
-                    className="text-xs text-red-400 hover:text-red-600 mt-1"
+                    className="text-xs text-primary-400 hover:text-primary-600 mt-1"
                   >
                     첨부파일 제거
                   </button>
@@ -502,7 +502,7 @@ export function AdminNoticePage() {
               <button
                 type="button"
                 onClick={() => setShowModal(false)}
-                className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+                className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50"
               >
                 취소
               </button>
@@ -510,7 +510,7 @@ export function AdminNoticePage() {
                 type="button"
                 onClick={handleSave}
                 disabled={!formTitle.trim() || saving}
-                className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-600 rounded-xl hover:bg-primary-700 disabled:opacity-40 transition-colors"
+                className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-600 disabled:opacity-40 transition-colors"
               >
                 {saving ? '저장 중...' : editId ? '수정' : '등록'}
               </button>

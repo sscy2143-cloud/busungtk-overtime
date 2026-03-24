@@ -21,14 +21,14 @@ function fmtHCompact(minutes: number) {
 }
 
 const EMPLOYEE_COLORS = [
-  'bg-blue-100 text-blue-700',
+  'bg-primary-100 text-primary-700',
   'bg-purple-100 text-purple-700',
-  'bg-green-100 text-green-700',
-  'bg-orange-100 text-orange-700',
+  'bg-dark-100 text-dark-700',
+  'bg-primary-100 text-primary-700',
   'bg-pink-100 text-pink-700',
-  'bg-teal-100 text-teal-700',
-  'bg-indigo-100 text-indigo-700',
-  'bg-red-100 text-red-700',
+  'bg-primary-50 text-dark-700',
+  'bg-dark-100 text-dark-700',
+  'bg-primary-100 text-primary-700',
 ]
 
 const DOW_LABELS = ['월', '화', '수', '목', '금', '토', '일']
@@ -146,25 +146,25 @@ export function AdminOvertimeEmployeesPage() {
 
   if (loading) return (
     <div className="flex items-center justify-center py-20">
-      <p className="text-sm text-gray-400">불러오는 중...</p>
+      <p className="text-sm text-dark-400">불러오는 중...</p>
     </div>
   )
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">직원별 연장근무현황</h1>
-        <p className="text-sm text-gray-500 mt-0.5">연장근무 현황을 테이블 또는 캘린더로 확인하세요</p>
+        <h1 className="text-xl font-bold text-dark-900">직원별 연장근무현황</h1>
+        <p className="text-sm text-dark-500 mt-0.5">연장근무 현황을 테이블 또는 캘린더로 확인하세요</p>
       </div>
 
       {/* 상단 컨트롤 */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         {/* 뷰 토글 */}
-        <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
+        <div className="flex bg-dark-100 rounded-xl p-1 gap-1">
           <button
             onClick={() => setViewMode('table')}
             className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-              viewMode === 'table' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              viewMode === 'table' ? 'bg-white text-dark-900 shadow-[0_1px_3px_rgba(0,0,0,0.04)]' : 'text-dark-500 hover:text-dark-700'
             }`}
           >
             <LayoutGrid size={14} />
@@ -173,7 +173,7 @@ export function AdminOvertimeEmployeesPage() {
           <button
             onClick={() => setViewMode('calendar')}
             className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-              viewMode === 'calendar' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              viewMode === 'calendar' ? 'bg-white text-dark-900 shadow-[0_1px_3px_rgba(0,0,0,0.04)]' : 'text-dark-500 hover:text-dark-700'
             }`}
           >
             <CalendarDays size={14} />
@@ -186,29 +186,29 @@ export function AdminOvertimeEmployeesPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setSelectedYear(y => y - 1)}
-              className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+              className="p-1.5 rounded-lg hover:bg-dark-100 transition-colors"
             >
-              <ChevronLeft className="w-4 h-4 text-gray-600" />
+              <ChevronLeft className="w-4 h-4 text-dark-600" />
             </button>
-            <span className="text-sm font-semibold text-gray-700 min-w-[60px] text-center">{selectedYear}년</span>
+            <span className="text-sm font-semibold text-dark-700 min-w-[60px] text-center">{selectedYear}년</span>
             <button
               onClick={() => setSelectedYear(y => y + 1)}
               disabled={selectedYear >= now.getFullYear()}
-              className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-30 transition-colors"
+              className="p-1.5 rounded-lg hover:bg-dark-100 disabled:opacity-30 transition-colors"
             >
-              <ChevronRight className="w-4 h-4 text-gray-600" />
+              <ChevronRight className="w-4 h-4 text-dark-600" />
             </button>
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            <button onClick={prevCalMonth} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-              <ChevronLeft className="w-4 h-4 text-gray-600" />
+            <button onClick={prevCalMonth} className="p-1.5 rounded-lg hover:bg-dark-100 transition-colors">
+              <ChevronLeft className="w-4 h-4 text-dark-600" />
             </button>
-            <span className="text-sm font-semibold text-gray-700 min-w-[80px] text-center">
+            <span className="text-sm font-semibold text-dark-700 min-w-[80px] text-center">
               {selectedYear}년 {calMonth}월
             </span>
-            <button onClick={nextCalMonth} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-              <ChevronRight className="w-4 h-4 text-gray-600" />
+            <button onClick={nextCalMonth} className="p-1.5 rounded-lg hover:bg-dark-100 transition-colors">
+              <ChevronRight className="w-4 h-4 text-dark-600" />
             </button>
           </div>
         )}
@@ -216,47 +216,47 @@ export function AdminOvertimeEmployeesPage() {
 
       {/* ── 테이블 뷰 ── */}
       {viewMode === 'table' && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
           {tableData.length === 0 ? (
             <div className="py-16 text-center">
-              <p className="text-sm text-gray-400">해당 연도 승인된 야근 데이터가 없습니다</p>
+              <p className="text-sm text-dark-400">해당 연도 승인된 야근 데이터가 없습니다</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50">
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap sticky left-0 bg-gray-50">직원</th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">부서</th>
+                  <tr className="border-b border-dark-100 bg-dark-50">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-dark-500 whitespace-nowrap sticky left-0 bg-dark-50">직원</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-dark-400 whitespace-nowrap">부서</th>
                     {MONTHS.map((m, i) => (
                       <th
                         key={i}
                         className={`px-2 py-3 text-center text-xs font-semibold whitespace-nowrap ${
                           selectedYear === now.getFullYear() && i === currentMonth
                             ? 'text-primary-600 bg-primary-50'
-                            : 'text-gray-500'
+                            : 'text-dark-500'
                         }`}
                       >
                         {m}
                       </th>
                     ))}
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 whitespace-nowrap">연간합계</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-dark-700 whitespace-nowrap">연간합계</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody className="divide-y divide-dark-50">
                   {tableData.map((row) => {
                     const total = row.months.reduce((s, v) => s + v, 0)
                     return (
-                      <tr key={row.empId} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 text-sm font-medium text-gray-800 whitespace-nowrap sticky left-0 bg-white">{row.name}</td>
-                        <td className="px-3 py-3 text-xs text-gray-400 whitespace-nowrap">{row.department}</td>
+                      <tr key={row.empId} className="hover:bg-dark-50 transition-colors">
+                        <td className="px-4 py-3 text-sm font-medium text-dark-800 whitespace-nowrap sticky left-0 bg-white">{row.name}</td>
+                        <td className="px-3 py-3 text-xs text-dark-400 whitespace-nowrap">{row.department}</td>
                         {row.months.map((minutes, i) => (
                           <td
                             key={i}
                             className={`px-2 py-3 text-center text-xs whitespace-nowrap cursor-pointer transition-colors ${
                               minutes === 0
-                                ? 'text-gray-200'
-                                : 'text-gray-700 font-medium hover:text-primary-700 hover:bg-primary-50'
+                                ? 'text-dark-200'
+                                : 'text-dark-700 font-medium hover:text-primary-700 hover:bg-primary-50'
                             } ${
                               selectedYear === now.getFullYear() && i === currentMonth
                                 ? 'bg-primary-50/40'
@@ -271,25 +271,25 @@ export function AdminOvertimeEmployeesPage() {
                             {fmtH(minutes)}
                           </td>
                         ))}
-                        <td className="px-4 py-3 text-right text-xs font-bold text-gray-800 whitespace-nowrap">{fmtH(total)}</td>
+                        <td className="px-4 py-3 text-right text-xs font-bold text-dark-800 whitespace-nowrap">{fmtH(total)}</td>
                       </tr>
                     )
                   })}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t-2 border-gray-200 bg-gray-50">
-                    <td className="px-4 py-3 text-xs font-semibold text-gray-700 sticky left-0 bg-gray-50" colSpan={2}>팀 합계</td>
+                  <tr className="border-t-2 border-dark-200 bg-dark-50">
+                    <td className="px-4 py-3 text-xs font-semibold text-dark-700 sticky left-0 bg-dark-50" colSpan={2}>팀 합계</td>
                     {Array.from({ length: 12 }, (_, i) => {
                       const total = tableData.reduce((s, r) => s + r.months[i], 0)
                       return (
                         <td key={i} className={`px-2 py-3 text-center text-xs font-bold ${
                           selectedYear === now.getFullYear() && i === currentMonth ? 'bg-primary-50/40' : ''
-                        } ${total > 0 ? 'text-gray-700' : 'text-gray-200'}`}>
+                        } ${total > 0 ? 'text-dark-700' : 'text-dark-200'}`}>
                           {fmtH(total)}
                         </td>
                       )
                     })}
-                    <td className="px-4 py-3 text-right text-xs font-bold text-gray-800">
+                    <td className="px-4 py-3 text-right text-xs font-bold text-dark-800">
                       {fmtH(tableData.reduce((s, r) => s + r.months.reduce((ss, v) => ss + v, 0), 0))}
                     </td>
                   </tr>
@@ -302,14 +302,14 @@ export function AdminOvertimeEmployeesPage() {
 
       {/* ── 캘린더 뷰 ── */}
       {viewMode === 'calendar' && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
           {/* 요일 헤더 */}
-          <div className="grid grid-cols-7 border-b border-gray-100">
+          <div className="grid grid-cols-7 border-b border-dark-100">
             {DOW_LABELS.map((d, i) => (
               <div
                 key={d}
                 className={`py-2 text-center text-xs font-semibold ${
-                  i === 5 ? 'text-blue-500' : i === 6 ? 'text-red-500' : 'text-gray-500'
+                  i === 5 ? 'text-primary-500' : i === 6 ? 'text-primary-500' : 'text-dark-500'
                 }`}
               >
                 {d}
@@ -328,8 +328,8 @@ export function AdminOvertimeEmployeesPage() {
               return (
                 <div
                   key={idx}
-                  className={`min-h-[80px] p-1.5 border-b border-r border-gray-50 ${
-                    !cell.dateStr ? 'bg-gray-50/50' : ''
+                  className={`min-h-[80px] p-1.5 border-b border-r border-dark-50 ${
+                    !cell.dateStr ? 'bg-dark-50/50' : ''
                   } ${idx % 7 === 6 ? 'border-r-0' : ''}`}
                 >
                   {cell.dateStr && (
@@ -338,12 +338,12 @@ export function AdminOvertimeEmployeesPage() {
                       <div className="mb-1">
                         <span className={`inline-flex items-center justify-center w-6 h-6 text-xs font-semibold rounded-full ${
                           isToday
-                            ? 'bg-primary-600 text-white'
+                            ? 'bg-primary-500 text-white'
                             : isSun
-                              ? 'text-red-500'
+                              ? 'text-primary-500'
                               : isSat
-                                ? 'text-blue-500'
-                                : 'text-gray-600'
+                                ? 'text-primary-500'
+                                : 'text-dark-600'
                         }`}>
                           {cell.day}
                         </span>
@@ -373,13 +373,13 @@ export function AdminOvertimeEmployeesPage() {
 
           {/* 하단 범례 */}
           {tableData.length > 0 && (
-            <div className="px-4 py-3 border-t border-gray-100 flex items-center gap-3 flex-wrap">
+            <div className="px-4 py-3 border-t border-dark-100 flex items-center gap-3 flex-wrap">
               {tableData.map((row) => {
                 const colorIdx = empColorMap.get(row.empId) ?? 0
                 return (
                   <div key={row.empId} className="flex items-center gap-1.5">
                     <div className={`w-2.5 h-2.5 rounded-sm ${EMPLOYEE_COLORS[colorIdx].split(' ')[0]}`} />
-                    <span className="text-xs text-gray-600">{row.name}</span>
+                    <span className="text-xs text-dark-600">{row.name}</span>
                   </div>
                 )
               })}

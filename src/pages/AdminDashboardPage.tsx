@@ -157,8 +157,8 @@ export function AdminDashboardPage() {
     <div className="space-y-6">
       {/* 페이지 제목 */}
       <div>
-        <h1 className="text-xl font-bold text-gray-900">관리자 대시보드</h1>
-        <p className="text-sm text-gray-500 mt-0.5">팀 근태 현황을 한눈에 확인하세요</p>
+        <h1 className="text-xl font-bold text-dark-900">관리자 대시보드</h1>
+        <p className="text-sm text-dark-500 mt-0.5">팀 근태 현황을 한눈에 확인하세요</p>
       </div>
 
       {/* 요약 카드 3개 */}
@@ -166,55 +166,55 @@ export function AdminDashboardPage() {
         {/* 승인 대기 */}
         <button
           onClick={() => navigate('/admin/approvals')}
-          className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 text-left hover:shadow-md transition-shadow"
+          className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-4 text-left hover:shadow-md transition-shadow"
         >
           <div className="flex items-center justify-between mb-2">
             <div className="w-9 h-9 bg-warning-50 rounded-xl flex items-center justify-center">
               <Clock className="w-5 h-5 text-warning-500" />
             </div>
-            <ChevronRight className="w-4 h-4 text-gray-300" />
+            <ChevronRight className="w-4 h-4 text-dark-300" />
           </div>
-          <p className="text-2xl font-bold text-gray-900">{pendingOvertimeCount}</p>
-          <p className="text-xs text-gray-500 mt-0.5">야근 승인 대기</p>
+          <p className="text-2xl font-bold text-dark-900">{pendingOvertimeCount}</p>
+          <p className="text-xs text-dark-500 mt-0.5">야근 승인 대기</p>
         </button>
 
         {/* 52시간 임박 */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+        <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-4">
           <div className="w-9 h-9 bg-danger-50 rounded-xl flex items-center justify-center mb-2">
             <AlertTriangle className="w-5 h-5 text-danger-500" />
           </div>
           <p className="text-2xl font-bold text-danger-600">{approaching52Count}</p>
-          <p className="text-xs text-gray-500 mt-0.5">52h 임박·초과</p>
+          <p className="text-xs text-dark-500 mt-0.5">52h 임박·초과</p>
         </div>
 
         {/* 휴가 신청 대기 */}
         <button
           onClick={() => navigate('/admin/leave')}
-          className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 text-left hover:shadow-md transition-shadow"
+          className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-4 text-left hover:shadow-md transition-shadow"
         >
           <div className="flex items-center justify-between mb-2">
             <div className="w-9 h-9 bg-primary-50 rounded-xl flex items-center justify-center">
               <CalendarOff className="w-5 h-5 text-primary-600" />
             </div>
-            <ChevronRight className="w-4 h-4 text-gray-300" />
+            <ChevronRight className="w-4 h-4 text-dark-300" />
           </div>
-          <p className="text-2xl font-bold text-gray-900">{pendingLeaveCount}</p>
-          <p className="text-xs text-gray-500 mt-0.5">휴가 신청 대기</p>
+          <p className="text-2xl font-bold text-dark-900">{pendingLeaveCount}</p>
+          <p className="text-xs text-dark-500 mt-0.5">휴가 신청 대기</p>
         </button>
       </div>
 
       {/* 팀원별 근무시간 */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
         {/* 헤더 + 탭 */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-          <h2 className="text-sm font-semibold text-gray-900">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-dark-100">
+          <h2 className="text-sm font-semibold text-dark-900">
             {mode === 'month' ? '팀원별 월간 연장근무' : '팀원별 금주 연장근무'}
           </h2>
-          <div className="flex bg-gray-100 rounded-lg p-0.5 gap-0.5">
+          <div className="flex bg-dark-100 rounded-lg p-0.5 gap-0.5">
             <button
               onClick={() => setMode('this')}
               className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                mode === 'this' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                mode === 'this' ? 'bg-white text-dark-900 shadow-[0_1px_3px_rgba(0,0,0,0.04)]' : 'text-dark-500 hover:text-dark-700'
               }`}
             >
               금주
@@ -222,7 +222,7 @@ export function AdminDashboardPage() {
             <button
               onClick={() => setMode('month')}
               className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                mode === 'month' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                mode === 'month' ? 'bg-white text-dark-900 shadow-[0_1px_3px_rgba(0,0,0,0.04)]' : 'text-dark-500 hover:text-dark-700'
               }`}
             >
               월별
@@ -232,35 +232,35 @@ export function AdminDashboardPage() {
 
         {/* 월 선택 네비게이션 (월별 모드일 때만) */}
         {mode === 'month' && (
-          <div className="flex items-center justify-center gap-4 px-4 py-2 bg-gray-50 border-b border-gray-100">
-            <button onClick={prevMonth} className="p-1 rounded hover:bg-gray-200 transition-colors">
-              <ChevronLeft className="w-4 h-4 text-gray-600" />
+          <div className="flex items-center justify-center gap-4 px-4 py-2 bg-dark-50 border-b border-dark-100">
+            <button onClick={prevMonth} className="p-1 rounded hover:bg-dark-200 transition-colors">
+              <ChevronLeft className="w-4 h-4 text-dark-600" />
             </button>
-            <span className="text-sm font-medium text-gray-700 min-w-[90px] text-center">
+            <span className="text-sm font-medium text-dark-700 min-w-[90px] text-center">
               {selectedYear}년 {selectedMonth}월
             </span>
             <button
               onClick={nextMonth}
               disabled={selectedYear === now.getFullYear() && selectedMonth === now.getMonth() + 1}
-              className="p-1 rounded hover:bg-gray-200 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              className="p-1 rounded hover:bg-dark-200 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             >
-              <ChevronRight className="w-4 h-4 text-gray-600" />
+              <ChevronRight className="w-4 h-4 text-dark-600" />
             </button>
           </div>
         )}
 
         {/* 게이지 범례 (주간 모드만) */}
         {mode !== 'month' && (
-          <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 border-b border-gray-100">
+          <div className="flex items-center gap-3 px-4 py-2 bg-dark-50 border-b border-dark-100">
             {[
               { color: 'bg-success-500', label: '정상 (~8h)' },
               { color: 'bg-warning-500', label: '주의 (8~10h)' },
-              { color: 'bg-orange-400', label: '경고 (10~12h)' },
+              { color: 'bg-primary-400', label: '경고 (10~12h)' },
               { color: 'bg-danger-600', label: '초과 (12h+)' },
             ].map(({ color, label }) => (
               <div key={label} className="flex items-center gap-1">
                 <div className={`w-2.5 h-2.5 rounded-full ${color}`} />
-                <span className="text-xs text-gray-500">{label}</span>
+                <span className="text-xs text-dark-500">{label}</span>
               </div>
             ))}
           </div>
@@ -269,28 +269,28 @@ export function AdminDashboardPage() {
         <TeamGaugeList members={members} />
         {members.length === 0 && (
           <div className="px-4 py-8 text-center">
-            <p className="text-sm text-gray-400">해당 기간 승인된 야근 데이터가 없습니다</p>
+            <p className="text-sm text-dark-400">해당 기간 승인된 야근 데이터가 없습니다</p>
           </div>
         )}
 
         {/* 주차별 시간 분포 (월별 모드만) */}
         {mode === 'month' && weeklyBreakdown.length > 0 && (
-          <div className="px-4 py-4 border-t border-gray-100">
-            <p className="text-xs font-semibold text-gray-500 mb-3">주차별 야근 합계</p>
+          <div className="px-4 py-4 border-t border-dark-100">
+            <p className="text-xs font-semibold text-dark-500 mb-3">주차별 야근 합계</p>
             <div className="space-y-2">
               {weeklyBreakdown.map(({ label, hours }) => {
                 const maxHours = Math.max(...weeklyBreakdown.map((w) => w.hours), 1)
                 const pct = (hours / maxHours) * 100
                 return (
                   <div key={label} className="flex items-center gap-3">
-                    <span className="text-xs text-gray-500 w-10 shrink-0">{label}</span>
-                    <div className="flex-1 bg-gray-100 rounded-full h-2">
+                    <span className="text-xs text-dark-500 w-10 shrink-0">{label}</span>
+                    <div className="flex-1 bg-dark-100 rounded-full h-2">
                       <div
                         className="bg-primary-500 h-2 rounded-full transition-all duration-300"
                         style={{ width: `${pct}%` }}
                       />
                     </div>
-                    <span className="text-xs font-medium text-gray-700 w-12 text-right shrink-0">
+                    <span className="text-xs font-medium text-dark-700 w-12 text-right shrink-0">
                       {hours.toFixed(1)}h
                     </span>
                   </div>

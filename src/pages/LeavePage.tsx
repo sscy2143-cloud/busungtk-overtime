@@ -204,7 +204,7 @@ export function LeavePage() {
               </button>
               <button
                 onClick={() => navigate('/leave/request')}
-                className="flex items-center gap-1 px-2.5 py-1.5 bg-primary-600 text-white text-xs font-semibold rounded-lg hover:bg-primary-700 transition-colors"
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-primary-500 text-white text-xs font-semibold rounded-lg hover:bg-primary-600 transition-colors"
               >
                 <CalendarPlus className="w-3.5 h-3.5" />
                 신청
@@ -229,10 +229,10 @@ export function LeavePage() {
           const DAY_LABELS = ['월', '화', '수', '목', '금', '토', '일']
           const STATUS_COLOR: Record<string, string> = {
             pending: 'bg-primary-400',
-            manager_approved: 'bg-yellow-400',
-            approved: 'bg-green-400',
-            rejected: 'bg-red-300',
-            cancelled: 'bg-gray-300',
+            manager_approved: 'bg-primary-400',
+            approved: 'bg-dark-400',
+            rejected: 'bg-primary-300',
+            cancelled: 'bg-dark-300',
           }
           // 날짜 → 요청 목록 맵
           const dayMap = new Map<string, LeaveRequest[]>()
@@ -264,7 +264,7 @@ export function LeavePage() {
               {/* 요일 헤더 */}
               <div className="grid grid-cols-7 mb-1">
                 {DAY_LABELS.map(d => (
-                  <div key={d} className={`text-center text-xs font-medium py-1 ${d === '일' ? 'text-red-400' : d === '토' ? 'text-blue-400' : 'text-dark-400'}`}>{d}</div>
+                  <div key={d} className={`text-center text-xs font-medium py-1 ${d === '일' ? 'text-primary-400' : d === '토' ? 'text-dark-400' : 'text-dark-400'}`}>{d}</div>
                 ))}
               </div>
               {/* 날짜 */}
@@ -282,13 +282,13 @@ export function LeavePage() {
                       className={`flex flex-col items-center py-1 rounded-lg ${dayReqs.length > 0 ? 'cursor-pointer hover:bg-dark-50' : ''}`}
                     >
                       <span className={`text-xs w-6 h-6 flex items-center justify-center rounded-full font-medium
-                        ${isToday ? 'bg-primary-500 text-white' : colIdx === 6 ? 'text-red-400' : colIdx === 5 ? 'text-blue-400' : 'text-dark-700'}`}>
+                        ${isToday ? 'bg-primary-500 text-white' : colIdx === 6 ? 'text-primary-400' : colIdx === 5 ? 'text-dark-400' : 'text-dark-700'}`}>
                         {day}
                       </span>
                       {dayReqs.length > 0 && (
                         <div className="flex gap-0.5 mt-0.5 flex-wrap justify-center">
                           {dayReqs.slice(0, 2).map((r, ri) => (
-                            <span key={ri} className={`w-1.5 h-1.5 rounded-full ${STATUS_COLOR[r.status] ?? 'bg-gray-300'}`} />
+                            <span key={ri} className={`w-1.5 h-1.5 rounded-full ${STATUS_COLOR[r.status] ?? 'bg-dark-300'}`} />
                           ))}
                         </div>
                       )}
@@ -298,7 +298,7 @@ export function LeavePage() {
               </div>
               {/* 범례 */}
               <div className="flex gap-3 mt-3 flex-wrap">
-                {[['대기중', 'bg-primary-400'], ['승인', 'bg-green-400'], ['반려', 'bg-red-300'], ['취소', 'bg-gray-300']].map(([label, cls]) => (
+                {[['대기중', 'bg-primary-400'], ['승인', 'bg-dark-400'], ['반려', 'bg-primary-300'], ['취소', 'bg-dark-300']].map(([label, cls]) => (
                   <div key={label} className="flex items-center gap-1">
                     <span className={`w-2 h-2 rounded-full ${cls}`} />
                     <span className="text-xs text-dark-400">{label}</span>
@@ -325,7 +325,7 @@ export function LeavePage() {
                 <button
                   key={key}
                   onClick={() => setRequestFilter(key)}
-                  className={`flex flex-col items-center justify-center py-4 text-xs font-medium transition-colors border-b border-gray-50 last:border-b-0 ${
+                  className={`flex flex-col items-center justify-center py-4 text-xs font-medium transition-colors border-b border-dark-50 last:border-b-0 ${
                     requestFilter === key
                       ? 'bg-primary-50 text-primary-700 border-l-2 border-l-primary-500'
                       : 'text-dark-400 hover:bg-dark-50 hover:text-dark-600'
@@ -364,7 +364,7 @@ export function LeavePage() {
                       onClick={() => setDetailReq(req)}
                     >
                       <span className="shrink-0 text-sm font-bold text-dark-300 w-8 text-center self-center">{idx + 1}</span>
-                      <div className="self-stretch w-px bg-gray-200 shrink-0 my-1" />
+                      <div className="self-stretch w-px bg-dark-200 shrink-0 my-1" />
                       <div className="flex-1 min-w-0 flex items-start justify-between gap-4">
                         {/* 좌측: 유형 + 사유 */}
                         <div className="min-w-0">
@@ -447,7 +447,7 @@ export function LeavePage() {
                 return (
                   <div key={entry.id} className="px-3 py-3 flex items-center gap-2 cursor-pointer hover:bg-dark-50 transition-colors" onClick={() => setSubDetailEntry(entry)}>
                     <span className="shrink-0 text-sm font-bold text-dark-300 w-8 text-center">{idx + 1}</span>
-                    <div className="self-stretch w-px bg-gray-200 shrink-0 my-1" />
+                    <div className="self-stretch w-px bg-dark-200 shrink-0 my-1" />
                     {/* 좌측: 제목 */}
                     <p className="text-sm font-semibold text-dark-800 truncate flex-1 min-w-0">
                       {(ot?.site_name || entry.reason || '-').replace(/\s*\([\d.]+[일h시간]+\)/g, '').trim()}
@@ -620,7 +620,7 @@ export function LeavePage() {
                 취소
               </button>
               <button onClick={handleEdit} disabled={!editModal.start_date || !editModal.reason.trim()}
-                className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-600 rounded-xl hover:bg-primary-700 disabled:opacity-40 transition-colors">
+                className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-600 disabled:opacity-40 transition-colors">
                 저장
               </button>
             </div>

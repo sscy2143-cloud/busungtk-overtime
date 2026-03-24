@@ -51,17 +51,17 @@ const CATEGORIES: ExpenseCategory[] = ['meal', 'transport', 'supplies', 'other']
 const PAYMENT_METHODS: PaymentMethod[] = ['card', 'transfer', 'cash', 'other']
 
 const CATEGORY_COLOR: Record<ExpenseCategory, string> = {
-  meal: 'bg-orange-50 text-orange-700',
-  transport: 'bg-blue-50 text-blue-700',
-  supplies: 'bg-green-50 text-green-700',
-  other: 'bg-gray-100 text-gray-600',
+  meal: 'bg-primary-50 text-primary-700',
+  transport: 'bg-dark-100 text-dark-700',
+  supplies: 'bg-dark-100 text-dark-700',
+  other: 'bg-dark-100 text-dark-600',
 }
 
 const PAYMENT_METHOD_COLOR: Record<PaymentMethod, string> = {
-  card: 'bg-indigo-50 text-indigo-700',
-  transfer: 'bg-teal-50 text-teal-700',
-  cash: 'bg-amber-50 text-amber-700',
-  other: 'bg-gray-100 text-gray-600',
+  card: 'bg-primary-50 text-primary-700',
+  transfer: 'bg-dark-100 text-dark-700',
+  cash: 'bg-dark-100 text-dark-700',
+  other: 'bg-dark-100 text-dark-600',
 }
 
 const FILTER_TABS: Array<{ key: RequestStatus | 'all'; label: string }> = [
@@ -143,6 +143,16 @@ export function ExpensePage() {
     setCancelModal({ open: false, id: '', reason: '' })
   }
 
+  async function openReceipt(receiptUrl: string) {
+    // 이미 서명 URL이면 그대로 열고, 경로이면 새 서명 URL 생성
+    if (receiptUrl.startsWith('http')) {
+      window.open(receiptUrl, '_blank')
+      return
+    }
+    const { data } = await supabase.storage.from('receipts').createSignedUrl(receiptUrl, 600)
+    if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+  }
+
   const filtered = filter === 'all'
     ? expenses
     : expenses.filter((e) => e.status === filter)
@@ -215,12 +225,8 @@ export function ExpensePage() {
 
     if (error) return null
 
-    // 서명된 URL 사용 (5분 만료)
-    const { data: urlData } = await supabase.storage
-      .from('receipts')
-      .createSignedUrl(storagePath, 300)
-
-    return urlData?.signedUrl ?? null
+    // 스토리지 경로를 반환 (서명 URL 대신 경로 저장)
+    return storagePath
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -283,12 +289,12 @@ export function ExpensePage() {
       {/* 헤더 */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">경비 제출</h1>
-          <p className="text-sm text-gray-500 mt-0.5">업무 중 사비로 지출한 경비를 제출합니다</p>
+          <h1 className="text-xl font-bold text-dark-900">경비 제출</h1>
+          <p className="text-sm text-dark-500 mt-0.5">업무 중 사비로 지출한 경비를 제출합니다</p>
         </div>
         <button
           onClick={() => setFormOpen(!formOpen)}
-          className="flex items-center gap-1.5 px-4 py-2 bg-primary-600 text-white text-sm font-semibold rounded-lg hover:bg-primary-700 transition-colors"
+          className="flex items-center gap-1.5 px-4 py-2 bg-primary-500 text-white text-sm font-semibold rounded-lg hover:bg-primary-500 transition-colors"
         >
           <Plus size={16} />
           경비 신청
@@ -296,46 +302,46 @@ export function ExpensePage() {
       </div>
 
       {/* 요약 */}
-      <div data-tour="expense-summary" className="bg-white rounded-xl border border-gray-200 divide-x divide-gray-100 flex overflow-hidden">
+      <div data-tour="expense-summary" className="bg-white rounded-xl border border-dark-200 divide-x divide-dark-100 flex overflow-hidden">
         <div className="flex-1 px-5 py-3.5">
-          <p className="text-xs text-gray-400 mb-0.5">승인 대기</p>
-          <p className="text-lg font-bold text-warning-600">{formatWon(totalPending)}</p>
+          <p className="text-xs text-dark-400 mb-0.5">승인 대기</p>
+          <p className="text-lg font-bold text-primary-600">{formatWon(totalPending)}</p>
         </div>
         <div className="flex-1 px-5 py-3.5">
-          <p className="text-xs text-gray-400 mb-0.5">승인 완료</p>
-          <p className="text-lg font-bold text-success-600">{formatWon(totalApproved)}</p>
+          <p className="text-xs text-dark-400 mb-0.5">승인 완료</p>
+          <p className="text-lg font-bold text-dark-700">{formatWon(totalApproved)}</p>
         </div>
         <div className="flex-1 px-5 py-3.5">
-          <p className="text-xs text-gray-400 mb-0.5">전체 청구</p>
-          <p className="text-lg font-bold text-gray-800">{formatWon(expenses.reduce((s, e) => s + e.amount, 0))}</p>
+          <p className="text-xs text-dark-400 mb-0.5">전체 청구</p>
+          <p className="text-lg font-bold text-dark-800">{formatWon(expenses.reduce((s, e) => s + e.amount, 0))}</p>
         </div>
       </div>
 
       {/* 제출 폼 (토글) */}
       {formOpen && (
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-gray-800">경비 입력</h2>
-            <button type="button" onClick={() => setFormOpen(false)} className="text-gray-400 hover:text-gray-600">
+            <h2 className="text-sm font-bold text-dark-800">경비 입력</h2>
+            <button type="button" onClick={() => setFormOpen(false)} className="text-dark-400 hover:text-dark-600">
               <ChevronUp size={18} />
             </button>
           </div>
 
           {/* 날짜 */}
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">지출 날짜</label>
+            <label className="block text-xs font-medium text-dark-600 mb-1">지출 날짜</label>
             <input
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
               required
-              className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+              className="w-full px-3 py-2.5 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
             />
           </div>
 
           {/* 카테고리 */}
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">분류</label>
+            <label className="block text-xs font-medium text-dark-600 mb-1.5">분류</label>
             <div className="grid grid-cols-4 gap-2">
               {CATEGORIES.map((c) => (
                 <button
@@ -344,8 +350,8 @@ export function ExpensePage() {
                   onClick={() => { setCategory(c); if (c !== 'other') setOtherCategoryNote('') }}
                   className={`py-2 text-xs font-medium rounded-xl border transition-colors ${
                     category === c
-                      ? 'bg-primary-600 text-white border-primary-600'
-                      : 'bg-white text-gray-600 border-gray-200 hover:border-primary-300'
+                      ? 'bg-primary-500 text-white border-primary-600'
+                      : 'bg-white text-dark-600 border-dark-200 hover:border-primary-300'
                   }`}
                 >
                   {EXPENSE_CATEGORY_LABEL[c]}
@@ -357,8 +363,8 @@ export function ExpensePage() {
           {/* 기타 분류 상세 */}
           {category === 'other' && (
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                기타 분류 <span className="text-danger-500">*</span>
+              <label className="block text-xs font-medium text-dark-600 mb-1">
+                기타 분류 <span className="text-primary-500">*</span>
               </label>
               <input
                 type="text"
@@ -366,14 +372,14 @@ export function ExpensePage() {
                 onChange={(e) => setOtherCategoryNote(e.target.value)}
                 placeholder="구체적으로 입력하세요 (예: 숙박비, 택시비, 공구 구입)"
                 required
-                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                className="w-full px-3 py-2.5 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
               />
             </div>
           )}
 
           {/* 결제방법 */}
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">결제방법</label>
+            <label className="block text-xs font-medium text-dark-600 mb-1.5">결제방법</label>
             <div className="grid grid-cols-4 gap-2">
               {PAYMENT_METHODS.map((m) => (
                 <button
@@ -382,8 +388,8 @@ export function ExpensePage() {
                   onClick={() => { setPaymentMethod(m); if (m !== 'other') setOtherPaymentNote('') }}
                   className={`py-2 text-xs font-medium rounded-xl border transition-colors ${
                     paymentMethod === m
-                      ? 'bg-primary-600 text-white border-primary-600'
-                      : 'bg-white text-gray-600 border-gray-200 hover:border-primary-300'
+                      ? 'bg-primary-500 text-white border-primary-600'
+                      : 'bg-white text-dark-600 border-dark-200 hover:border-primary-300'
                   }`}
                 >
                   {PAYMENT_METHOD_LABEL[m]}
@@ -395,8 +401,8 @@ export function ExpensePage() {
           {/* 기타 결제방법 상세 */}
           {paymentMethod === 'other' && (
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                기타 결제방법 <span className="text-danger-500">*</span>
+              <label className="block text-xs font-medium text-dark-600 mb-1">
+                기타 결제방법 <span className="text-primary-500">*</span>
               </label>
               <input
                 type="text"
@@ -404,14 +410,14 @@ export function ExpensePage() {
                 onChange={(e) => setOtherPaymentNote(e.target.value)}
                 placeholder="구체적으로 입력하세요 (예: 개인카드, 상품권)"
                 required
-                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                className="w-full px-3 py-2.5 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
               />
             </div>
           )}
 
           {/* 금액 */}
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">금액</label>
+            <label className="block text-xs font-medium text-dark-600 mb-1">금액</label>
             <div className="relative">
               <input
                 type="number"
@@ -421,16 +427,16 @@ export function ExpensePage() {
                 min="0"
                 step="100"
                 required
-                className="w-full px-3 py-2.5 pr-8 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400 text-right"
+                className="w-full px-3 py-2.5 pr-8 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400 text-right"
               />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">원</span>
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-dark-400">원</span>
             </div>
           </div>
 
           {/* 내용 */}
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              지출 내용 <span className="text-danger-500">*</span>
+            <label className="block text-xs font-medium text-dark-600 mb-1">
+              지출 내용 <span className="text-primary-500">*</span>
             </label>
             <textarea
               value={description}
@@ -438,25 +444,25 @@ export function ExpensePage() {
               rows={2}
               placeholder="지출 내용을 입력하세요 (예: 현장 점심 식대 4인분)"
               required
-              className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
+              className="w-full px-3 py-2.5 text-sm border border-dark-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
             />
           </div>
 
           {/* 증빙자료 업로드 */}
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">증빙자료</label>
-            <p className="text-xs text-gray-400 mb-1.5">1MB 이하 파일만 첨부 가능합니다.</p>
+            <label className="block text-xs font-medium text-dark-600 mb-1">증빙자료</label>
+            <p className="text-xs text-dark-400 mb-1.5">1MB 이하 파일만 첨부 가능합니다.</p>
             {receiptFile ? (
-              <div className="border border-gray-200 rounded-xl p-3">
+              <div className="border border-dark-200 rounded-xl p-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 min-w-0">
-                    <Image size={16} className="text-gray-400 shrink-0" />
-                    <span className="text-xs text-gray-700 truncate">{receiptFile.name}</span>
-                    <span className="text-xs text-gray-400 shrink-0">
+                    <Image size={16} className="text-dark-400 shrink-0" />
+                    <span className="text-xs text-dark-700 truncate">{receiptFile.name}</span>
+                    <span className="text-xs text-dark-400 shrink-0">
                       ({(receiptFile.size / 1024).toFixed(0)}KB)
                     </span>
                   </div>
-                  <button type="button" onClick={removeFile} className="text-gray-400 hover:text-danger-500 shrink-0 ml-2">
+                  <button type="button" onClick={removeFile} className="text-dark-400 hover:text-primary-500 shrink-0 ml-2">
                     <X size={16} />
                   </button>
                 </div>
@@ -464,7 +470,7 @@ export function ExpensePage() {
                   <img
                     src={receiptPreview}
                     alt="증빙 미리보기"
-                    className="mt-2 rounded-lg max-h-40 object-contain w-full bg-gray-50"
+                    className="mt-2 rounded-lg max-h-40 object-contain w-full bg-dark-50"
                   />
                 )}
               </div>
@@ -472,7 +478,7 @@ export function ExpensePage() {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-200 rounded-xl text-xs text-gray-500 hover:border-primary-300 hover:text-primary-600 transition-colors"
+                className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-dark-200 rounded-xl text-xs text-dark-500 hover:border-primary-300 hover:text-primary-600 transition-colors"
               >
                 <Upload size={16} />
                 영수증/증빙 사진 첨부
@@ -490,7 +496,7 @@ export function ExpensePage() {
           <button
             type="submit"
             disabled={submitting || uploading || !amount || !description.trim() || (category === 'other' && !otherCategoryNote.trim()) || (paymentMethod === 'other' && !otherPaymentNote.trim())}
-            className="w-full py-2.5 bg-primary-600 text-white text-sm font-semibold rounded-xl hover:bg-primary-700 disabled:opacity-50 transition-colors"
+            className="w-full py-2.5 bg-primary-500 text-white text-sm font-semibold rounded-xl hover:bg-primary-500 disabled:opacity-50 transition-colors"
           >
             {uploading ? '업로드 중...' : submitting ? '제출 중...' : '경비 제출'}
           </button>
@@ -505,8 +511,8 @@ export function ExpensePage() {
             onClick={() => setFilter(tab.key)}
             className={`shrink-0 px-4 py-1.5 text-sm font-medium rounded-full border transition-colors ${
               filter === tab.key
-                ? 'bg-primary-600 text-white border-primary-600'
-                : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'
+                ? 'bg-primary-500 text-white border-primary-600'
+                : 'bg-white text-dark-500 border-dark-200 hover:border-dark-300'
             }`}
           >
             {tab.label}
@@ -516,23 +522,23 @@ export function ExpensePage() {
 
       {/* 경비 목록 */}
       {filtered.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-          <Receipt className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-          <p className="text-sm font-medium text-gray-500 mb-1">경비 내역이 없습니다</p>
-          <p className="text-xs text-gray-400">업무 중 사비 지출이 있으면 제출해 주세요</p>
+        <div className="bg-white rounded-xl border border-dark-200 p-12 text-center">
+          <Receipt className="w-12 h-12 text-dark-200 mx-auto mb-3" />
+          <p className="text-sm font-medium text-dark-500 mb-1">경비 내역이 없습니다</p>
+          <p className="text-xs text-dark-400">업무 중 사비 지출이 있으면 제출해 주세요</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-xl border border-dark-200 overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-400 w-10">번호</th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">지출일</th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500">분류</th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 hidden sm:table-cell">결제방법</th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500">내용</th>
-                <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 whitespace-nowrap">금액</th>
-                <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-500">상태</th>
+              <tr className="bg-dark-50 border-b border-dark-200">
+                <th className="px-3 py-2.5 text-center text-xs font-semibold text-dark-400 w-10">번호</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-dark-500 whitespace-nowrap">지출일</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-dark-500">분류</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-dark-500 hidden sm:table-cell">결제방법</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-dark-500">내용</th>
+                <th className="px-3 py-2.5 text-right text-xs font-semibold text-dark-500 whitespace-nowrap">금액</th>
+                <th className="px-3 py-2.5 text-center text-xs font-semibold text-dark-500">상태</th>
               </tr>
             </thead>
             <tbody>
@@ -540,10 +546,10 @@ export function ExpensePage() {
                 <tr
                   key={exp.id}
                   onClick={() => setDetailExp(exp)}
-                  className={`border-b border-gray-100 last:border-0 cursor-pointer transition-colors ${idx % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'} hover:bg-primary-50/40`}
+                  className={`border-b border-dark-100 last:border-0 cursor-pointer transition-colors ${idx % 2 === 1 ? 'bg-dark-50/50' : 'bg-white'} hover:bg-primary-50/40`}
                 >
-                  <td className="px-3 py-2.5 text-center text-xs font-bold text-gray-300">{idx + 1}</td>
-                  <td className="px-3 py-2.5 text-xs text-gray-600 whitespace-nowrap">
+                  <td className="px-3 py-2.5 text-center text-xs font-bold text-dark-300">{idx + 1}</td>
+                  <td className="px-3 py-2.5 text-xs text-dark-600 whitespace-nowrap">
                     {new Date(exp.date).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })}
                   </td>
                   <td className="px-3 py-2.5">
@@ -559,12 +565,12 @@ export function ExpensePage() {
                     )}
                   </td>
                   <td className="px-3 py-2.5 max-w-[140px]">
-                    <p className="text-xs text-gray-700 truncate">{exp.description}</p>
+                    <p className="text-xs text-dark-700 truncate">{exp.description}</p>
                     {exp.status === 'rejected' && exp.rejection_reason && (
-                      <p className="text-xs text-danger-500 truncate mt-0.5">↳ {exp.rejection_reason}</p>
+                      <p className="text-xs text-primary-500 truncate mt-0.5">↳ {exp.rejection_reason}</p>
                     )}
                   </td>
-                  <td className="px-3 py-2.5 text-right text-sm font-semibold text-gray-900 whitespace-nowrap">
+                  <td className="px-3 py-2.5 text-right text-sm font-semibold text-dark-900 whitespace-nowrap">
                     {formatWon(exp.amount)}
                   </td>
                   <td className="px-3 py-2.5 text-center">
@@ -576,12 +582,12 @@ export function ExpensePage() {
                         </span>
                       )}
                       {exp.employee_confirmed_at && !exp.cancel_requested_at && (
-                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-success-50 text-success-600 whitespace-nowrap">
+                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-dark-50 text-dark-700 whitespace-nowrap">
                           수령완료
                         </span>
                       )}
                       {exp.cancel_requested_at && (
-                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-warning-50 text-warning-600 whitespace-nowrap">
+                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-primary-50 text-primary-600 whitespace-nowrap">
                           취소요청중
                         </span>
                       )}
@@ -591,11 +597,11 @@ export function ExpensePage() {
               ))}
             </tbody>
             <tfoot>
-              <tr className="border-t-2 border-gray-200 bg-gray-50">
-                <td colSpan={5} className="px-3 py-2.5 text-xs font-semibold text-gray-500">
+              <tr className="border-t-2 border-dark-200 bg-dark-50">
+                <td colSpan={5} className="px-3 py-2.5 text-xs font-semibold text-dark-500">
                   총 {filtered.length}건
                 </td>
-                <td className="px-3 py-2.5 text-right text-sm font-bold text-gray-800">
+                <td className="px-3 py-2.5 text-right text-sm font-bold text-dark-800">
                   {formatWon(filtered.reduce((s, e) => s + e.amount, 0))}
                 </td>
                 <td />
@@ -608,39 +614,39 @@ export function ExpensePage() {
       {/* 경비 상세 팝업 */}
       {detailExp && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setDetailExp(null)} />
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setDetailExp(null)} />
           <div className="relative bg-white rounded-2xl w-full max-w-2xl shadow-xl">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <h3 className="text-base font-bold text-gray-900">경비 상세</h3>
-              <button onClick={() => setDetailExp(null)}><X size={18} className="text-gray-400" /></button>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-dark-100">
+              <h3 className="text-base font-bold text-dark-900">경비 상세</h3>
+              <button onClick={() => setDetailExp(null)}><X size={18} className="text-dark-400" /></button>
             </div>
 
-            <div className="grid grid-cols-2 divide-x divide-gray-100">
+            <div className="grid grid-cols-2 divide-x divide-dark-100">
               {/* 왼쪽: 제출 내용 */}
               <div className="px-5 py-4 space-y-3">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">제출 내용</p>
+                <p className="text-xs font-semibold text-dark-400 uppercase tracking-wider mb-2">제출 내용</p>
                 {/* 상태 */}
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-400">상태</span>
+                  <span className="text-xs text-dark-400">상태</span>
                   <StatusBadge status={detailExp.status} />
                 </div>
                 {/* 반려 사유 */}
                 {detailExp.status === 'rejected' && detailExp.rejection_reason && (
-                  <div className="bg-danger-50 border border-danger-200 rounded-xl px-3 py-2.5">
-                    <p className="text-xs font-semibold text-danger-500 mb-1">반려 사유</p>
-                    <p className="text-sm text-danger-700">{detailExp.rejection_reason}</p>
+                  <div className="bg-primary-50 border border-primary-200 rounded-xl px-3 py-2.5">
+                    <p className="text-xs font-semibold text-primary-500 mb-1">반려 사유</p>
+                    <p className="text-sm text-primary-700">{detailExp.rejection_reason}</p>
                   </div>
                 )}
                 {/* 날짜 */}
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-400">지출 날짜</span>
-                  <span className="text-sm text-gray-800">
+                  <span className="text-xs text-dark-400">지출 날짜</span>
+                  <span className="text-sm text-dark-800">
                     {new Date(detailExp.date).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}
                   </span>
                 </div>
                 {/* 분류 */}
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-400">분류</span>
+                  <span className="text-xs text-dark-400">분류</span>
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${CATEGORY_COLOR[detailExp.category]}`}>
                     {EXPENSE_CATEGORY_LABEL[detailExp.category]}
                   </span>
@@ -648,7 +654,7 @@ export function ExpensePage() {
                 {/* 결제방법 */}
                 {detailExp.payment_method && (
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-400">결제방법</span>
+                    <span className="text-xs text-dark-400">결제방법</span>
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${PAYMENT_METHOD_COLOR[detailExp.payment_method]}`}>
                       {PAYMENT_METHOD_LABEL[detailExp.payment_method]}
                     </span>
@@ -656,30 +662,28 @@ export function ExpensePage() {
                 )}
                 {/* 금액 */}
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-400">청구 금액</span>
-                  <span className="text-base font-bold text-gray-900">{formatWon(detailExp.amount)}</span>
+                  <span className="text-xs text-dark-400">청구 금액</span>
+                  <span className="text-base font-bold text-dark-900">{formatWon(detailExp.amount)}</span>
                 </div>
                 {/* 내용 */}
                 <div>
-                  <p className="text-xs text-gray-400 mb-1">지출 내용</p>
-                  <p className="text-sm text-gray-700 bg-gray-50 rounded-xl px-3 py-2">{detailExp.description}</p>
+                  <p className="text-xs text-dark-400 mb-1">지출 내용</p>
+                  <p className="text-sm text-dark-700 bg-dark-50 rounded-xl px-3 py-2">{detailExp.description}</p>
                 </div>
                 {/* 증빙자료 */}
                 {detailExp.receipt_url && (
-                  <a
-                    href={detailExp.receipt_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-3 py-2.5 bg-primary-50 border border-primary-100 rounded-xl text-sm text-primary-600 font-medium hover:bg-primary-100 transition-colors"
+                  <button
+                    onClick={() => openReceipt(detailExp.receipt_url!)}
+                    className="flex items-center gap-2 px-3 py-2.5 bg-primary-50 border border-primary-100 rounded-xl text-sm text-primary-600 font-medium hover:bg-primary-100 transition-colors w-full"
                   >
                     <Image size={16} />
                     증빙자료 보기
-                  </a>
+                  </button>
                 )}
                 {/* 제출일 */}
-                <div className="flex items-center justify-between pt-1 border-t border-gray-100">
-                  <span className="text-xs text-gray-400">제출일</span>
-                  <span className="text-xs text-gray-500">
+                <div className="flex items-center justify-between pt-1 border-t border-dark-100">
+                  <span className="text-xs text-dark-400">제출일</span>
+                  <span className="text-xs text-dark-500">
                     {new Date(detailExp.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
                   </span>
                 </div>
@@ -687,74 +691,74 @@ export function ExpensePage() {
 
               {/* 오른쪽: 지급 정보 */}
               <div className="px-5 py-4 space-y-3">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">지급 정보</p>
+                <p className="text-xs font-semibold text-dark-400 uppercase tracking-wider mb-2">지급 정보</p>
                 {detailExp.paid_at ? (
                   <>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-400">지급 상태</span>
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-success-50 text-success-700">지급완료</span>
+                      <span className="text-xs text-dark-400">지급 상태</span>
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-dark-50 text-dark-800">지급완료</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-400">지급일</span>
-                      <span className="text-sm text-gray-800">
+                      <span className="text-xs text-dark-400">지급일</span>
+                      <span className="text-sm text-dark-800">
                         {new Date(detailExp.paid_at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}
                       </span>
                     </div>
                     {detailExp.paid_amount != null && (
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-400">지급 금액</span>
-                        <span className="text-base font-bold text-success-700">{formatWon(detailExp.paid_amount)}</span>
+                        <span className="text-xs text-dark-400">지급 금액</span>
+                        <span className="text-base font-bold text-dark-800">{formatWon(detailExp.paid_amount)}</span>
                       </div>
                     )}
                     {detailExp.paid_amount != null && detailExp.paid_amount !== detailExp.amount && (
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-400">차액</span>
-                        <span className={`text-sm font-semibold ${detailExp.paid_amount < detailExp.amount ? 'text-danger-500' : 'text-success-600'}`}>
+                        <span className="text-xs text-dark-400">차액</span>
+                        <span className={`text-sm font-semibold ${detailExp.paid_amount < detailExp.amount ? 'text-primary-500' : 'text-dark-700'}`}>
                           {detailExp.paid_amount < detailExp.amount ? '-' : '+'}{formatWon(Math.abs(detailExp.paid_amount - detailExp.amount))}
                         </span>
                       </div>
                     )}
                     {detailExp.payment_bank && (
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-400">은행</span>
-                        <span className="text-sm text-gray-800">{detailExp.payment_bank}</span>
+                        <span className="text-xs text-dark-400">은행</span>
+                        <span className="text-sm text-dark-800">{detailExp.payment_bank}</span>
                       </div>
                     )}
                     {detailExp.payment_account && (
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-400">계좌번호</span>
-                        <span className="text-sm text-gray-800">{detailExp.payment_account}</span>
+                        <span className="text-xs text-dark-400">계좌번호</span>
+                        <span className="text-sm text-dark-800">{detailExp.payment_account}</span>
                       </div>
                     )}
                     {detailExp.payment_note && (
                       <div>
-                        <p className="text-xs text-gray-400 mb-1">메모</p>
-                        <p className="text-sm text-gray-700 bg-gray-50 rounded-xl px-3 py-2">{detailExp.payment_note}</p>
+                        <p className="text-xs text-dark-400 mb-1">메모</p>
+                        <p className="text-sm text-dark-700 bg-dark-50 rounded-xl px-3 py-2">{detailExp.payment_note}</p>
                       </div>
                     )}
 
                     {/* 수령확인 / 취소요청 */}
-                    <div className="pt-3 border-t border-gray-100 space-y-2">
+                    <div className="pt-3 border-t border-dark-100 space-y-2">
                       {detailExp.cancel_requested_at ? (
-                        <div className="bg-warning-50 border border-warning-200 rounded-xl px-3 py-2.5">
-                          <p className="text-xs font-semibold text-warning-700 mb-1">취소 요청중</p>
-                          <p className="text-xs text-warning-600">{detailExp.cancel_reason}</p>
-                          <p className="text-xs text-gray-400 mt-1">담당자 승인 대기중입니다.</p>
+                        <div className="bg-primary-50 border border-primary-200 rounded-xl px-3 py-2.5">
+                          <p className="text-xs font-semibold text-primary-700 mb-1">취소 요청중</p>
+                          <p className="text-xs text-primary-600">{detailExp.cancel_reason}</p>
+                          <p className="text-xs text-dark-400 mt-1">담당자 승인 대기중입니다.</p>
                         </div>
                       ) : detailExp.employee_confirmed_at ? (
                         <>
-                          <div className="flex items-center gap-2 text-success-700 bg-success-50 rounded-xl px-3 py-2.5">
+                          <div className="flex items-center gap-2 text-dark-800 bg-dark-50 rounded-xl px-3 py-2.5">
                             <CheckCircle size={16} />
                             <div>
                               <p className="text-xs font-semibold">수령 확인 완료</p>
-                              <p className="text-xs text-success-600">
+                              <p className="text-xs text-dark-700">
                                 {new Date(detailExp.employee_confirmed_at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}
                               </p>
                             </div>
                           </div>
                           <button
                             onClick={() => setCancelModal({ open: true, id: detailExp.id, reason: '' })}
-                            className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-warning-700 border border-warning-300 rounded-xl hover:bg-warning-50 transition-colors"
+                            className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-primary-700 border border-primary-200 rounded-xl hover:bg-primary-50 transition-colors"
                           >
                             <AlertTriangle size={14} />
                             취소 요청
@@ -763,7 +767,7 @@ export function ExpensePage() {
                       ) : (
                         <button
                           onClick={() => confirmReceipt(detailExp.id)}
-                          className="w-full flex items-center justify-center gap-1.5 py-2.5 text-sm font-semibold text-white bg-success-500 rounded-xl hover:bg-success-600 transition-colors"
+                          className="w-full flex items-center justify-center gap-1.5 py-2.5 text-sm font-semibold text-white bg-dark-900 rounded-xl hover:bg-dark-800 transition-colors"
                         >
                           <CheckCircle size={16} />
                           수령 확인
@@ -773,8 +777,8 @@ export function ExpensePage() {
                   </>
                 ) : (
                   <div className="flex flex-col items-center justify-center h-32 gap-2">
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">미지급</span>
-                    <p className="text-xs text-gray-300">아직 지급 처리가 되지 않았습니다</p>
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-dark-100 text-dark-400">미지급</span>
+                    <p className="text-xs text-dark-300">아직 지급 처리가 되지 않았습니다</p>
                   </div>
                 )}
               </div>
@@ -786,17 +790,17 @@ export function ExpensePage() {
       {/* 취소 요청 모달 */}
       {cancelModal.open && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setCancelModal({ open: false, id: '', reason: '' })} />
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setCancelModal({ open: false, id: '', reason: '' })} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-gray-900">취소 요청</h3>
-              <button onClick={() => setCancelModal({ open: false, id: '', reason: '' })}><X size={18} className="text-gray-400" /></button>
+              <h3 className="text-base font-bold text-dark-900">취소 요청</h3>
+              <button onClick={() => setCancelModal({ open: false, id: '', reason: '' })}><X size={18} className="text-dark-400" /></button>
             </div>
-            <p className="text-xs text-gray-500 mb-3">
+            <p className="text-xs text-dark-500 mb-3">
               취소 사유를 입력해주세요. 담당자 승인 후 처리됩니다.
             </p>
             <textarea
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
+              className="w-full border border-dark-200 rounded-xl px-3 py-2.5 text-sm text-dark-800 resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
               rows={3}
               placeholder="취소 사유를 입력하세요"
               value={cancelModal.reason}
@@ -804,8 +808,8 @@ export function ExpensePage() {
               autoFocus
             />
             <div className="flex gap-2 mt-4">
-              <button onClick={() => setCancelModal({ open: false, id: '', reason: '' })} className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50">닫기</button>
-              <button onClick={requestCancel} disabled={!cancelModal.reason.trim()} className="flex-1 py-2.5 text-sm font-semibold text-white bg-warning-500 rounded-xl hover:bg-warning-600 disabled:opacity-40 transition-colors">요청</button>
+              <button onClick={() => setCancelModal({ open: false, id: '', reason: '' })} className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50">닫기</button>
+              <button onClick={requestCancel} disabled={!cancelModal.reason.trim()} className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-500 disabled:opacity-40 transition-colors">요청</button>
             </div>
           </div>
         </div>
@@ -813,7 +817,7 @@ export function ExpensePage() {
 
       {/* 토스트 */}
       {toast && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-sm px-5 py-3 rounded-full shadow-lg z-50">
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-dark-900 text-white text-sm px-5 py-3 rounded-full shadow-lg z-50">
           경비가 제출되었습니다
         </div>
       )}

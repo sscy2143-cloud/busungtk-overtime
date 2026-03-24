@@ -23,22 +23,22 @@ export function WeeklyGauge({ currentHours, maxHours = 12 }: WeeklyGaugeProps) {
         className="absolute top-0 flex flex-col items-center"
         style={{ left: `${left}%`, transform: 'translateX(-50%)' }}
       >
-        <div className="h-4 w-px bg-gray-400" />
-        <span className="text-xs text-gray-400 mt-0.5 whitespace-nowrap">{label}</span>
+        <div className="h-4 w-px bg-dark-400" />
+        <span className="text-xs text-dark-400 mt-0.5 whitespace-nowrap">{label}</span>
       </div>
     )
   }
 
   return (
-    <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+    <div className="bg-white rounded-2xl p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)] border border-dark-100">
       <div className="flex items-baseline gap-1 mb-3">
-        <span className="text-3xl font-bold text-gray-900">{currentHours.toFixed(1)}</span>
-        <span className="text-sm text-gray-400">h / {maxHours}h (주간 연장)</span>
+        <span className="text-3xl font-bold text-dark-900">{currentHours.toFixed(1)}</span>
+        <span className="text-sm text-dark-400">h / {maxHours}h (주간 연장)</span>
       </div>
 
       {/* 프로그레스 바 */}
       <div className="relative mb-6">
-        <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+        <div className="h-3 bg-dark-100 rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full transition-all duration-500 ${barColor}`}
             style={{ width: `${pct}%` }}
@@ -53,7 +53,7 @@ export function WeeklyGauge({ currentHours, maxHours = 12 }: WeeklyGaugeProps) {
       </div>
 
       {/* 요약 텍스트 */}
-      <p className="text-xs text-gray-500 mt-4">
+      <p className="text-xs text-dark-500 mt-4">
         이번 주 연장근무{' '}
         <span className={`font-bold ${barColor.replace('bg-', 'text-')}`}>
           {currentHours.toFixed(1)}h

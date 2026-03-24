@@ -11,8 +11,8 @@ const ROLE_LABEL: Record<UserRole, string> = {
 }
 
 const ROLE_COLOR: Record<UserRole, string> = {
-  employee: 'bg-blue-50 text-blue-700',
-  manager: 'bg-green-50 text-green-700',
+  employee: 'bg-primary-50 text-primary-700',
+  manager: 'bg-dark-50 text-dark-700',
   admin: 'bg-purple-50 text-purple-700',
 }
 
@@ -463,7 +463,7 @@ export function AdminEmployeeManagementPage() {
 
   if (loading) return (
     <div className="flex items-center justify-center py-20">
-      <p className="text-sm text-gray-400">불러오는 중...</p>
+      <p className="text-sm text-dark-400">불러오는 중...</p>
     </div>
   )
 
@@ -472,13 +472,13 @@ export function AdminEmployeeManagementPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">직원 관리</h1>
-          <p className="text-sm text-gray-500 mt-0.5">재직자 및 퇴직자 정보를 관리합니다</p>
+          <h1 className="text-xl font-bold text-dark-900">직원 관리</h1>
+          <p className="text-sm text-dark-500 mt-0.5">재직자 및 퇴직자 정보를 관리합니다</p>
         </div>
         {isAdmin && (
           <button
             onClick={() => setCreateModal({ open: true, employeeNumber: '', name: '', department: '', role: 'employee', password: '', passwordConfirm: '' })}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-white bg-primary-600 rounded-xl hover:bg-primary-700 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-600 transition-colors"
           >
             <Plus className="w-4 h-4" />
             직원 추가
@@ -488,29 +488,29 @@ export function AdminEmployeeManagementPage() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-3">
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 text-center">
-          <Users className="w-5 h-5 text-gray-400 mx-auto mb-1" />
-          <p className="text-2xl font-bold text-gray-900">{employees.length}</p>
-          <p className="text-xs text-gray-500">전체</p>
+        <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-4 text-center">
+          <Users className="w-5 h-5 text-dark-400 mx-auto mb-1" />
+          <p className="text-2xl font-bold text-dark-900">{employees.length}</p>
+          <p className="text-xs text-dark-500">전체</p>
         </div>
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 text-center">
+        <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-4 text-center">
           <UserCheck className="w-5 h-5 text-success-500 mx-auto mb-1" />
           <p className="text-2xl font-bold text-success-600">{activeEmps.length}</p>
-          <p className="text-xs text-gray-500">재직</p>
+          <p className="text-xs text-dark-500">재직</p>
         </div>
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 text-center">
-          <UserX className="w-5 h-5 text-gray-400 mx-auto mb-1" />
-          <p className="text-2xl font-bold text-gray-500">{resignedEmps.length}</p>
-          <p className="text-xs text-gray-500">퇴직</p>
+        <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-4 text-center">
+          <UserX className="w-5 h-5 text-dark-400 mx-auto mb-1" />
+          <p className="text-2xl font-bold text-dark-500">{resignedEmps.length}</p>
+          <p className="text-xs text-dark-500">퇴직</p>
         </div>
       </div>
 
       {/* Tab filter */}
-      <div className="flex bg-gray-100 rounded-xl p-1 gap-1 w-fit">
+      <div className="flex bg-dark-100 rounded-xl p-1 gap-1 w-fit">
         <button
           onClick={() => setListTab('active')}
           className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-            listTab === 'active' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            listTab === 'active' ? 'bg-white text-dark-900 shadow-[0_1px_3px_rgba(0,0,0,0.04)]' : 'text-dark-500 hover:text-dark-700'
           }`}
         >
           재직자 {activeEmps.length}
@@ -518,7 +518,7 @@ export function AdminEmployeeManagementPage() {
         <button
           onClick={() => setListTab('resigned')}
           className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-            listTab === 'resigned' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            listTab === 'resigned' ? 'bg-white text-dark-900 shadow-[0_1px_3px_rgba(0,0,0,0.04)]' : 'text-dark-500 hover:text-dark-700'
           }`}
         >
           퇴직자 {resignedEmps.length}
@@ -527,46 +527,46 @@ export function AdminEmployeeManagementPage() {
 
       {/* Employee list */}
       {displayEmps.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-16 text-center">
-          <p className="text-sm text-gray-400">{listTab === 'active' ? '재직 중인 직원이 없습니다' : '퇴직자가 없습니다'}</p>
+        <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] py-16 text-center">
+          <p className="text-sm text-dark-400">{listTab === 'active' ? '재직 중인 직원이 없습니다' : '퇴직자가 없습니다'}</p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">이름</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500">사번</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500">부서</th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500">고용형태</th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500">포지션</th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500">상태</th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500">관리</th>
+                <tr className="bg-dark-50 border-b border-dark-100">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-dark-500">이름</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-dark-500">사번</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-dark-500">부서</th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold text-dark-500">고용형태</th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold text-dark-500">포지션</th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold text-dark-500">상태</th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold text-dark-500">관리</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-dark-50">
                 {displayEmps.map(emp => (
-                  <tr key={emp.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={emp.id} className="hover:bg-dark-50 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${emp.is_active ? 'bg-primary-100' : 'bg-gray-100'}`}>
-                          <span className={`text-xs font-bold ${emp.is_active ? 'text-primary-700' : 'text-gray-400'}`}>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${emp.is_active ? 'bg-primary-100' : 'bg-dark-100'}`}>
+                          <span className={`text-xs font-bold ${emp.is_active ? 'text-primary-700' : 'text-dark-400'}`}>
                             {emp.name.charAt(0)}
                           </span>
                         </div>
-                        <span className={`font-medium ${emp.is_active ? 'text-gray-900' : 'text-gray-400'}`}>
+                        <span className={`font-medium ${emp.is_active ? 'text-dark-900' : 'text-dark-400'}`}>
                           {emp.name}
                         </span>
                       </div>
                     </td>
-                    <td className="px-3 py-3 text-xs font-mono text-gray-500">{getEmployeeNumber(emp.email)}</td>
-                    <td className="px-3 py-3 text-xs text-gray-500">{emp.department || '-'}</td>
+                    <td className="px-3 py-3 text-xs font-mono text-dark-500">{getEmployeeNumber(emp.email)}</td>
+                    <td className="px-3 py-3 text-xs text-dark-500">{emp.department || '-'}</td>
                     <td className="px-3 py-3 text-center">
                       <span className={`text-xs px-2 py-0.5 rounded-full ${
                         emp.employee_type === 'field'
-                          ? 'bg-orange-50 text-orange-700'
-                          : 'bg-blue-50 text-blue-700'
+                          ? 'bg-primary-50 text-primary-700'
+                          : 'bg-primary-50 text-primary-700'
                       }`}>
                         {EMP_TYPE_LABEL[emp.employee_type]}
                       </span>
@@ -580,7 +580,7 @@ export function AdminEmployeeManagementPage() {
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                         emp.is_active
                           ? 'bg-success-50 text-success-700'
-                          : 'bg-gray-100 text-gray-500'
+                          : 'bg-dark-100 text-dark-500'
                       }`}>
                         {emp.is_active ? '재직중' : '퇴직'}
                       </span>
@@ -609,13 +609,13 @@ export function AdminEmployeeManagementPage() {
             style={{ height: '90vh', maxHeight: '680px' }}>
 
             {/* Panel header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-dark-100 shrink-0">
               <div>
-                <h3 className="text-base font-bold text-gray-900">{panelEmployee.name}</h3>
-                <p className="text-xs text-gray-400 mt-0.5">{getEmployeeNumber(panelEmployee.email)}</p>
+                <h3 className="text-base font-bold text-dark-900">{panelEmployee.name}</h3>
+                <p className="text-xs text-dark-400 mt-0.5">{getEmployeeNumber(panelEmployee.email)}</p>
               </div>
-              <button onClick={requestClose} className="p-1 rounded-lg hover:bg-gray-100 transition-colors">
-                <X className="w-5 h-5 text-gray-400" />
+              <button onClick={requestClose} className="p-1 rounded-lg hover:bg-dark-100 transition-colors">
+                <X className="w-5 h-5 text-dark-400" />
               </button>
             </div>
 
@@ -625,24 +625,24 @@ export function AdminEmployeeManagementPage() {
               {editPanel.activeTab === 'basic' && (
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">이름</label>
+                    <label className="block text-xs font-medium text-dark-600 mb-1">이름</label>
                     <input
                       type="text"
                       value={editPanel.form.name}
                       onChange={e => setEditPanel(p => ({ ...p, form: { ...p.form, name: e.target.value } }))}
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                      className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
                     />
                   </div>
 
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs font-medium text-gray-600">부서</label>
+                      <label className="text-xs font-medium text-dark-600">부서</label>
                       <button onClick={() => setDeptModal(true)} className="text-xs text-primary-500 hover:text-primary-700">부서 관리</button>
                     </div>
                     <select
                       value={editPanel.form.department}
                       onChange={e => setEditPanel(p => ({ ...p, form: { ...p.form, department: e.target.value } }))}
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
+                      className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
                     >
                       <option value="">선택하세요</option>
                       {departments.map(d => <option key={d} value={d}>{d}</option>)}
@@ -653,7 +653,7 @@ export function AdminEmployeeManagementPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">고용형태</label>
+                    <label className="block text-xs font-medium text-dark-600 mb-1">고용형태</label>
                     <div className="grid grid-cols-2 gap-2">
                       {(['office', 'field'] as EmployeeType[]).map(t => (
                         <button
@@ -662,8 +662,8 @@ export function AdminEmployeeManagementPage() {
                           onClick={() => setEditPanel(p => ({ ...p, form: { ...p.form, employeeType: t } }))}
                           className={`py-2 text-xs font-medium rounded-xl border transition-colors ${
                             editPanel.form.employeeType === t
-                              ? 'bg-primary-600 text-white border-primary-600'
-                              : 'bg-white text-gray-600 border-gray-200 hover:border-primary-300'
+                              ? 'bg-primary-500 text-white border-primary-600'
+                              : 'bg-white text-dark-600 border-dark-200 hover:border-primary-300'
                           }`}
                         >
                           {EMP_TYPE_LABEL[t]}
@@ -673,7 +673,7 @@ export function AdminEmployeeManagementPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">권한</label>
+                    <label className="block text-xs font-medium text-dark-600 mb-1">권한</label>
                     <div className="grid grid-cols-3 gap-2">
                       {(['employee', 'manager', 'admin'] as UserRole[]).map(r => (
                         <button
@@ -682,8 +682,8 @@ export function AdminEmployeeManagementPage() {
                           onClick={() => setEditPanel(p => ({ ...p, form: { ...p.form, role: r } }))}
                           className={`py-2 text-xs font-medium rounded-xl border transition-colors ${
                             editPanel.form.role === r
-                              ? 'bg-primary-600 text-white border-primary-600'
-                              : 'bg-white text-gray-600 border-gray-200 hover:border-primary-300'
+                              ? 'bg-primary-500 text-white border-primary-600'
+                              : 'bg-white text-dark-600 border-dark-200 hover:border-primary-300'
                           }`}
                         >
                           {ROLE_LABEL[r]}
@@ -693,27 +693,27 @@ export function AdminEmployeeManagementPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">시급 (원)</label>
+                    <label className="block text-xs font-medium text-dark-600 mb-1">시급 (원)</label>
                     <input
                       type="number"
                       value={editPanel.form.hourlyWage}
                       onChange={e => setEditPanel(p => ({ ...p, form: { ...p.form, hourlyWage: e.target.value } }))}
                       placeholder="예: 10000"
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                      className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
                     />
-                    <p className="text-xs text-gray-400 mt-1">연장근무수당 자동 계산에 사용됩니다</p>
+                    <p className="text-xs text-dark-400 mt-1">연장근무수당 자동 계산에 사용됩니다</p>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">등록일</label>
-                    <p className="text-sm text-gray-500 px-3 py-2 bg-gray-50 rounded-xl">
+                    <label className="block text-xs font-medium text-dark-600 mb-1">등록일</label>
+                    <p className="text-sm text-dark-500 px-3 py-2 bg-dark-50 rounded-xl">
                       {new Date(panelEmployee.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' })}
                     </p>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">사번</label>
-                    <p className="text-sm font-mono text-gray-500 px-3 py-2 bg-gray-50 rounded-xl">
+                    <label className="block text-xs font-medium text-dark-600 mb-1">사번</label>
+                    <p className="text-sm font-mono text-dark-500 px-3 py-2 bg-dark-50 rounded-xl">
                       {getEmployeeNumber(panelEmployee.email)}
                     </p>
                   </div>
@@ -721,7 +721,7 @@ export function AdminEmployeeManagementPage() {
                   <button
                     onClick={saveBasicInfo}
                     disabled={saveLoading || !isDirty()}
-                    className="w-full py-2.5 text-sm font-semibold text-white bg-primary-600 rounded-xl hover:bg-primary-700 transition-colors disabled:opacity-50"
+                    className="w-full py-2.5 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-600 transition-colors disabled:opacity-50"
                   >
                     {saveLoading ? '저장 중...' : '저장'}
                   </button>
@@ -733,16 +733,16 @@ export function AdminEmployeeManagementPage() {
                 <div className="space-y-5">
                   {/* Active toggle */}
                   <div>
-                    <p className="text-sm font-semibold text-gray-800">&#8226; 계정 활성화</p>
-                    <p className="text-xs text-gray-400 ml-3 mt-0.5">직원의 로그인 가능 여부를 설정합니다</p>
+                    <p className="text-sm font-semibold text-dark-800">&#8226; 계정 활성화</p>
+                    <p className="text-xs text-dark-400 ml-3 mt-0.5">직원의 로그인 가능 여부를 설정합니다</p>
                   </div>
-                  <div className="bg-gray-50 rounded-xl p-4">
+                  <div className="bg-dark-50 rounded-xl p-4">
                     <div className="flex items-center justify-between">
                       <div></div>
                       <button
                         onClick={() => setEditPanel(p => ({ ...p, form: { ...p.form, isActive: !p.form.isActive } }))}
                         className={`relative w-11 h-6 rounded-full transition-colors ${
-                          editPanel.form.isActive ? 'bg-success-500' : 'bg-gray-300'
+                          editPanel.form.isActive ? 'bg-success-500' : 'bg-dark-300'
                         }`}
                       >
                         <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
@@ -754,7 +754,7 @@ export function AdminEmployeeManagementPage() {
                       <button
                         onClick={saveBasicInfo}
                         disabled={saveLoading}
-                        className="mt-3 w-full py-2 text-xs font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
+                        className="mt-3 w-full py-2 text-xs font-semibold text-white bg-primary-500 rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50"
                       >
                         {saveLoading ? '저장 중...' : '변경 저장'}
                       </button>
@@ -763,22 +763,22 @@ export function AdminEmployeeManagementPage() {
 
                   {/* Password reset */}
                   <div>
-                    <p className="text-sm font-semibold text-gray-800">&#8226; 비밀번호 초기화</p>
-                    <p className="text-xs text-gray-400 ml-3 mt-0.5">직원의 비밀번호를 임시 비밀번호로 재설정합니다</p>
+                    <p className="text-sm font-semibold text-dark-800">&#8226; 비밀번호 초기화</p>
+                    <p className="text-xs text-dark-400 ml-3 mt-0.5">직원의 비밀번호를 임시 비밀번호로 재설정합니다</p>
                   </div>
-                  <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+                  <div className="bg-dark-50 rounded-xl p-4 space-y-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">인사담당자 비밀번호 입력</label>
+                      <label className="block text-xs font-medium text-dark-600 mb-1">인사담당자 비밀번호 입력</label>
                       <input
                         type="password"
                         value={editPanel.adminPassword}
                         onChange={e => setEditPanel(p => ({ ...p, adminPassword: e.target.value, accountError: '' }))}
                         placeholder="본인 비밀번호 입력"
-                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                        className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                      <label className="block text-xs font-medium text-dark-600 mb-1">
                         {panelEmployee.name}의 새 임시 비밀번호
                       </label>
                       <input
@@ -786,7 +786,7 @@ export function AdminEmployeeManagementPage() {
                         value={editPanel.newPassword}
                         onChange={e => setEditPanel(p => ({ ...p, newPassword: e.target.value }))}
                         placeholder="6자 이상"
-                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                        className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
                       />
                     </div>
                     {editPanel.accountError && (
@@ -804,7 +804,7 @@ export function AdminEmployeeManagementPage() {
                   {/* Delete account */}
                   <div>
                     <p className="text-sm font-semibold text-danger-700">&#8226; 계정 삭제</p>
-                    <p className="text-xs text-gray-400 ml-3 mt-0.5">직원 계정과 모든 관련 데이터를 영구 삭제합니다</p>
+                    <p className="text-xs text-dark-400 ml-3 mt-0.5">직원 계정과 모든 관련 데이터를 영구 삭제합니다</p>
                   </div>
                   <div className="bg-danger-50 rounded-xl p-4">
                     <button
@@ -822,12 +822,12 @@ export function AdminEmployeeManagementPage() {
               {editPanel.activeTab === 'resign' && isAdmin && (
                 <div className="space-y-4">
                   {/* Current status */}
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <p className="text-xs font-medium text-gray-500 mb-2">현재 상태</p>
+                  <div className="bg-dark-50 rounded-xl p-4">
+                    <p className="text-xs font-medium text-dark-500 mb-2">현재 상태</p>
                     <span className={`text-sm font-semibold px-3 py-1.5 rounded-full ${
                       panelEmployee.is_active
                         ? 'bg-success-50 text-success-700'
-                        : 'bg-gray-200 text-gray-600'
+                        : 'bg-dark-200 text-dark-600'
                     }`}>
                       {panelEmployee.is_active ? '재직중' : '퇴직'}
                     </span>
@@ -867,19 +867,19 @@ export function AdminEmployeeManagementPage() {
               {/* Non-admin fallback for restricted tabs */}
               {editPanel.activeTab !== 'basic' && !isAdmin && (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <p className="text-sm text-gray-400">관리자 권한이 필요합니다</p>
+                  <p className="text-sm text-dark-400">관리자 권한이 필요합니다</p>
                 </div>
               )}
             </div>
 
             {/* Fixed bottom tab bar */}
-            <div className="shrink-0 border-t border-gray-100 bg-white flex">
+            <div className="shrink-0 border-t border-dark-100 bg-white flex">
               <button
                 onClick={() => requestTabSwitch('basic')}
                 className={`flex-1 py-3.5 text-xs font-semibold transition-colors ${
                   editPanel.activeTab === 'basic'
-                    ? 'bg-primary-600 text-white'
-                    : 'text-gray-500 hover:bg-gray-50'
+                    ? 'bg-primary-500 text-white'
+                    : 'text-dark-500 hover:bg-dark-50'
                 }`}
               >
                 기본정보
@@ -890,8 +890,8 @@ export function AdminEmployeeManagementPage() {
                     onClick={() => requestTabSwitch('account')}
                     className={`flex-1 py-3.5 text-xs font-semibold transition-colors ${
                       editPanel.activeTab === 'account'
-                        ? 'bg-primary-600 text-white'
-                        : 'text-gray-500 hover:bg-gray-50'
+                        ? 'bg-primary-500 text-white'
+                        : 'text-dark-500 hover:bg-dark-50'
                     }`}
                   >
                     계정관리
@@ -900,8 +900,8 @@ export function AdminEmployeeManagementPage() {
                     onClick={() => requestTabSwitch('resign')}
                     className={`flex-1 py-3.5 text-xs font-semibold transition-colors ${
                       editPanel.activeTab === 'resign'
-                        ? 'bg-primary-600 text-white'
-                        : 'text-gray-500 hover:bg-gray-50'
+                        ? 'bg-primary-500 text-white'
+                        : 'text-dark-500 hover:bg-dark-50'
                     }`}
                   >
                     퇴사관리
@@ -918,25 +918,25 @@ export function AdminEmployeeManagementPage() {
         <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50" />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
-            <h3 className="text-base font-bold text-gray-900 mb-2">변경사항이 있습니다</h3>
-            <p className="text-sm text-gray-600 mb-5">현재 변경한 내용을 저장하시겠습니까?</p>
+            <h3 className="text-base font-bold text-dark-900 mb-2">변경사항이 있습니다</h3>
+            <p className="text-sm text-dark-600 mb-5">현재 변경한 내용을 저장하시겠습니까?</p>
             <div className="flex flex-col gap-2">
               <button
                 onClick={guardSave}
                 disabled={saveLoading}
-                className="w-full py-2.5 text-sm font-semibold text-white bg-primary-600 rounded-xl hover:bg-primary-700 transition-colors disabled:opacity-50"
+                className="w-full py-2.5 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-600 transition-colors disabled:opacity-50"
               >
                 {saveLoading ? '저장 중...' : '저장'}
               </button>
               <button
                 onClick={guardDiscard}
-                className="w-full py-2.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-xl hover:bg-gray-50"
+                className="w-full py-2.5 text-sm font-medium text-dark-700 border border-dark-200 rounded-xl hover:bg-dark-50"
               >
                 저장안함
               </button>
               <button
                 onClick={guardCancel}
-                className="w-full py-2.5 text-sm font-medium text-gray-500 hover:text-gray-700"
+                className="w-full py-2.5 text-sm font-medium text-dark-500 hover:text-dark-700"
               >
                 취소
               </button>
@@ -951,20 +951,20 @@ export function AdminEmployeeManagementPage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => { setCreateModal(p => ({ ...p, open: false })); setCreateError(''); setBulkResults([]) }} />
           <div className={`relative bg-white rounded-2xl w-full ${createMode === 'bulk' ? 'max-w-2xl' : 'max-w-sm'} p-5 shadow-xl max-h-[90vh] overflow-y-auto`}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-gray-900">신규 직원 등록</h3>
+              <h3 className="text-base font-bold text-dark-900">신규 직원 등록</h3>
               <button onClick={() => { setCreateModal(p => ({ ...p, open: false })); setCreateError(''); setBulkResults([]) }}>
-                <X className="w-5 h-5 text-gray-400" />
+                <X className="w-5 h-5 text-dark-400" />
               </button>
             </div>
 
             {/* 모드 탭 */}
-            <div className="flex bg-gray-100 rounded-xl p-0.5 mb-4">
+            <div className="flex bg-dark-100 rounded-xl p-0.5 mb-4">
               {(['single', 'bulk'] as const).map(m => (
                 <button
                   key={m}
                   onClick={() => { setCreateMode(m); setCreateError(''); setBulkResults([]) }}
                   className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-colors ${
-                    createMode === m ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-500'
+                    createMode === m ? 'bg-white text-primary-700 shadow-[0_1px_3px_rgba(0,0,0,0.04)]' : 'text-dark-500'
                   }`}
                 >
                   {m === 'single' ? '개별 등록' : '일괄 등록'}
@@ -976,42 +976,42 @@ export function AdminEmployeeManagementPage() {
               <>
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">사번</label>
+                    <label className="block text-xs font-medium text-dark-600 mb-1">사번</label>
                     <input
                       type="text"
                       value={createModal.employeeNumber}
                       onChange={e => setCreateModal(p => ({ ...p, employeeNumber: e.target.value }))}
                       placeholder="예: EMP001"
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                      className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
                       autoFocus
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">이름</label>
+                    <label className="block text-xs font-medium text-dark-600 mb-1">이름</label>
                     <input
                       type="text"
                       value={createModal.name}
                       onChange={e => setCreateModal(p => ({ ...p, name: e.target.value }))}
                       placeholder="이름 입력"
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                      className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
                     />
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs font-medium text-gray-600">부서</label>
+                      <label className="text-xs font-medium text-dark-600">부서</label>
                       <button onClick={() => setDeptModal(true)} className="text-xs text-primary-500 hover:text-primary-700">부서 관리</button>
                     </div>
                     <select
                       value={createModal.department}
                       onChange={e => setCreateModal(p => ({ ...p, department: e.target.value }))}
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
+                      className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
                     >
                       <option value="">선택하세요</option>
                       {departments.map(d => <option key={d} value={d}>{d}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">포지션</label>
+                    <label className="block text-xs font-medium text-dark-600 mb-1">포지션</label>
                     <div className="grid grid-cols-3 gap-2">
                       {(['employee', 'manager', 'admin'] as UserRole[]).map(r => (
                         <button
@@ -1020,8 +1020,8 @@ export function AdminEmployeeManagementPage() {
                           onClick={() => setCreateModal(p => ({ ...p, role: r }))}
                           className={`py-2 text-xs font-medium rounded-xl border transition-colors ${
                             createModal.role === r
-                              ? 'bg-primary-600 text-white border-primary-600'
-                              : 'bg-white text-gray-600 border-gray-200 hover:border-primary-300'
+                              ? 'bg-primary-500 text-white border-primary-600'
+                              : 'bg-white text-dark-600 border-dark-200 hover:border-primary-300'
                           }`}
                         >
                           {ROLE_LABEL[r]}
@@ -1030,23 +1030,23 @@ export function AdminEmployeeManagementPage() {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">비밀번호</label>
+                    <label className="block text-xs font-medium text-dark-600 mb-1">비밀번호</label>
                     <input
                       type="password"
                       value={createModal.password}
                       onChange={e => setCreateModal(p => ({ ...p, password: e.target.value }))}
                       placeholder="6자 이상"
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                      className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">비밀번호 확인</label>
+                    <label className="block text-xs font-medium text-dark-600 mb-1">비밀번호 확인</label>
                     <input
                       type="password"
                       value={createModal.passwordConfirm}
                       onChange={e => setCreateModal(p => ({ ...p, passwordConfirm: e.target.value }))}
                       placeholder="비밀번호 재입력"
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                      className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
                     />
                   </div>
                   {createError && <p className="text-xs text-danger-500">{createError}</p>}
@@ -1054,14 +1054,14 @@ export function AdminEmployeeManagementPage() {
                 <div className="flex gap-2 mt-5">
                   <button
                     onClick={() => { setCreateModal(p => ({ ...p, open: false })); setCreateError('') }}
-                    className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+                    className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50"
                   >
                     취소
                   </button>
                   <button
                     onClick={handleCreateUser}
                     disabled={createLoading}
-                    className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-600 rounded-xl hover:bg-primary-700 transition-colors disabled:opacity-50"
+                    className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-600 transition-colors disabled:opacity-50"
                   >
                     {createLoading ? '처리중...' : '등록'}
                   </button>
@@ -1069,23 +1069,23 @@ export function AdminEmployeeManagementPage() {
               </>
             ) : (
               <>
-                <p className="text-xs text-gray-500 mb-3">사번, 이름, 부서, 비밀번호를 입력하세요. 포지션은 모두 "직원"으로 등록됩니다.</p>
+                <p className="text-xs text-dark-500 mb-3">사번, 이름, 부서, 비밀번호를 입력하세요. 포지션은 모두 "직원"으로 등록됩니다.</p>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs border-collapse">
                     <thead>
-                      <tr className="bg-gray-50">
-                        <th className="border border-gray-200 px-2 py-2 text-center w-8">#</th>
-                        <th className="border border-gray-200 px-2 py-2 text-left">사번</th>
-                        <th className="border border-gray-200 px-2 py-2 text-left">이름</th>
-                        <th className="border border-gray-200 px-2 py-2 text-left">부서</th>
-                        <th className="border border-gray-200 px-2 py-2 text-left">비밀번호</th>
+                      <tr className="bg-dark-50">
+                        <th className="border border-dark-200 px-2 py-2 text-center w-8">#</th>
+                        <th className="border border-dark-200 px-2 py-2 text-left">사번</th>
+                        <th className="border border-dark-200 px-2 py-2 text-left">이름</th>
+                        <th className="border border-dark-200 px-2 py-2 text-left">부서</th>
+                        <th className="border border-dark-200 px-2 py-2 text-left">비밀번호</th>
                       </tr>
                     </thead>
                     <tbody>
                       {bulkRows.map((row, i) => (
                         <tr key={i}>
-                          <td className="border border-gray-200 px-2 py-1 text-center text-gray-400">{i + 1}</td>
-                          <td className="border border-gray-200 px-1 py-1">
+                          <td className="border border-dark-200 px-2 py-1 text-center text-dark-400">{i + 1}</td>
+                          <td className="border border-dark-200 px-1 py-1">
                             <input
                               value={row.employeeNumber}
                               onChange={e => setBulkRows(prev => prev.map((r, idx) => idx === i ? { ...r, employeeNumber: e.target.value } : r))}
@@ -1093,7 +1093,7 @@ export function AdminEmployeeManagementPage() {
                               className="w-full px-1.5 py-1 text-xs border-0 focus:outline-none focus:ring-1 focus:ring-primary-400 rounded"
                             />
                           </td>
-                          <td className="border border-gray-200 px-1 py-1">
+                          <td className="border border-dark-200 px-1 py-1">
                             <input
                               value={row.name}
                               onChange={e => setBulkRows(prev => prev.map((r, idx) => idx === i ? { ...r, name: e.target.value } : r))}
@@ -1101,7 +1101,7 @@ export function AdminEmployeeManagementPage() {
                               className="w-full px-1.5 py-1 text-xs border-0 focus:outline-none focus:ring-1 focus:ring-primary-400 rounded"
                             />
                           </td>
-                          <td className="border border-gray-200 px-1 py-1">
+                          <td className="border border-dark-200 px-1 py-1">
                             <select
                               value={row.department}
                               onChange={e => setBulkRows(prev => prev.map((r, idx) => idx === i ? { ...r, department: e.target.value } : r))}
@@ -1111,7 +1111,7 @@ export function AdminEmployeeManagementPage() {
                               {departments.map(d => <option key={d} value={d}>{d}</option>)}
                             </select>
                           </td>
-                          <td className="border border-gray-200 px-1 py-1">
+                          <td className="border border-dark-200 px-1 py-1">
                             <input
                               value={row.password}
                               onChange={e => setBulkRows(prev => prev.map((r, idx) => idx === i ? { ...r, password: e.target.value } : r))}
@@ -1146,14 +1146,14 @@ export function AdminEmployeeManagementPage() {
                 <div className="flex gap-2 mt-5">
                   <button
                     onClick={() => { setCreateModal(p => ({ ...p, open: false })); setCreateError(''); setBulkResults([]) }}
-                    className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+                    className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50"
                   >
                     취소
                   </button>
                   <button
                     onClick={handleBulkCreate}
                     disabled={createLoading}
-                    className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-600 rounded-xl hover:bg-primary-700 transition-colors disabled:opacity-50"
+                    className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-600 transition-colors disabled:opacity-50"
                   >
                     {createLoading ? '처리중...' : `일괄 등록 (${bulkRows.filter(r => r.employeeNumber.trim() && r.name.trim()).length}명)`}
                   </button>
@@ -1170,21 +1170,21 @@ export function AdminEmployeeManagementPage() {
           <div className="absolute inset-0 bg-black/50" onClick={() => setResignConfirm(null)} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-base font-bold text-gray-900">퇴직 처리</h3>
-              <button onClick={() => setResignConfirm(null)}><X className="w-5 h-5 text-gray-400" /></button>
+              <h3 className="text-base font-bold text-dark-900">퇴직 처리</h3>
+              <button onClick={() => setResignConfirm(null)}><X className="w-5 h-5 text-dark-400" /></button>
             </div>
-            <p className="text-sm text-gray-600 mb-3">
+            <p className="text-sm text-dark-600 mb-3">
               <span className="font-semibold">{resignConfirm.name}</span>님을 퇴직 처리하시겠습니까?
             </p>
-            <div className="bg-blue-50 rounded-xl px-3 py-2.5 mb-4 space-y-1">
-              <p className="text-xs text-blue-700">· 퇴직 처리 후 해당 직원은 로그인이 비활성화됩니다</p>
-              <p className="text-xs text-blue-700">· 야근, 휴가, 급여 등 모든 이력은 보존됩니다</p>
-              <p className="text-xs text-blue-700">· 언제든지 복직 처리할 수 있습니다</p>
+            <div className="bg-primary-50 rounded-xl px-3 py-2.5 mb-4 space-y-1">
+              <p className="text-xs text-primary-700">· 퇴직 처리 후 해당 직원은 로그인이 비활성화됩니다</p>
+              <p className="text-xs text-primary-700">· 야근, 휴가, 급여 등 모든 이력은 보존됩니다</p>
+              <p className="text-xs text-primary-700">· 언제든지 복직 처리할 수 있습니다</p>
             </div>
             <div className="flex gap-2">
               <button
                 onClick={() => setResignConfirm(null)}
-                className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+                className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50"
               >
                 취소
               </button>
@@ -1205,17 +1205,17 @@ export function AdminEmployeeManagementPage() {
           <div className="absolute inset-0 bg-black/50" onClick={() => setReinstateConfirm(null)} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-base font-bold text-gray-900">복직 처리</h3>
-              <button onClick={() => setReinstateConfirm(null)}><X className="w-5 h-5 text-gray-400" /></button>
+              <h3 className="text-base font-bold text-dark-900">복직 처리</h3>
+              <button onClick={() => setReinstateConfirm(null)}><X className="w-5 h-5 text-dark-400" /></button>
             </div>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-dark-600 mb-4">
               <span className="font-semibold">{reinstateConfirm.name}</span>님을 복직 처리하시겠습니까?
-              <br /><span className="text-xs text-gray-400">로그인이 다시 활성화됩니다.</span>
+              <br /><span className="text-xs text-dark-400">로그인이 다시 활성화됩니다.</span>
             </p>
             <div className="flex gap-2">
               <button
                 onClick={() => setReinstateConfirm(null)}
-                className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+                className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50"
               >
                 취소
               </button>
@@ -1236,10 +1236,10 @@ export function AdminEmployeeManagementPage() {
           <div className="absolute inset-0 bg-black/50" onClick={() => setDeleteConfirm(null)} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-gray-900">계정 삭제</h3>
-              <button onClick={() => setDeleteConfirm(null)}><X className="w-5 h-5 text-gray-400" /></button>
+              <h3 className="text-base font-bold text-dark-900">계정 삭제</h3>
+              <button onClick={() => setDeleteConfirm(null)}><X className="w-5 h-5 text-dark-400" /></button>
             </div>
-            <p className="text-sm text-gray-600 mb-2">
+            <p className="text-sm text-dark-600 mb-2">
               <span className="font-semibold">{deleteConfirm.name}</span> 계정을 삭제하시겠습니까?
             </p>
             <p className="text-xs text-danger-600 bg-danger-50 rounded-lg px-3 py-2 mb-4">
@@ -1248,7 +1248,7 @@ export function AdminEmployeeManagementPage() {
             <div className="flex gap-2">
               <button
                 onClick={() => setDeleteConfirm(null)}
-                className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+                className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50"
               >
                 취소
               </button>
@@ -1267,15 +1267,15 @@ export function AdminEmployeeManagementPage() {
         <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => { setDeptModal(false); setEditingDept(null); setNewDeptName('') }} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-xl">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <h3 className="text-base font-bold text-gray-900">부서 관리</h3>
-              <button onClick={() => { setDeptModal(false); setEditingDept(null); setNewDeptName('') }}><X className="w-5 h-5 text-gray-400" /></button>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-dark-100">
+              <h3 className="text-base font-bold text-dark-900">부서 관리</h3>
+              <button onClick={() => { setDeptModal(false); setEditingDept(null); setNewDeptName('') }}><X className="w-5 h-5 text-dark-400" /></button>
             </div>
             <div className="px-5 py-4 space-y-3">
               {/* 부서 목록 */}
               <div className="space-y-1.5">
                 {departments.map((dept, i) => (
-                  <div key={i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                  <div key={i} className="flex items-center justify-between bg-dark-50 rounded-lg px-3 py-2">
                     {editingDept?.index === i ? (
                       <input
                         autoFocus
@@ -1293,7 +1293,7 @@ export function AdminEmployeeManagementPage() {
                         className="flex-1 text-sm bg-white border border-primary-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary-400"
                       />
                     ) : (
-                      <span className="text-sm text-gray-700">{dept}</span>
+                      <span className="text-sm text-dark-700">{dept}</span>
                     )}
                     <div className="flex items-center gap-2 ml-2">
                       {editingDept?.index === i ? (
@@ -1312,12 +1312,12 @@ export function AdminEmployeeManagementPage() {
                         </button>
                       ) : (
                         <>
-                          <button onClick={() => setEditingDept({ index: i, name: dept })} className="text-gray-400 hover:text-primary-500">
+                          <button onClick={() => setEditingDept({ index: i, name: dept })} className="text-dark-400 hover:text-primary-500">
                             <Pencil size={14} />
                           </button>
                           <button
                             onClick={() => updateDepartments(departments.filter((_, idx) => idx !== i))}
-                            className="text-gray-400 hover:text-danger-500"
+                            className="text-dark-400 hover:text-danger-500"
                           >
                             <Trash2 size={14} />
                           </button>
@@ -1327,7 +1327,7 @@ export function AdminEmployeeManagementPage() {
                   </div>
                 ))}
                 {departments.length === 0 && (
-                  <p className="text-xs text-gray-400 text-center py-2">등록된 부서가 없습니다</p>
+                  <p className="text-xs text-dark-400 text-center py-2">등록된 부서가 없습니다</p>
                 )}
               </div>
 
@@ -1343,7 +1343,7 @@ export function AdminEmployeeManagementPage() {
                     }
                   }}
                   placeholder="새 부서명 입력"
-                  className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                  className="flex-1 px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
                 />
                 <button
                   onClick={() => {
@@ -1352,7 +1352,7 @@ export function AdminEmployeeManagementPage() {
                       setNewDeptName('')
                     }
                   }}
-                  className="px-3 py-2 text-sm font-semibold text-white bg-primary-600 rounded-xl hover:bg-primary-700 transition-colors"
+                  className="px-3 py-2 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-600 transition-colors"
                 >
                   추가
                 </button>

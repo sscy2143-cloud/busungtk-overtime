@@ -49,9 +49,9 @@ export function NotificationsPage() {
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <h1 className="text-xl font-bold text-gray-900">알림</h1>
+          <h1 className="text-xl font-bold text-dark-900">알림</h1>
           {unreadCount > 0 && (
-            <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-bold bg-primary-600 text-white rounded-full">
+            <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-bold bg-primary-500 text-white rounded-full">
               {unreadCount}
             </span>
           )}
@@ -73,33 +73,33 @@ export function NotificationsPage() {
           <button
             key={notif.id}
             onClick={() => markRead(notif.id)}
-            className={`w-full text-left rounded-2xl border shadow-sm p-4 flex items-start gap-3 transition-colors ${
+            className={`w-full text-left rounded-2xl border shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-4 flex items-start gap-3 transition-colors ${
               !notif.is_read
                 ? 'bg-primary-50 border-primary-100'
-                : 'bg-white border-gray-100'
+                : 'bg-white border-dark-100'
             }`}
           >
             {/* 미읽음 점 */}
             <div className="relative shrink-0 mt-0.5">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${BG_MAP[notif.icon_type] ?? 'bg-gray-100'}`}>
-                {ICON_MAP[notif.icon_type] ?? <Bell className="w-5 h-5 text-gray-500" />}
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${BG_MAP[notif.icon_type] ?? 'bg-dark-100'}`}>
+                {ICON_MAP[notif.icon_type] ?? <Bell className="w-5 h-5 text-dark-500" />}
               </div>
               {!notif.is_read && (
-                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-primary-600 rounded-full border-2 border-white" />
+                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-primary-500 rounded-full border-2 border-white" />
               )}
             </div>
 
             {/* 내용 */}
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-2">
-                <p className={`text-sm font-semibold ${!notif.is_read ? 'text-gray-900' : 'text-gray-700'}`}>
+                <p className={`text-sm font-semibold ${!notif.is_read ? 'text-dark-900' : 'text-dark-700'}`}>
                   {notif.title}
                 </p>
-                <span className="text-xs text-gray-400 shrink-0 mt-0.5">
+                <span className="text-xs text-dark-400 shrink-0 mt-0.5">
                   {timeAgo(notif.created_at)}
                 </span>
               </div>
-              <p className="text-xs text-gray-500 mt-0.5 leading-relaxed line-clamp-2">
+              <p className="text-xs text-dark-500 mt-0.5 leading-relaxed line-clamp-2">
                 {notif.body}
               </p>
             </div>
@@ -107,7 +107,7 @@ export function NotificationsPage() {
         ))}
 
         {notifications.length === 0 && (
-          <div className="text-center py-16 text-gray-400">
+          <div className="text-center py-16 text-dark-400">
             <Bell className="w-10 h-10 mx-auto mb-3 opacity-30" />
             <p className="text-sm">새로운 알림이 없습니다</p>
           </div>

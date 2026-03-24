@@ -230,20 +230,20 @@ export function OnboardingTour() {
         <div className="absolute inset-0 bg-black/50" onClick={() => setShowComplete(false)} />
         <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 text-center">
           <div className="text-4xl mb-4">🎉</div>
-          <h3 className="text-lg font-bold text-gray-900 mb-2">가이드 투어 완료!</h3>
-          <p className="text-sm text-gray-600 mb-6">
+          <h3 className="text-lg font-bold text-dark-900 mb-2">가이드 투어 완료!</h3>
+          <p className="text-sm text-dark-600 mb-6">
             더 자세한 사용법은 이용 가이드에서<br />확인하실 수 있습니다.
           </p>
           <div className="flex gap-2">
             <button
               onClick={() => setShowComplete(false)}
-              className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+              className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50"
             >
               닫기
             </button>
             <button
               onClick={() => { setShowComplete(false); navigate('/guide') }}
-              className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-600 rounded-xl hover:bg-primary-700 transition-colors"
+              className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-600 transition-colors"
             >
               이용 가이드 보기
             </button>
@@ -258,7 +258,7 @@ export function OnboardingTour() {
       <div className="fixed inset-0 bg-black/40 z-[998] flex items-center justify-center">
         <div className="bg-white rounded-2xl shadow-xl px-6 py-4 flex items-center gap-3">
           <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-600" />
-          <span className="text-sm text-gray-600">페이지 이동 중...</span>
+          <span className="text-sm text-dark-600">페이지 이동 중...</span>
         </div>
       </div>
     )
@@ -282,20 +282,20 @@ export function OnboardingTour() {
         <div className="absolute inset-0 bg-black/50" onClick={finish} />
         <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
           {/* 닫기 */}
-          <button onClick={finish} className="absolute top-3 right-3 p-1 hover:bg-gray-100 rounded-lg">
-            <X size={14} className="text-gray-400" />
+          <button onClick={finish} className="absolute top-3 right-3 p-1 hover:bg-dark-100 rounded-lg">
+            <X size={14} className="text-dark-400" />
           </button>
 
           {/* 스텝 표시 */}
           <p className="text-xs text-primary-600 font-semibold mb-2">{step + 1} / {TOUR_STEPS.length}</p>
-          <h4 className="text-base font-bold text-gray-900 mb-2">{currentStep.title}</h4>
-          <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{currentStep.description}</p>
+          <h4 className="text-base font-bold text-dark-900 mb-2">{currentStep.title}</h4>
+          <p className="text-sm text-dark-600 leading-relaxed whitespace-pre-line">{currentStep.description}</p>
 
           {/* 불릿 리스트 */}
           {currentStep.bullets && (
             <ul className="mt-3 space-y-1.5">
               {currentStep.bullets.map((b, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                <li key={i} className="flex items-start gap-2 text-sm text-dark-700">
                   <span className="mt-1 w-1.5 h-1.5 rounded-full bg-primary-500 shrink-0" />
                   {b}
                 </li>
@@ -305,14 +305,14 @@ export function OnboardingTour() {
 
           {/* 버튼 */}
           <div className="flex items-center justify-between mt-5">
-            <button onClick={finish} className="text-xs text-gray-400 hover:text-gray-600">
+            <button onClick={finish} className="text-xs text-dark-400 hover:text-dark-600">
               건너뛰기
             </button>
             <div className="flex gap-2">
               {step > 0 && (
                 <button
                   onClick={prev}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50"
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-dark-600 border border-dark-200 rounded-lg hover:bg-dark-50"
                 >
                   <ChevronLeft size={12} />
                   이전
@@ -320,7 +320,7 @@ export function OnboardingTour() {
               )}
               <button
                 onClick={next}
-                className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors"
+                className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-primary-500 rounded-lg hover:bg-primary-600 transition-colors"
               >
                 {isLast ? (
                   <>
@@ -353,31 +353,31 @@ export function OnboardingTour() {
       {/* 툴팁 */}
       <div
         style={tooltipStyle}
-        className="z-[1000] bg-white rounded-2xl shadow-2xl border border-gray-100 p-5 animate-in fade-in duration-200"
+        className="z-[1000] bg-white rounded-2xl shadow-2xl border border-dark-100 p-5 animate-in fade-in duration-200"
       >
         {/* 화살표 */}
         <div style={arrowStyle} className={`absolute w-0 h-0 ${arrowClasses[arrowDir]}`} />
 
         {/* 닫기 */}
-        <button onClick={finish} className="absolute top-3 right-3 p-1 hover:bg-gray-100 rounded-lg">
-          <X size={14} className="text-gray-400" />
+        <button onClick={finish} className="absolute top-3 right-3 p-1 hover:bg-dark-100 rounded-lg">
+          <X size={14} className="text-dark-400" />
         </button>
 
         {/* 내용 */}
         <p className="text-xs text-primary-600 font-semibold mb-1">{step + 1} / {TOUR_STEPS.length}</p>
-        <h4 className="text-sm font-bold text-gray-900 mb-1.5">{currentStep.title}</h4>
-        <p className="text-xs text-gray-600 leading-relaxed mb-4">{currentStep.description}</p>
+        <h4 className="text-sm font-bold text-dark-900 mb-1.5">{currentStep.title}</h4>
+        <p className="text-xs text-dark-600 leading-relaxed mb-4">{currentStep.description}</p>
 
         {/* 버튼 */}
         <div className="flex items-center justify-between">
-          <button onClick={finish} className="text-xs text-gray-400 hover:text-gray-600">
+          <button onClick={finish} className="text-xs text-dark-400 hover:text-dark-600">
             건너뛰기
           </button>
           <div className="flex gap-2">
             {step > 0 && (
               <button
                 onClick={prev}
-                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50"
+                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-dark-600 border border-dark-200 rounded-lg hover:bg-dark-50"
               >
                 <ChevronLeft size={12} />
                 이전
@@ -385,7 +385,7 @@ export function OnboardingTour() {
             )}
             <button
               onClick={next}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors"
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-primary-500 rounded-lg hover:bg-primary-600 transition-colors"
             >
               {isLast ? (
                 <>

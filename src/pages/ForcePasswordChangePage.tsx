@@ -45,8 +45,8 @@ export function ForcePasswordChangePage() {
           <div className="w-16 h-16 bg-warning-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <KeyRound className="w-8 h-8 text-warning-500" />
           </div>
-          <h1 className="text-xl font-bold text-gray-900">비밀번호 변경 필요</h1>
-          <p className="text-sm text-gray-500 mt-2 leading-relaxed">
+          <h1 className="text-xl font-bold text-dark-900">비밀번호 변경 필요</h1>
+          <p className="text-sm text-dark-500 mt-2 leading-relaxed">
             임시 비밀번호로 로그인하셨습니다.<br />
             보안을 위해 새 비밀번호를 설정해주세요.
           </p>
@@ -54,31 +54,31 @@ export function ForcePasswordChangePage() {
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">새 비밀번호</label>
+            <label className="block text-xs font-medium text-dark-600 mb-1">새 비밀번호</label>
             <input
               type="password"
               value={newPassword}
               onChange={(e) => { setNewPassword(e.target.value); setError('') }}
               placeholder="6자 이상"
-              className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+              className="w-full px-3 py-2.5 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
               autoFocus
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">새 비밀번호 확인</label>
+            <label className="block text-xs font-medium text-dark-600 mb-1">새 비밀번호 확인</label>
             <input
               type="password"
               value={confirmPassword}
               onChange={(e) => { setConfirmPassword(e.target.value); setError('') }}
               placeholder="비밀번호 재입력"
-              className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+              className="w-full px-3 py-2.5 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
             />
           </div>
           {error && <p className="text-xs text-danger-500">{error}</p>}
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-primary-600 text-white text-sm font-semibold rounded-xl hover:bg-primary-700 transition-colors disabled:opacity-50"
+            className="w-full py-3 bg-primary-500 text-white text-sm font-semibold rounded-xl hover:bg-primary-600 transition-colors disabled:opacity-50"
           >
             {loading ? '변경 중...' : '비밀번호 변경'}
           </button>
@@ -86,7 +86,7 @@ export function ForcePasswordChangePage() {
 
         <button
           onClick={signOut}
-          className="flex items-center justify-center gap-2 w-full mt-4 py-2.5 text-sm text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+          className="flex items-center justify-center gap-2 w-full mt-4 py-2.5 text-sm text-dark-500 border border-dark-200 rounded-xl hover:bg-dark-50 transition-colors"
         >
           <LogOut size={14} />
           로그아웃

@@ -79,45 +79,45 @@ export function AdminLeavePayPage() {
 
   if (loading) return (
     <div className="flex items-center justify-center py-20">
-      <p className="text-sm text-gray-400">불러오는 중...</p>
+      <p className="text-sm text-dark-400">불러오는 중...</p>
     </div>
   )
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">연차수당</h1>
-        <p className="text-sm text-gray-500 mt-0.5">미사용 연차에 대한 수당을 계산합니다</p>
+        <h1 className="text-xl font-bold text-dark-900">연차수당</h1>
+        <p className="text-sm text-dark-500 mt-0.5">미사용 연차에 대한 수당을 계산합니다</p>
       </div>
 
       {/* 계산 기준 안내 */}
-      <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 space-y-1.5">
-        <p className="text-xs font-semibold text-blue-700">수당 계산 기준 (근로기준법)</p>
-        <p className="text-xs text-blue-600">연차수당 = 미사용 연차일수 × 1일 통상임금 (시급 × 8시간)</p>
-        <p className="text-xs text-blue-400">* 시급은 사원현황에서 설정하거나 여기서 직접 수정할 수 있습니다</p>
+      <div className="bg-primary-50 border border-blue-100 rounded-xl px-4 py-3 space-y-1.5">
+        <p className="text-xs font-semibold text-primary-700">수당 계산 기준 (근로기준법)</p>
+        <p className="text-xs text-primary-600">연차수당 = 미사용 연차일수 × 1일 통상임금 (시급 × 8시간)</p>
+        <p className="text-xs text-dark-400">* 시급은 사원현황에서 설정하거나 여기서 직접 수정할 수 있습니다</p>
       </div>
 
       {/* 연도 선택 */}
       <div className="flex items-center gap-2 justify-end">
         <button
           onClick={() => setCalYear(y => y - 1)}
-          className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+          className="p-1.5 rounded-lg hover:bg-dark-100 transition-colors"
         >
-          <ChevronLeft className="w-4 h-4 text-gray-600" />
+          <ChevronLeft className="w-4 h-4 text-dark-600" />
         </button>
-        <span className="text-sm font-semibold text-gray-700 min-w-[60px] text-center">{calYear}년</span>
+        <span className="text-sm font-semibold text-dark-700 min-w-[60px] text-center">{calYear}년</span>
         <button
           onClick={() => setCalYear(y => y + 1)}
           disabled={calYear >= now.getFullYear()}
-          className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-30 transition-colors"
+          className="p-1.5 rounded-lg hover:bg-dark-100 disabled:opacity-30 transition-colors"
         >
-          <ChevronRight className="w-4 h-4 text-gray-600" />
+          <ChevronRight className="w-4 h-4 text-dark-600" />
         </button>
       </div>
 
       {rows.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-16 text-center">
-          <p className="text-sm text-gray-400">해당 연도 연차 데이터가 없습니다</p>
+        <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] py-16 text-center">
+          <p className="text-sm text-dark-400">해당 연도 연차 데이터가 없습니다</p>
         </div>
       ) : (
         <>
@@ -127,30 +127,30 @@ export function AdminLeavePayPage() {
             </div>
           )}
 
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50">
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">직원</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400">부서</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600">시급</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500">총 연차</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500">사용</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-orange-600">미사용</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700">연차수당</th>
+                  <tr className="border-b border-dark-100 bg-dark-50">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-dark-500">직원</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-dark-400">부서</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-dark-600">시급</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-dark-500">총 연차</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-dark-500">사용</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-primary-600">미사용</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-dark-700">연차수당</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody className="divide-y divide-dark-50">
                   {rows.map((row) => {
                     const wage = getWage(row.empId, row.dbWage)
                     const pay = row.remainingDays * wage * 8
                     const isEditing = editingEmpId === row.empId
 
                     return (
-                      <tr key={row.empId} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 font-medium text-gray-800">{row.name}</td>
-                        <td className="px-4 py-3 text-xs text-gray-400">{row.department}</td>
+                      <tr key={row.empId} className="hover:bg-dark-50 transition-colors">
+                        <td className="px-4 py-3 font-medium text-dark-800">{row.name}</td>
+                        <td className="px-4 py-3 text-xs text-dark-400">{row.department}</td>
                         <td className="px-4 py-3">
                           {isEditing ? (
                             <div className="flex items-center gap-1 justify-center">
@@ -169,30 +169,30 @@ export function AdminLeavePayPage() {
                               <button onClick={() => confirmEdit(row.empId)} className="p-1 text-success-600 hover:text-success-700">
                                 <Check size={14} />
                               </button>
-                              <button onClick={cancelEdit} className="p-1 text-gray-400 hover:text-gray-600">
+                              <button onClick={cancelEdit} className="p-1 text-dark-400 hover:text-dark-600">
                                 <X size={14} />
                               </button>
                             </div>
                           ) : (
                             <button
                               onClick={() => startEdit(row.empId, wage)}
-                              className="flex items-center gap-1.5 mx-auto text-xs font-medium text-gray-700 hover:text-primary-700 group"
+                              className="flex items-center gap-1.5 mx-auto text-xs font-medium text-dark-700 hover:text-primary-700 group"
                             >
                               {wage > 0
                                 ? <span>{wage.toLocaleString('ko-KR')}원</span>
-                                : <span className="text-gray-300">미설정</span>
+                                : <span className="text-dark-300">미설정</span>
                               }
-                              <Edit2 size={11} className="text-gray-300 group-hover:text-primary-500" />
+                              <Edit2 size={11} className="text-dark-300 group-hover:text-primary-500" />
                             </button>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-right text-xs text-gray-500">{row.totalDays}일</td>
-                        <td className="px-4 py-3 text-right text-xs text-gray-400">{row.usedDays}일</td>
-                        <td className="px-4 py-3 text-right text-xs font-medium text-orange-600">{row.remainingDays}일</td>
-                        <td className="px-4 py-3 text-right font-bold text-gray-800">
+                        <td className="px-4 py-3 text-right text-xs text-dark-500">{row.totalDays}일</td>
+                        <td className="px-4 py-3 text-right text-xs text-dark-400">{row.usedDays}일</td>
+                        <td className="px-4 py-3 text-right text-xs font-medium text-primary-600">{row.remainingDays}일</td>
+                        <td className="px-4 py-3 text-right font-bold text-dark-800">
                           {wage > 0
                             ? fmtWon(pay)
-                            : <span className="text-gray-300 font-normal text-xs">시급 입력 필요</span>
+                            : <span className="text-dark-300 font-normal text-xs">시급 입력 필요</span>
                           }
                         </td>
                       </tr>
@@ -200,8 +200,8 @@ export function AdminLeavePayPage() {
                   })}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t-2 border-gray-200 bg-gray-50">
-                    <td className="px-4 py-3 font-semibold text-gray-700 text-sm" colSpan={6}>
+                  <tr className="border-t-2 border-dark-200 bg-dark-50">
+                    <td className="px-4 py-3 font-semibold text-dark-700 text-sm" colSpan={6}>
                       {calYear}년 총 연차수당
                     </td>
                     <td className="px-4 py-3 text-right font-bold text-primary-700 text-base">

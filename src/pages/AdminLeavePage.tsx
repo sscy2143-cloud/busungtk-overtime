@@ -356,7 +356,7 @@ export function AdminLeavePage() {
     annual: 'bg-primary-50 text-primary-700',
     half_am: 'bg-purple-50 text-purple-700',
     half_pm: 'bg-purple-50 text-purple-700',
-    special: 'bg-teal-50 text-teal-700',
+    special: 'bg-dark-50 text-dark-700',
   }
 
   const pendingRequests = requests.filter(r => r.status === 'pending' || r.status === 'manager_approved')
@@ -371,16 +371,16 @@ export function AdminLeavePage() {
     <div className="space-y-6">
       {/* 헤더 */}
       <div>
-        <h1 className="text-xl font-bold text-gray-900">휴가 관리</h1>
-        <p className="text-sm text-gray-500 mt-0.5">팀 휴가 현황을 한눈에 파악하세요</p>
+        <h1 className="text-xl font-bold text-dark-900">휴가 관리</h1>
+        <p className="text-sm text-dark-500 mt-0.5">팀 휴가 현황을 한눈에 파악하세요</p>
       </div>
 
       {/* 상단: KPI + 대기 목록 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
         {/* 좌: 주요 지표 */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-700">현황 요약</h2>
+        <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-dark-700">현황 요약</h2>
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-warning-50 rounded-xl p-3">
               <div className="flex items-center gap-2 mb-1">
@@ -396,32 +396,32 @@ export function AdminLeavePage() {
               </div>
               <p className="text-2xl font-bold text-success-700">{thisMonthApproved}<span className="text-sm ml-1">건</span></p>
             </div>
-            <div className={`rounded-xl p-3 ${lowRemainingEmployees.length > 0 ? 'bg-danger-50' : 'bg-gray-50'}`}>
+            <div className={`rounded-xl p-3 ${lowRemainingEmployees.length > 0 ? 'bg-danger-50' : 'bg-dark-50'}`}>
               <div className="flex items-center gap-2 mb-1">
-                <AlertTriangle className={`w-4 h-4 ${lowRemainingEmployees.length > 0 ? 'text-danger-500' : 'text-gray-400'}`} />
-                <span className={`text-xs font-medium ${lowRemainingEmployees.length > 0 ? 'text-danger-600' : 'text-gray-500'}`}>잔여 5일 이하</span>
+                <AlertTriangle className={`w-4 h-4 ${lowRemainingEmployees.length > 0 ? 'text-danger-500' : 'text-dark-400'}`} />
+                <span className={`text-xs font-medium ${lowRemainingEmployees.length > 0 ? 'text-danger-600' : 'text-dark-500'}`}>잔여 5일 이하</span>
               </div>
-              <p className={`text-2xl font-bold ${lowRemainingEmployees.length > 0 ? 'text-danger-700' : 'text-gray-400'}`}>
+              <p className={`text-2xl font-bold ${lowRemainingEmployees.length > 0 ? 'text-danger-700' : 'text-dark-400'}`}>
                 {lowRemainingEmployees.length}<span className="text-sm ml-1">명</span>
               </p>
             </div>
-            <div className="bg-blue-50 rounded-xl p-3">
+            <div className="bg-primary-50 rounded-xl p-3">
               <div className="flex items-center gap-2 mb-1">
-                <Calendar className="w-4 h-4 text-blue-500" />
-                <span className="text-xs text-blue-600 font-medium">평균 잔여</span>
+                <Calendar className="w-4 h-4 text-primary-500" />
+                <span className="text-xs text-primary-600 font-medium">평균 잔여</span>
               </div>
-              <p className="text-2xl font-bold text-blue-700">{avgRemaining}<span className="text-sm ml-1">일</span></p>
+              <p className="text-2xl font-bold text-primary-700">{avgRemaining}<span className="text-sm ml-1">일</span></p>
             </div>
           </div>
 
           {/* 잔여 5일 이하 직원 목록 */}
           {lowRemainingEmployees.length > 0 && (
-            <div className="border-t border-gray-100 pt-3">
+            <div className="border-t border-dark-100 pt-3">
               <p className="text-xs font-semibold text-danger-600 mb-2">⚠ 잔여 연차 부족 직원</p>
               <div className="space-y-1">
                 {lowRemainingEmployees.map(emp => (
                   <div key={emp.id} className="flex items-center justify-between text-xs bg-danger-50 rounded-lg px-3 py-1.5">
-                    <span className="text-gray-700 font-medium">{emp.name}</span>
+                    <span className="text-dark-700 font-medium">{emp.name}</span>
                     <span className={`font-bold ${emp.remaining_days <= 0 ? 'text-danger-700' : 'text-warning-600'}`}>
                       잔여 {emp.remaining_days}일
                       {emp.remaining_days <= 0 && <span className="ml-1">소진</span>}
@@ -434,16 +434,16 @@ export function AdminLeavePage() {
         </div>
 
         {/* 우: 승인 대기 목록 */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-          <div className="px-4 py-3 border-b border-gray-100 shrink-0">
-            <h2 className="text-sm font-semibold text-gray-900">승인 대기중</h2>
+        <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden flex flex-col">
+          <div className="px-4 py-3 border-b border-dark-100 shrink-0">
+            <h2 className="text-sm font-semibold text-dark-900">승인 대기중</h2>
           </div>
           {pendingRequests.length === 0 ? (
             <div className="flex-1 flex items-center justify-center py-10">
-              <p className="text-sm text-gray-400">대기중인 건이 없습니다</p>
+              <p className="text-sm text-dark-400">대기중인 건이 없습니다</p>
             </div>
           ) : (
-            <div className="overflow-y-auto flex-1 max-h-[320px] divide-y divide-gray-50">
+            <div className="overflow-y-auto flex-1 max-h-[320px] divide-y divide-dark-50">
               {pendingRequests.map(req => (
                 <div key={req.id} className="px-4 py-3 flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center shrink-0">
@@ -453,22 +453,22 @@ export function AdminLeavePage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-sm font-medium text-gray-800">{req.employee?.name ?? '-'}</span>
-                      <span className="text-xs text-gray-400">{req.employee?.department}</span>
+                      <span className="text-sm font-medium text-dark-800">{req.employee?.name ?? '-'}</span>
+                      <span className="text-xs text-dark-400">{req.employee?.department}</span>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={`text-xs px-1.5 py-0.5 rounded-full ${LEAVE_TYPE_COLOR[req.type]}`}>
                         {LEAVE_TYPE_LABEL[req.type]}
                       </span>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-dark-500">
                         {req.start_date}{req.start_date !== req.end_date ? ` ~ ${req.end_date}` : ''} ({req.days}일)
                       </span>
                     </div>
-                    {req.reason && <p className="text-xs text-gray-400 truncate mt-0.5">{req.reason}</p>}
+                    {req.reason && <p className="text-xs text-dark-400 truncate mt-0.5">{req.reason}</p>}
                   </div>
                   <div className="flex gap-1.5 shrink-0 items-center">
                     {req.status === 'manager_approved' && (
-                      <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full mr-1">1차 승인</span>
+                      <span className="text-[10px] text-primary-600 bg-primary-50 px-1.5 py-0.5 rounded-full mr-1">1차 승인</span>
                     )}
                     <button
                       onClick={() => handleApprove(req.id)}
@@ -497,71 +497,71 @@ export function AdminLeavePage() {
       </div>
 
       {/* 직원별 연차 현황 */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-100">
-          <h2 className="text-sm font-semibold text-gray-900">
+      <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+        <div className="px-4 py-3 border-b border-dark-100">
+          <h2 className="text-sm font-semibold text-dark-900">
             직원별 연차 현황
-            <span className="text-xs font-normal text-gray-400 ml-2">{currentYear}년</span>
+            <span className="text-xs font-normal text-dark-400 ml-2">{currentYear}년</span>
           </h2>
           <div className="flex items-center gap-3 mt-2">
-            <span className="text-xs text-gray-400">
-              <span className="inline-flex items-center gap-1 border border-gray-200 px-1.5 py-0.5 rounded text-gray-500 mr-1">연차</span>
+            <span className="text-xs text-dark-400">
+              <span className="inline-flex items-center gap-1 border border-dark-200 px-1.5 py-0.5 rounded text-dark-500 mr-1">연차</span>
               연차 총 일수 조정
             </span>
-            <span className="text-xs text-gray-400">
-              <span className="inline-flex items-center gap-1 border border-teal-200 px-1.5 py-0.5 rounded text-teal-600 mr-1">대체</span>
+            <span className="text-xs text-dark-400">
+              <span className="inline-flex items-center gap-1 border border-primary-200 px-1.5 py-0.5 rounded text-primary-600 mr-1">대체</span>
               대체휴가 추가 지급
             </span>
           </div>
         </div>
         {balancesLoading ? (
-          <p className="text-center text-sm text-gray-400 py-10">불러오는 중...</p>
+          <p className="text-center text-sm text-dark-400 py-10">불러오는 중...</p>
         ) : balances.length === 0 ? (
-          <p className="text-center text-sm text-gray-400 py-10">
+          <p className="text-center text-sm text-dark-400 py-10">
             활성 직원이 없습니다. 사용자 관리에서 직원을 먼저 등록해주세요.
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">이름</th>
-                  <th className="text-center px-2 py-3 text-xs font-semibold text-gray-500">연차</th>
-                  <th className="text-center px-2 py-3 text-xs font-semibold text-gray-500">사용</th>
-                  <th className="text-center px-2 py-3 text-xs font-semibold text-gray-500">잔여</th>
-                  <th className="text-center px-2 py-3 text-xs font-semibold text-teal-600">대체</th>
-                  <th className="text-center px-2 py-3 text-xs font-semibold text-gray-500">조정</th>
+                <tr className="bg-dark-50 border-b border-dark-100">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-dark-500">이름</th>
+                  <th className="text-center px-2 py-3 text-xs font-semibold text-dark-500">연차</th>
+                  <th className="text-center px-2 py-3 text-xs font-semibold text-dark-500">사용</th>
+                  <th className="text-center px-2 py-3 text-xs font-semibold text-dark-500">잔여</th>
+                  <th className="text-center px-2 py-3 text-xs font-semibold text-primary-600">대체</th>
+                  <th className="text-center px-2 py-3 text-xs font-semibold text-dark-500">조정</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-dark-100">
                 {balances.map((b) => (
-                  <tr key={b.id} className="hover:bg-gray-50">
+                  <tr key={b.id} className="hover:bg-dark-50">
                     <td className="px-4 py-3">
-                      <p className="font-semibold text-gray-900 text-sm">{b.name}</p>
-                      <p className="text-xs text-gray-400">{b.department}</p>
+                      <p className="font-semibold text-dark-900 text-sm">{b.name}</p>
+                      <p className="text-xs text-dark-400">{b.department}</p>
                       {adjustLogs[b.id]?.[0] && (
                         <p className="text-xs text-primary-500 mt-0.5 flex items-center gap-0.5">
                           <FileText className="w-3 h-3 shrink-0" />
                           <span className="truncate">{adjustLogs[b.id][0].reason}</span>
-                          <span className="text-gray-300 shrink-0">({adjustLogs[b.id][0].date})</span>
+                          <span className="text-dark-300 shrink-0">({adjustLogs[b.id][0].date})</span>
                         </p>
                       )}
                     </td>
-                    <td className="px-2 py-3 text-center text-sm text-gray-700">{b.total_days}일</td>
+                    <td className="px-2 py-3 text-center text-sm text-dark-700">{b.total_days}일</td>
                     <td className="px-2 py-3 text-center text-sm text-warning-600 font-medium">{b.used_days}일</td>
                     <td className={`px-2 py-3 text-center text-sm font-bold ${b.remaining_days <= 5 ? 'text-danger-600' : 'text-primary-600'}`}>
                       {b.remaining_days}일
                     </td>
-                    <td className="px-2 py-3 text-center text-sm text-teal-600 font-bold">
+                    <td className="px-2 py-3 text-center text-sm text-primary-600 font-bold">
                       {(() => {
                         const days = (b.substitute_total ?? 0) - (b.substitute_used ?? 0)
                         const hours = Math.round(days * 8 * 10) / 10
                         const otHours = Math.round((otCompLeaveHours[b.id] ?? 0) * 10) / 10
                         return (
                           <>
-                            {days}일 <span className="text-xs font-normal text-teal-400">({hours}h)</span>
+                            {days}일 <span className="text-xs font-normal text-primary-400">({hours}h)</span>
                             {otHours > 0 && (
-                              <div className="text-xs font-normal text-orange-500 mt-0.5">야근전환 -{otHours}h</div>
+                              <div className="text-xs font-normal text-primary-500 mt-0.5">야근전환 -{otHours}h</div>
                             )}
                           </>
                         )
@@ -571,13 +571,13 @@ export function AdminLeavePage() {
                       <div className="flex gap-1 justify-center">
                         <button
                           onClick={() => openAdjust(b)}
-                          className="text-xs text-gray-500 border border-gray-200 px-2 py-1 rounded-lg hover:border-primary-400 hover:text-primary-600 transition-colors"
+                          className="text-xs text-dark-500 border border-dark-200 px-2 py-1 rounded-lg hover:border-primary-400 hover:text-primary-600 transition-colors"
                         >
                           연차
                         </button>
                         <button
                           onClick={() => openSubstituteGrant(b)}
-                          className="text-xs text-teal-600 border border-teal-200 px-2 py-1 rounded-lg hover:border-teal-400 hover:bg-teal-50 transition-colors flex items-center gap-0.5"
+                          className="text-xs text-primary-600 border border-primary-200 px-2 py-1 rounded-lg hover:border-primary-400 hover:bg-dark-50 transition-colors flex items-center gap-0.5"
                         >
                           <RefreshCw className="w-3 h-3" />
                           대체
@@ -598,13 +598,13 @@ export function AdminLeavePage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setRejectModal({ open: false, id: '', reason: '' })} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-gray-900">반려 사유 입력</h3>
+              <h3 className="text-base font-bold text-dark-900">반려 사유 입력</h3>
               <button onClick={() => setRejectModal({ open: false, id: '', reason: '' })}>
-                <X className="w-5 h-5 text-gray-400" />
+                <X className="w-5 h-5 text-dark-400" />
               </button>
             </div>
             <textarea
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
+              className="w-full border border-dark-200 rounded-xl px-3 py-2.5 text-sm text-dark-800 resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
               rows={3}
               placeholder="반려 사유를 입력하세요"
               value={rejectModal.reason}
@@ -613,7 +613,7 @@ export function AdminLeavePage() {
             <div className="flex gap-2 mt-4">
               <button
                 onClick={() => setRejectModal({ open: false, id: '', reason: '' })}
-                className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+                className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50"
               >
                 취소
               </button>
@@ -635,12 +635,12 @@ export function AdminLeavePage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setDeleteModal((p) => ({ ...p, open: false }))} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-gray-900">휴가 신청 삭제</h3>
+              <h3 className="text-base font-bold text-dark-900">휴가 신청 삭제</h3>
               <button onClick={() => setDeleteModal((p) => ({ ...p, open: false }))}>
-                <X className="w-5 h-5 text-gray-400" />
+                <X className="w-5 h-5 text-dark-400" />
               </button>
             </div>
-            <p className="text-sm text-gray-600 mb-1">
+            <p className="text-sm text-dark-600 mb-1">
               <span className="font-semibold">{deleteModal.employeeName}</span>의 휴가 신청({deleteModal.days}일)을 삭제하시겠습니까?
             </p>
             {deleteModal.status === 'approved' && (
@@ -651,7 +651,7 @@ export function AdminLeavePage() {
             <div className="flex gap-2 mt-4">
               <button
                 onClick={() => setDeleteModal((p) => ({ ...p, open: false }))}
-                className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+                className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50"
               >
                 취소
               </button>
@@ -672,12 +672,12 @@ export function AdminLeavePage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setAdjustModal((p) => ({ ...p, open: false }))} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-gray-900">연차 일수 조정</h3>
+              <h3 className="text-base font-bold text-dark-900">연차 일수 조정</h3>
               <button onClick={() => setAdjustModal((p) => ({ ...p, open: false }))}>
-                <X className="w-5 h-5 text-gray-400" />
+                <X className="w-5 h-5 text-dark-400" />
               </button>
             </div>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-dark-600 mb-4">
               <span className="font-semibold">{adjustModal.employeeName}</span>의 총 연차 일수를 설정합니다
             </p>
 
@@ -686,33 +686,33 @@ export function AdminLeavePage() {
               <button
                 type="button"
                 onClick={() => setAdjustModal((p) => ({ ...p, newTotal: Math.max(0, p.newTotal - 1) }))}
-                className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
+                className="w-10 h-10 rounded-xl bg-dark-100 flex items-center justify-center hover:bg-dark-200 transition-colors"
               >
-                <Minus className="w-4 h-4 text-gray-600" />
+                <Minus className="w-4 h-4 text-dark-600" />
               </button>
               <div className="text-center">
                 <span className="text-3xl font-black text-primary-600">
                   {adjustModal.newTotal}
                 </span>
-                <p className="text-xs text-gray-400 mt-0.5">일</p>
+                <p className="text-xs text-dark-400 mt-0.5">일</p>
               </div>
               <button
                 type="button"
                 onClick={() => setAdjustModal((p) => ({ ...p, newTotal: p.newTotal + 1 }))}
-                className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
+                className="w-10 h-10 rounded-xl bg-dark-100 flex items-center justify-center hover:bg-dark-200 transition-colors"
               >
-                <Plus className="w-4 h-4 text-gray-600" />
+                <Plus className="w-4 h-4 text-dark-600" />
               </button>
             </div>
             {adjustModal.newTotal !== adjustModal.currentTotal && (
-              <p className="text-xs text-center text-gray-400 mb-4">
+              <p className="text-xs text-center text-dark-400 mb-4">
                 기존 {adjustModal.currentTotal}일 → {adjustModal.newTotal}일 ({adjustModal.newTotal - adjustModal.currentTotal > 0 ? '+' : ''}{adjustModal.newTotal - adjustModal.currentTotal}일)
               </p>
             )}
             {adjustModal.newTotal === adjustModal.currentTotal && <div className="mb-4" />}
 
             <textarea
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
+              className="w-full border border-dark-200 rounded-xl px-3 py-2.5 text-sm text-dark-800 resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
               rows={2}
               placeholder="조정 사유를 입력하세요"
               value={adjustModal.reason}
@@ -721,14 +721,14 @@ export function AdminLeavePage() {
             <div className="flex gap-2 mt-4">
               <button
                 onClick={() => setAdjustModal((p) => ({ ...p, open: false }))}
-                className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+                className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50"
               >
                 취소
               </button>
               <button
                 onClick={confirmAdjust}
                 disabled={adjustModal.newTotal === adjustModal.currentTotal || !adjustModal.reason.trim()}
-                className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-600 rounded-xl hover:bg-primary-700 disabled:opacity-40 transition-colors"
+                className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-600 disabled:opacity-40 transition-colors"
               >
                 저장
               </button>
@@ -743,25 +743,25 @@ export function AdminLeavePage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setSubGrantModal((p) => ({ ...p, open: false }))} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                <RefreshCw className="w-4 h-4 text-teal-600" />
+              <h3 className="text-base font-bold text-dark-900 flex items-center gap-2">
+                <RefreshCw className="w-4 h-4 text-primary-600" />
                 대체휴가 부여
               </h3>
               <button onClick={() => setSubGrantModal((p) => ({ ...p, open: false }))}>
-                <X className="w-5 h-5 text-gray-400" />
+                <X className="w-5 h-5 text-dark-400" />
               </button>
             </div>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-dark-600 mb-4">
               <span className="font-semibold">{subGrantModal.employeeName}</span>에게 대체휴가를 부여합니다
             </p>
 
             {/* 단위 선택 (시간/일) */}
-            <div className="flex bg-gray-100 rounded-xl p-1 gap-1 mb-4">
+            <div className="flex bg-dark-100 rounded-xl p-1 gap-1 mb-4">
               <button
                 type="button"
                 onClick={() => setSubGrantModal((p) => ({ ...p, unit: 'hours', value: 1 }))}
                 className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-colors ${
-                  subGrantModal.unit === 'hours' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-500'
+                  subGrantModal.unit === 'hours' ? 'bg-white text-dark-700 shadow-[0_1px_3px_rgba(0,0,0,0.04)]' : 'text-dark-500'
                 }`}
               >
                 시간
@@ -770,7 +770,7 @@ export function AdminLeavePage() {
                 type="button"
                 onClick={() => setSubGrantModal((p) => ({ ...p, unit: 'days', value: 0.5 }))}
                 className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-colors ${
-                  subGrantModal.unit === 'days' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-500'
+                  subGrantModal.unit === 'days' ? 'bg-white text-dark-700 shadow-[0_1px_3px_rgba(0,0,0,0.04)]' : 'text-dark-500'
                 }`}
               >
                 일
@@ -785,15 +785,15 @@ export function AdminLeavePage() {
                   ...p,
                   value: Math.max(p.unit === 'hours' ? 1 : 0.5, p.value - (p.unit === 'hours' ? 1 : 0.5)),
                 }))}
-                className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
+                className="w-10 h-10 rounded-xl bg-dark-100 flex items-center justify-center hover:bg-dark-200 transition-colors"
               >
-                <Minus className="w-4 h-4 text-gray-600" />
+                <Minus className="w-4 h-4 text-dark-600" />
               </button>
               <div className="text-center">
-                <span className="text-3xl font-black text-teal-600">
+                <span className="text-3xl font-black text-primary-600">
                   +{subGrantModal.value}
                 </span>
-                <p className="text-xs text-gray-400 mt-0.5">
+                <p className="text-xs text-dark-400 mt-0.5">
                   {subGrantModal.unit === 'hours' ? '시간' : '일'}
                 </p>
               </div>
@@ -803,26 +803,26 @@ export function AdminLeavePage() {
                   ...p,
                   value: p.value + (p.unit === 'hours' ? 1 : 0.5),
                 }))}
-                className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
+                className="w-10 h-10 rounded-xl bg-dark-100 flex items-center justify-center hover:bg-dark-200 transition-colors"
               >
-                <Plus className="w-4 h-4 text-gray-600" />
+                <Plus className="w-4 h-4 text-dark-600" />
               </button>
             </div>
 
             {/* 변환 안내 */}
             {subGrantModal.unit === 'hours' && (
-              <p className="text-xs text-center text-gray-400 mb-4">
+              <p className="text-xs text-center text-dark-400 mb-4">
                 = {(subGrantModal.value / 8).toFixed(1)}일 (8시간 = 1일)
               </p>
             )}
             {subGrantModal.unit === 'days' && <div className="mb-4" />}
 
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
+              <label className="block text-xs font-medium text-dark-600 mb-1">
                 부여 사유 <span className="text-danger-500">*</span>
               </label>
               <textarea
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
+                className="w-full border border-dark-200 rounded-xl px-3 py-2.5 text-sm text-dark-800 resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
                 rows={2}
                 placeholder="부여 사유를 입력하세요 (예: 2/15 휴일근무 대체)"
                 value={subGrantModal.reason}
@@ -832,14 +832,14 @@ export function AdminLeavePage() {
             <div className="flex gap-2 mt-4">
               <button
                 onClick={() => setSubGrantModal((p) => ({ ...p, open: false }))}
-                className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+                className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50"
               >
                 취소
               </button>
               <button
                 onClick={confirmSubstituteGrant}
                 disabled={subGrantModal.value <= 0 || !subGrantModal.reason.trim()}
-                className="flex-1 py-2.5 text-sm font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 disabled:opacity-40 transition-colors"
+                className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-500 disabled:opacity-40 transition-colors"
               >
                 부여
               </button>

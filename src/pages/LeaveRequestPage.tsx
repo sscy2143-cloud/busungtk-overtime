@@ -301,7 +301,7 @@ export function LeaveRequestPage() {
         <button
           type="submit"
           disabled={!canSubmit || submitting}
-          className="w-full py-3.5 text-sm font-bold text-white bg-primary-500 rounded-2xl hover:bg-primary-600 active:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="w-full py-3.5 text-sm font-bold text-white bg-primary-500 rounded-2xl hover:bg-primary-500 active:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           {submitting ? '신청 중...' : '휴가 신청하기'}
         </button>

@@ -12,9 +12,9 @@ interface TimesheetEntry {
 }
 
 const TYPE_COLOR: Record<string, string> = {
-  extended: 'bg-blue-100 text-blue-700',
-  night: 'bg-indigo-100 text-indigo-700',
-  holiday: 'bg-orange-100 text-orange-700',
+  extended: 'bg-dark-100 text-dark-700',
+  night: 'bg-dark-100 text-dark-700',
+  holiday: 'bg-primary-50 text-primary-700',
 }
 
 interface EditModalState {
@@ -169,15 +169,15 @@ export function TimesheetPage() {
     <div className="max-w-lg mx-auto px-4 py-6 pb-24">
       {/* 헤더 + 월 네비 */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-gray-900">근무 기록</h1>
+        <h1 className="text-xl font-bold text-dark-900">근무 기록</h1>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setMonthOffset((v) => v - 1)}
-            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
+            className="p-1.5 rounded-lg hover:bg-dark-50 text-dark-500"
           >
             <ChevronLeft size={18} />
           </button>
-          <span className="text-sm font-medium text-gray-700 min-w-28 text-center">
+          <span className="text-sm font-medium text-dark-700 min-w-28 text-center">
             {isCurrentMonth ? (
               <span className="text-primary-600">이번 달</span>
             ) : monthLabel}
@@ -185,7 +185,7 @@ export function TimesheetPage() {
           <button
             onClick={() => setMonthOffset((v) => v + 1)}
             disabled={monthOffset >= 0}
-            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 disabled:opacity-30"
+            className="p-1.5 rounded-lg hover:bg-dark-50 text-dark-500 disabled:opacity-30"
           >
             <ChevronRight size={18} />
           </button>
@@ -193,43 +193,43 @@ export function TimesheetPage() {
       </div>
 
       {/* 월 총 야근 시간 요약 카드 */}
-      <div className="bg-gray-900 rounded-2xl p-5 text-white mb-6">
+      <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5 mb-6">
         <div className="flex items-center gap-2 mb-3">
-          <Calendar size={16} className="text-gray-400" />
-          <p className="text-xs text-gray-400">{monthLabel} 야근 합계</p>
+          <Calendar size={16} className="text-dark-400" />
+          <p className="text-xs text-dark-400">{monthLabel} 야근 합계</p>
         </div>
-        <p className="text-3xl font-black text-primary-400 mb-3">
+        <p className="text-3xl font-black text-primary-500 mb-3">
           {(totalMonthMinutes / 60).toFixed(1)}h
         </p>
         <div className="flex gap-4">
           <div>
-            <span className="text-xs text-gray-400">연장</span>
-            <p className="text-sm font-bold">{(totalExtMinutes / 60).toFixed(1)}h</p>
+            <span className="text-xs text-dark-400">연장</span>
+            <p className="text-sm font-bold text-dark-800">{(totalExtMinutes / 60).toFixed(1)}h</p>
           </div>
-          <div className="w-px bg-gray-700" />
+          <div className="w-px bg-dark-100" />
           <div>
-            <span className="text-xs text-gray-400">야간</span>
-            <p className="text-sm font-bold">{(totalNightMinutes / 60).toFixed(1)}h</p>
+            <span className="text-xs text-dark-400">야간</span>
+            <p className="text-sm font-bold text-dark-800">{(totalNightMinutes / 60).toFixed(1)}h</p>
           </div>
-          <div className="w-px bg-gray-700" />
+          <div className="w-px bg-dark-100" />
           <div>
-            <span className="text-xs text-gray-400">휴일</span>
-            <p className="text-sm font-bold">{(totalHolidayMinutes / 60).toFixed(1)}h</p>
+            <span className="text-xs text-dark-400">휴일</span>
+            <p className="text-sm font-bold text-dark-800">{(totalHolidayMinutes / 60).toFixed(1)}h</p>
           </div>
-          <div className="w-px bg-gray-700" />
+          <div className="w-px bg-dark-100" />
           <div>
-            <span className="text-xs text-gray-400">건수</span>
-            <p className="text-sm font-bold">{approvedEntries.length}건</p>
+            <span className="text-xs text-dark-400">건수</span>
+            <p className="text-sm font-bold text-dark-800">{approvedEntries.length}건</p>
           </div>
         </div>
       </div>
 
       {/* 해당 월 신청 건 목록 */}
       {entries.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
-          <Clock className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-          <p className="text-sm font-medium text-gray-500 mb-1">이 달의 야근 기록이 없습니다</p>
-          <p className="text-xs text-gray-400">승인된 야근 신청이 여기에 표시됩니다</p>
+        <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-12 text-center">
+          <Clock className="w-12 h-12 text-dark-200 mx-auto mb-3" />
+          <p className="text-sm font-medium text-dark-500 mb-1">이 달의 야근 기록이 없습니다</p>
+          <p className="text-xs text-dark-400">승인된 야근 신청이 여기에 표시됩니다</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -239,11 +239,11 @@ export function TimesheetPage() {
               : calcMinutesFromTime(req.planned_start, req.planned_end)
 
             return (
-              <div key={req.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+              <div key={req.id} className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-4">
                 {/* 날짜 + 유형 + 상태 */}
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-gray-800">
+                    <span className="text-sm font-semibold text-dark-800">
                       {formatDateKr(req.date)}
                     </span>
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLOR[req.type]}`}>
@@ -254,26 +254,26 @@ export function TimesheetPage() {
                 </div>
 
                 {/* 시간 정보 */}
-                <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-1">
-                  <Clock size={13} className="text-gray-400" />
+                <div className="flex items-center gap-1.5 text-xs text-dark-500 mb-1">
+                  <Clock size={13} className="text-dark-400" />
                   <span>계획: {req.planned_start} ~ {req.planned_end}</span>
-                  <span className="text-gray-300">|</span>
-                  <span className="font-medium text-gray-700">{formatMinutes(minutes)}</span>
+                  <span className="text-dark-200">|</span>
+                  <span className="font-medium text-dark-700">{formatMinutes(minutes)}</span>
                 </div>
 
                 {/* 실제 기록 (있는 경우) */}
                 {rec && (
                   <div className="flex items-center justify-between mt-2">
-                    <div className="bg-success-50 rounded-lg px-3 py-1.5 text-xs">
-                      <span className="text-gray-500">실제: </span>
-                      <span className="font-semibold text-gray-800">
+                    <div className="bg-dark-50 rounded-lg px-3 py-1.5 text-xs">
+                      <span className="text-dark-500">실제: </span>
+                      <span className="font-semibold text-dark-800">
                         {rec.actual_start} ~ {rec.actual_end}
                       </span>
-                      <span className="ml-1.5 text-success-600 font-medium">
+                      <span className="ml-1.5 text-primary-600 font-medium">
                         ({formatMinutes(rec.total_minutes)})
                       </span>
                       {rec.is_manually_edited && (
-                        <span className="ml-1.5 text-warning-500 inline-flex items-center gap-0.5">
+                        <span className="ml-1.5 text-primary-500 inline-flex items-center gap-0.5">
                           <AlertTriangle size={10} />
                           수동
                         </span>
@@ -289,7 +289,7 @@ export function TimesheetPage() {
                 )}
 
                 {/* 사유 */}
-                <p className="text-xs text-gray-400 mt-1.5 truncate">{req.reason}</p>
+                <p className="text-xs text-dark-400 mt-1.5 truncate">{req.reason}</p>
               </div>
             )
           })}
@@ -298,52 +298,52 @@ export function TimesheetPage() {
 
       {/* 수동 수정 모달 */}
       {editModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 px-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm px-4">
           <div className="w-full max-w-lg bg-white rounded-t-3xl p-6 space-y-4">
-            <h2 className="text-base font-bold text-gray-900">근무 시간 수정</h2>
+            <h2 className="text-base font-bold text-dark-900">근무 시간 수정</h2>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">시작 시간</label>
+                <label className="block text-xs font-medium text-dark-600 mb-1">시작 시간</label>
                 <input
                   type="time"
                   value={editModal.startVal}
                   onChange={(e) => setEditModal((m) => m ? { ...m, startVal: e.target.value } : m)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                  className="w-full px-3 py-2.5 text-sm border border-dark-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-400 text-dark-800 transition-colors"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">종료 시간</label>
+                <label className="block text-xs font-medium text-dark-600 mb-1">종료 시간</label>
                 <input
                   type="time"
                   value={editModal.endVal}
                   onChange={(e) => setEditModal((m) => m ? { ...m, endVal: e.target.value } : m)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                  className="w-full px-3 py-2.5 text-sm border border-dark-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-400 text-dark-800 transition-colors"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                수정 사유 <span className="text-danger-500">*</span>
+              <label className="block text-xs font-medium text-dark-600 mb-1">
+                수정 사유 <span className="text-primary-500">*</span>
               </label>
               <textarea
                 value={editModal.editReason}
                 onChange={(e) => setEditModal((m) => m ? { ...m, editReason: e.target.value } : m)}
                 rows={2}
                 placeholder="수정 사유를 입력하세요"
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
+                className="w-full px-3 py-2.5 text-sm border border-dark-200 rounded-xl bg-white resize-none focus:outline-none focus:ring-2 focus:ring-primary-400 text-dark-800 transition-colors"
               />
             </div>
             <div className="flex gap-2">
               <button
                 onClick={() => setEditModal(null)}
-                className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm font-medium rounded-xl hover:bg-gray-50"
+                className="flex-1 py-2.5 border border-dark-200 text-dark-600 text-sm font-medium rounded-xl hover:bg-dark-50"
               >
                 취소
               </button>
               <button
                 onClick={saveEdit}
                 disabled={!editModal.editReason.trim()}
-                className="flex-1 py-2.5 bg-primary-600 text-white text-sm font-semibold rounded-xl hover:bg-primary-700 disabled:opacity-50"
+                className="flex-1 py-2.5 bg-primary-500 text-white text-sm font-semibold rounded-xl hover:bg-primary-500 disabled:opacity-40"
               >
                 저장
               </button>

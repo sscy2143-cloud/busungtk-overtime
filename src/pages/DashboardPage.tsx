@@ -295,7 +295,7 @@ export function DashboardPage() {
       <div data-tour="quick-actions" className="grid grid-cols-3 gap-3">
         <button
           onClick={() => navigate('/request')}
-          className="group flex flex-col items-center justify-center gap-2 bg-white hover:bg-primary-50 text-dark-800 font-semibold text-sm py-5 rounded-xl border border-dark-100 transition-all shadow-sm"
+          className="group flex flex-col items-center justify-center gap-2 bg-white hover:bg-primary-50 text-dark-800 font-semibold text-sm py-5 rounded-xl border border-dark-100 transition-all shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
         >
           <div className="w-9 h-9 bg-primary-50 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform">
             <FilePlus size={18} className="text-primary-500" />
@@ -304,7 +304,7 @@ export function DashboardPage() {
         </button>
         <button
           onClick={() => navigate('/leave/request')}
-          className="group flex flex-col items-center justify-center gap-2 bg-white hover:bg-primary-50 text-dark-800 font-semibold text-sm py-5 rounded-xl border border-dark-100 transition-all shadow-sm"
+          className="group flex flex-col items-center justify-center gap-2 bg-white hover:bg-primary-50 text-dark-800 font-semibold text-sm py-5 rounded-xl border border-dark-100 transition-all shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
         >
           <div className="w-9 h-9 bg-primary-50 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform">
             <CalendarPlus size={18} className="text-primary-500" />
@@ -313,7 +313,7 @@ export function DashboardPage() {
         </button>
         <button
           onClick={() => navigate('/timesheet')}
-          className="group flex flex-col items-center justify-center gap-2 bg-white hover:bg-primary-50 text-dark-800 font-semibold text-sm py-5 rounded-xl border border-dark-100 transition-all shadow-sm"
+          className="group flex flex-col items-center justify-center gap-2 bg-white hover:bg-primary-50 text-dark-800 font-semibold text-sm py-5 rounded-xl border border-dark-100 transition-all shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
         >
           <div className="w-9 h-9 bg-primary-50 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform">
             <Clock size={18} className="text-primary-500" />
@@ -487,7 +487,7 @@ export function DashboardPage() {
                   )}
                   <button
                     onClick={() => window.open(signedUrl, '_blank', 'noopener,noreferrer')}
-                    className="flex items-center justify-center gap-2 w-full py-2.5 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-600 transition-colors"
+                    className="flex items-center justify-center gap-2 w-full py-2.5 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-500 transition-colors"
                   >
                     <Download size={14} />
                     다운로드
@@ -505,7 +505,7 @@ export function DashboardPage() {
                     <img
                       src={signedUrl}
                       alt="급여명세서"
-                      className="max-w-full max-h-[70vh] rounded-lg shadow-sm object-contain"
+                      className="max-w-full max-h-[70vh] rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.04)] object-contain"
                     />
                   )}
                 </div>
@@ -539,7 +539,7 @@ export function DashboardPage() {
               </button>
               <button
                 onClick={() => { setShowConfirmAlert(false); navigate('/expenses') }}
-                className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-600 transition-colors"
+                className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-500 transition-colors"
               >
                 확인하러 가기
               </button>
@@ -591,7 +591,7 @@ export function DashboardPage() {
               )}
               <button
                 type="submit"
-                className="w-full flex items-center justify-center gap-2 py-3 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-600 transition-colors"
+                className="w-full flex items-center justify-center gap-2 py-3 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-500 transition-colors"
               >
                 <ShieldCheck size={16} />
                 확인

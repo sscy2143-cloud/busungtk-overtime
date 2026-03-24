@@ -445,7 +445,7 @@ export function RequestPage() {
         <button
           type="submit"
           disabled={submitting || !breakdown || breakdown.totalMinutes <= 0}
-          className="w-full py-3.5 bg-primary-500 text-white font-bold rounded-xl hover:bg-primary-600 disabled:opacity-50 transition-colors mt-2"
+          className="w-full py-3.5 bg-primary-500 text-white font-bold rounded-xl hover:bg-primary-500 disabled:opacity-50 transition-colors mt-2"
         >
           {submitting ? '제출 중...' : '제출하기'}
         </button>

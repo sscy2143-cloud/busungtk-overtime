@@ -44,7 +44,7 @@ export function ApprovalCard({
   const isExceeding = weeklyHours !== undefined && weeklyHours >= 52
 
   return (
-    <div className={`bg-white rounded-2xl border shadow-sm p-4 ${isExceeding ? 'border-danger-300' : 'border-gray-100'}`}>
+    <div className={`bg-white rounded-2xl border shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-4 ${isExceeding ? 'border-danger-300' : 'border-dark-100'}`}>
       {/* 상단: 체크박스 + 신청자 + 배지 */}
       <div className="flex items-start gap-3">
         {onCheck && (
@@ -65,10 +65,10 @@ export function ApprovalCard({
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-semibold text-gray-900">
+            <span className="text-sm font-semibold text-dark-900">
               {request.employee?.name ?? '알 수 없음'}
             </span>
-            <span className="text-xs text-gray-400">{request.employee?.department}</span>
+            <span className="text-xs text-dark-400">{request.employee?.department}</span>
             <StatusBadge status={request.status} />
           </div>
 
@@ -106,16 +106,16 @@ export function ApprovalCard({
       >
         {isOvertime && overtime && (
           <>
-            <div className="flex items-center gap-1.5 text-xs text-gray-600">
-              <Clock className="w-3.5 h-3.5 text-gray-400" />
+            <div className="flex items-center gap-1.5 text-xs text-dark-600">
+              <Clock className="w-3.5 h-3.5 text-dark-400" />
               <span>{overtime.date}</span>
-              <span className="text-gray-400">|</span>
+              <span className="text-dark-400">|</span>
               <span>{overtime.planned_start} ~ {overtime.planned_end}</span>
             </div>
             {weeklyHours !== undefined && (
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-dark-500">
                 주간 누적:{' '}
-                <span className={`font-semibold ${isExceeding ? 'text-danger-600' : 'text-gray-700'}`}>
+                <span className={`font-semibold ${isExceeding ? 'text-danger-600' : 'text-dark-700'}`}>
                   {weeklyHours.toFixed(1)}h
                 </span>
               </p>
@@ -123,26 +123,26 @@ export function ApprovalCard({
           </>
         )}
         {!isOvertime && leave && (
-          <div className="text-xs text-gray-600">
+          <div className="text-xs text-dark-600">
             <span>{leave.start_date}</span>
             {leave.start_date !== leave.end_date && (
               <span> ~ {leave.end_date}</span>
             )}
-            <span className="ml-1 text-gray-400">({leave.days}일)</span>
+            <span className="ml-1 text-dark-400">({leave.days}일)</span>
           </div>
         )}
 
         {/* 사유 */}
-        <p className="text-xs text-gray-500 line-clamp-2">{request.reason}</p>
+        <p className="text-xs text-dark-500 line-clamp-2">{request.reason}</p>
 
         {/* 승인현황 */}
         {(request.status === 'approved' || request.status === 'pending') && (
           <div className="mt-1.5 flex items-center gap-3 text-xs">
-            <span className="text-gray-400">승인현황</span>
-            <span className={request.status === 'approved' && approverRole === 'manager' ? 'text-success-600 font-semibold' : 'text-gray-300'}>
+            <span className="text-dark-400">승인현황</span>
+            <span className={request.status === 'approved' && approverRole === 'manager' ? 'text-success-600 font-semibold' : 'text-dark-300'}>
               인사담당자: {request.status === 'approved' && approverRole === 'manager' ? '승인' : '미승인'}
             </span>
-            <span className={request.status === 'approved' && approverRole === 'admin' ? 'text-success-600 font-semibold' : 'text-gray-300'}>
+            <span className={request.status === 'approved' && approverRole === 'admin' ? 'text-success-600 font-semibold' : 'text-dark-300'}>
               대표: {request.status === 'approved' && approverRole === 'admin' ? '승인' : '미승인'}
             </span>
           </div>
@@ -195,7 +195,7 @@ export function ApprovalCard({
           {onViewHistory && (
             <button
               onClick={() => onViewHistory(request.id)}
-              className="flex-1 py-1.5 text-xs font-semibold bg-white text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-1"
+              className="flex-1 py-1.5 text-xs font-semibold bg-white text-dark-600 border border-dark-200 rounded-lg hover:bg-dark-50 transition-colors flex items-center justify-center gap-1"
             >
               <History className="w-3 h-3" />
               이력 보기

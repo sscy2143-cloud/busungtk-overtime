@@ -14,14 +14,14 @@ interface TeamGaugeListProps {
 const GAUGE_COLOR: Record<WarningLevel, string> = {
   normal: 'bg-success-500',
   caution: 'bg-warning-500',
-  warning: 'bg-orange-400',
+  warning: 'bg-primary-400',
   exceeded: 'bg-danger-600',
 }
 
 const TEXT_COLOR: Record<WarningLevel, string> = {
   normal: 'text-success-600',
   caution: 'text-warning-600',
-  warning: 'text-orange-500',
+  warning: 'text-primary-500',
   exceeded: 'text-danger-600',
 }
 
@@ -29,7 +29,7 @@ export function TeamGaugeList({ members }: TeamGaugeListProps) {
   const MAX_HOURS = 52
 
   return (
-    <div className="divide-y divide-gray-100">
+    <div className="divide-y divide-dark-100">
       {members.map((member) => {
         const pct = Math.min((member.totalHours / MAX_HOURS) * 100, 100)
         const isExceeded = member.warningLevel === 'exceeded'
@@ -48,13 +48,13 @@ export function TeamGaugeList({ members }: TeamGaugeListProps) {
 
             {/* 이름 + 부서 */}
             <div className="w-24 shrink-0">
-              <p className="text-sm font-semibold text-gray-900 truncate">{member.name}</p>
-              <p className="text-xs text-gray-400 truncate">{member.department}</p>
+              <p className="text-sm font-semibold text-dark-900 truncate">{member.name}</p>
+              <p className="text-xs text-dark-400 truncate">{member.department}</p>
             </div>
 
             {/* 게이지 바 */}
             <div className="flex-1 min-w-0">
-              <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+              <div className="h-2.5 bg-dark-100 rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all duration-500 ${GAUGE_COLOR[member.warningLevel]}`}
                   style={{ width: `${pct}%` }}
@@ -65,7 +65,7 @@ export function TeamGaugeList({ members }: TeamGaugeListProps) {
                 {[40, 48, 52].map((h) => (
                   <div
                     key={h}
-                    className="absolute top-0 w-px h-2 bg-gray-300"
+                    className="absolute top-0 w-px h-2 bg-dark-300"
                     style={{ left: `${(h / MAX_HOURS) * 100}%` }}
                   />
                 ))}
@@ -77,7 +77,7 @@ export function TeamGaugeList({ members }: TeamGaugeListProps) {
               <span className={`text-sm font-bold ${TEXT_COLOR[member.warningLevel]}`}>
                 {member.totalHours.toFixed(1)}h
               </span>
-              <p className="text-xs text-gray-400">/ {MAX_HOURS}h</p>
+              <p className="text-xs text-dark-400">/ {MAX_HOURS}h</p>
             </div>
           </div>
         )

@@ -306,14 +306,14 @@ export function AdminApprovalsPage() {
     pending: 'text-warning-600',
     approved: 'text-success-600',
     rejected: 'text-danger-600',
-    cancelled: 'text-gray-500',
+    cancelled: 'text-dark-500',
   }
 
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">야근 승인 관리</h1>
-        <p className="text-sm text-gray-500 mt-0.5">야근 신청을 검토하고 처리하세요</p>
+        <h1 className="text-xl font-bold text-dark-900">야근 승인 관리</h1>
+        <p className="text-sm text-dark-500 mt-0.5">야근 신청을 검토하고 처리하세요</p>
       </div>
 
       {/* 직원 필터 */}
@@ -323,8 +323,8 @@ export function AdminApprovalsPage() {
             onClick={() => setSelectedEmployee(null)}
             className={`shrink-0 px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
               selectedEmployee === null
-                ? 'bg-gray-800 text-white border-gray-800'
-                : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'
+                ? 'bg-dark-800 text-white border-dark-800'
+                : 'bg-white text-dark-500 border-dark-200 hover:border-dark-300'
             }`}
           >
             전체
@@ -335,8 +335,8 @@ export function AdminApprovalsPage() {
               onClick={() => setSelectedEmployee(selectedEmployee === id ? null : id)}
               className={`shrink-0 px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
                 selectedEmployee === id
-                  ? 'bg-primary-600 text-white border-primary-600'
-                  : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'
+                  ? 'bg-primary-500 text-white border-primary-600'
+                  : 'bg-white text-dark-500 border-dark-200 hover:border-dark-300'
               }`}
             >
               {name}
@@ -351,7 +351,7 @@ export function AdminApprovalsPage() {
           <span className="text-sm text-primary-700 font-medium">{checkedIds.size}건 선택됨</span>
           <button
             onClick={handleBulkApprove}
-            className="flex items-center gap-1.5 text-sm font-semibold text-white bg-primary-600 px-3 py-1.5 rounded-lg hover:bg-primary-700 transition-colors"
+            className="flex items-center gap-1.5 text-sm font-semibold text-white bg-primary-500 px-3 py-1.5 rounded-lg hover:bg-primary-600 transition-colors"
           >
             <CheckSquare className="w-4 h-4" />
             일괄 승인
@@ -380,7 +380,7 @@ export function AdminApprovalsPage() {
           />
         ))}
         {filteredOvertimes.length === 0 && (
-          <p className="text-center text-sm text-gray-400 py-10">야근 제출 내역이 없습니다</p>
+          <p className="text-center text-sm text-dark-400 py-10">야근 제출 내역이 없습니다</p>
         )}
       </div>
 
@@ -390,13 +390,13 @@ export function AdminApprovalsPage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setRejectModal({ open: false, id: '', reason: '' })} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-gray-900">반려 사유 입력</h3>
+              <h3 className="text-base font-bold text-dark-900">반려 사유 입력</h3>
               <button onClick={() => setRejectModal({ open: false, id: '', reason: '' })}>
-                <X className="w-5 h-5 text-gray-400" />
+                <X className="w-5 h-5 text-dark-400" />
               </button>
             </div>
             <textarea
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
+              className="w-full border border-dark-200 rounded-xl px-3 py-2.5 text-sm text-dark-800 resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
               rows={3}
               placeholder="반려 사유를 입력하세요 (신청자에게 전달됩니다)"
               value={rejectModal.reason}
@@ -405,7 +405,7 @@ export function AdminApprovalsPage() {
             <div className="flex gap-2 mt-4">
               <button
                 onClick={() => setRejectModal({ open: false, id: '', reason: '' })}
-                className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+                className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50"
               >
                 취소
               </button>
@@ -427,16 +427,16 @@ export function AdminApprovalsPage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setRevokeModal({ open: false, id: '', reason: '' })} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-gray-900">승인 취소</h3>
+              <h3 className="text-base font-bold text-dark-900">승인 취소</h3>
               <button onClick={() => setRevokeModal({ open: false, id: '', reason: '' })}>
-                <X className="w-5 h-5 text-gray-400" />
+                <X className="w-5 h-5 text-dark-400" />
               </button>
             </div>
-            <p className="text-sm text-gray-600 mb-3">
+            <p className="text-sm text-dark-600 mb-3">
               승인을 취소하면 해당 건이 <span className="font-semibold text-warning-600">대기 상태</span>로 되돌아갑니다.
             </p>
             <textarea
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
+              className="w-full border border-dark-200 rounded-xl px-3 py-2.5 text-sm text-dark-800 resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
               rows={3}
               placeholder="승인 취소 사유를 입력하세요 (필수)"
               value={revokeModal.reason}
@@ -445,7 +445,7 @@ export function AdminApprovalsPage() {
             <div className="flex gap-2 mt-4">
               <button
                 onClick={() => setRevokeModal({ open: false, id: '', reason: '' })}
-                className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+                className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50"
               >
                 취소
               </button>
@@ -467,40 +467,40 @@ export function AdminApprovalsPage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setTimeEditModal({ open: false, id: '', start: '', end: '' })} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-gray-900">인정 시간 수정 후 승인</h3>
+              <h3 className="text-base font-bold text-dark-900">인정 시간 수정 후 승인</h3>
               <button onClick={() => setTimeEditModal({ open: false, id: '', start: '', end: '' })}>
-                <X className="w-5 h-5 text-gray-400" />
+                <X className="w-5 h-5 text-dark-400" />
               </button>
             </div>
-            <p className="text-xs text-gray-500 mb-4">제출된 시간을 검토하고 인정 시간을 수정한 뒤 승인합니다.</p>
+            <p className="text-xs text-dark-500 mb-4">제출된 시간을 검토하고 인정 시간을 수정한 뒤 승인합니다.</p>
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
+                <label className="block text-xs font-medium text-dark-600 mb-1">
                   <Clock className="w-3.5 h-3.5 inline mr-1" />시작 시간
                 </label>
                 <input
                   type="time"
                   value={timeEditModal.start}
                   onChange={(e) => setTimeEditModal((p) => ({ ...p, start: e.target.value }))}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                  className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
+                <label className="block text-xs font-medium text-dark-600 mb-1">
                   <Clock className="w-3.5 h-3.5 inline mr-1" />종료 시간
                 </label>
                 <input
                   type="time"
                   value={timeEditModal.end}
                   onChange={(e) => setTimeEditModal((p) => ({ ...p, end: e.target.value }))}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                  className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
                 />
               </div>
             </div>
             <div className="flex gap-2 mt-5">
               <button
                 onClick={() => setTimeEditModal({ open: false, id: '', start: '', end: '' })}
-                className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+                className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50"
               >
                 취소
               </button>
@@ -534,10 +534,10 @@ export function AdminApprovalsPage() {
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
             <div className="absolute inset-0 bg-black/40" onClick={() => setDetailModal(null)} />
             <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                <h3 className="text-base font-bold text-gray-900">야근 신청 상세</h3>
+              <div className="flex items-center justify-between px-5 py-4 border-b border-dark-100">
+                <h3 className="text-base font-bold text-dark-900">야근 신청 상세</h3>
                 <button onClick={() => setDetailModal(null)}>
-                  <X className="w-5 h-5 text-gray-400" />
+                  <X className="w-5 h-5 text-dark-400" />
                 </button>
               </div>
               <div className="px-5 py-4 space-y-3">
@@ -546,43 +546,43 @@ export function AdminApprovalsPage() {
                     <span className="text-sm font-bold text-primary-700">{emp?.name?.charAt(0) ?? '?'}</span>
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-gray-900">{emp?.name ?? '-'}</p>
-                    <p className="text-xs text-gray-400">{emp?.department ?? '-'}</p>
+                    <p className="text-sm font-semibold text-dark-900">{emp?.name ?? '-'}</p>
+                    <p className="text-xs text-dark-400">{emp?.department ?? '-'}</p>
                   </div>
                   <div className="ml-auto">
                     <StatusBadge status={req.status} />
                   </div>
                 </div>
-                <div className="bg-gray-50 rounded-xl p-3 space-y-2 text-sm">
+                <div className="bg-dark-50 rounded-xl p-3 space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-gray-500">날짜</span>
-                    <span className="font-medium text-gray-800">{req.date}</span>
+                    <span className="text-dark-500">날짜</span>
+                    <span className="font-medium text-dark-800">{req.date}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">시간</span>
-                    <span className="font-medium text-gray-800">{req.planned_start} ~ {req.planned_end} <span className="text-primary-600">({hours}h)</span></span>
+                    <span className="text-dark-500">시간</span>
+                    <span className="font-medium text-dark-800">{req.planned_start} ~ {req.planned_end} <span className="text-primary-600">({hours}h)</span></span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">유형</span>
-                    <span className="font-medium text-gray-800">{TYPE_LABEL[req.type] ?? req.type}</span>
+                    <span className="text-dark-500">유형</span>
+                    <span className="font-medium text-dark-800">{TYPE_LABEL[req.type] ?? req.type}</span>
                   </div>
                 </div>
                 {req.site_name && (
                   <div>
-                    <p className="text-xs font-semibold text-gray-500 mb-1">현장명</p>
-                    <p className="text-sm text-gray-700 bg-gray-50 rounded-xl px-3 py-2">{req.site_name}</p>
+                    <p className="text-xs font-semibold text-dark-500 mb-1">현장명</p>
+                    <p className="text-sm text-dark-700 bg-dark-50 rounded-xl px-3 py-2">{req.site_name}</p>
                   </div>
                 )}
                 {req.work_details && (
                   <div>
-                    <p className="text-xs font-semibold text-gray-500 mb-1">작업내용 상세</p>
-                    <p className="text-sm text-gray-700 bg-gray-50 rounded-xl px-3 py-2">{req.work_details}</p>
+                    <p className="text-xs font-semibold text-dark-500 mb-1">작업내용 상세</p>
+                    <p className="text-sm text-dark-700 bg-dark-50 rounded-xl px-3 py-2">{req.work_details}</p>
                   </div>
                 )}
                 {req.reason && (
                   <div>
-                    <p className="text-xs font-semibold text-gray-500 mb-1">기타</p>
-                    <p className="text-sm text-gray-700 bg-gray-50 rounded-xl px-3 py-2">{req.reason}</p>
+                    <p className="text-xs font-semibold text-dark-500 mb-1">기타</p>
+                    <p className="text-sm text-dark-700 bg-dark-50 rounded-xl px-3 py-2">{req.reason}</p>
                   </div>
                 )}
                 {req.status === 'approved' && approver?.name && (
@@ -590,7 +590,7 @@ export function AdminApprovalsPage() {
                 )}
                 {req.status === 'rejected' && req.rejection_reason && (
                   <div>
-                    <p className="text-xs font-semibold text-gray-500 mb-1">반려 사유</p>
+                    <p className="text-xs font-semibold text-dark-500 mb-1">반려 사유</p>
                     <p className="text-sm text-danger-600 bg-danger-50 rounded-xl px-3 py-2">{req.rejection_reason}</p>
                   </div>
                 )}
@@ -598,7 +598,7 @@ export function AdminApprovalsPage() {
               <div className="px-5 pb-4">
                 <button
                   onClick={() => setDetailModal(null)}
-                  className="w-full py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+                  className="w-full py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50"
                 >
                   닫기
                 </button>
@@ -614,13 +614,13 @@ export function AdminApprovalsPage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setApproveChoiceModal(p => ({ ...p, open: false }))} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
             <div className="flex items-center justify-between mb-1">
-              <h3 className="text-base font-bold text-gray-900">승인 방식 선택</h3>
+              <h3 className="text-base font-bold text-dark-900">승인 방식 선택</h3>
               <button onClick={() => setApproveChoiceModal(p => ({ ...p, open: false }))}>
-                <X className="w-5 h-5 text-gray-400" />
+                <X className="w-5 h-5 text-dark-400" />
               </button>
             </div>
-            <p className="text-xs text-gray-500 mb-4">
-              <span className="font-semibold text-gray-700">{approveChoiceModal.empName}</span>
+            <p className="text-xs text-dark-500 mb-4">
+              <span className="font-semibold text-dark-700">{approveChoiceModal.empName}</span>
               {' · '}{approveChoiceModal.date}{' · '}{approveChoiceModal.totalHours}시간
             </p>
             <div className="space-y-2 mb-1">
@@ -630,45 +630,45 @@ export function AdminApprovalsPage() {
                   await handleApprove(approveChoiceModal.id)
                   setApproveChoiceModal(p => ({ ...p, open: false }))
                 }}
-                className="w-full text-left px-4 py-3 border-2 border-blue-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                className="w-full text-left px-4 py-3 border-2 border-primary-100 rounded-xl hover:border-blue-400 hover:bg-primary-50 transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
-                    <Banknote className="w-5 h-5 text-blue-600" />
+                  <div className="w-9 h-9 rounded-xl bg-primary-100 flex items-center justify-center shrink-0">
+                    <Banknote className="w-5 h-5 text-primary-600" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-gray-800">수당으로 승인</p>
-                    <p className="text-xs text-gray-500 mt-0.5">연장근무수당 계산에 포함됩니다</p>
+                    <p className="text-sm font-semibold text-dark-800">수당으로 승인</p>
+                    <p className="text-xs text-dark-500 mt-0.5">연장근무수당 계산에 포함됩니다</p>
                   </div>
                 </div>
               </button>
               {/* 대체휴가로 승인 */}
-              <div className="border-2 border-teal-200 rounded-xl p-4">
+              <div className="border-2 border-primary-200 rounded-xl p-4">
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-9 h-9 rounded-xl bg-teal-100 flex items-center justify-center shrink-0">
-                    <RefreshCw className="w-5 h-5 text-teal-600" />
+                  <div className="w-9 h-9 rounded-xl bg-primary-50 flex items-center justify-center shrink-0">
+                    <RefreshCw className="w-5 h-5 text-primary-600" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-gray-800">대체휴가로 승인</p>
-                    <p className="text-xs text-gray-500 mt-0.5">수당 대신 대체휴가로 부여됩니다</p>
+                    <p className="text-sm font-semibold text-dark-800">대체휴가로 승인</p>
+                    <p className="text-xs text-dark-500 mt-0.5">수당 대신 대체휴가로 부여됩니다</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 mb-3">
-                  <label className="text-xs text-gray-600 shrink-0">부여 시간</label>
+                  <label className="text-xs text-dark-600 shrink-0">부여 시간</label>
                   <input
                     type="number"
                     min="0.5"
                     step="0.5"
                     value={approveChoiceModal.compLeaveHours}
                     onChange={e => setApproveChoiceModal(p => ({ ...p, compLeaveHours: parseFloat(e.target.value) || 0 }))}
-                    className="flex-1 px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-400 text-right"
+                    className="flex-1 px-2 py-1.5 text-sm border border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-400 text-right"
                   />
-                  <span className="text-xs text-gray-500 shrink-0">시간 = {(approveChoiceModal.compLeaveHours / 8).toFixed(1)}일</span>
+                  <span className="text-xs text-dark-500 shrink-0">시간 = {(approveChoiceModal.compLeaveHours / 8).toFixed(1)}일</span>
                 </div>
                 <button
                   onClick={confirmApproveAsCompLeave}
                   disabled={approveChoiceModal.compLeaveHours <= 0}
-                  className="w-full py-2 text-sm font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 disabled:opacity-40 transition-colors"
+                  className="w-full py-2 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-500 disabled:opacity-40 transition-colors"
                 >
                   대체휴가 {approveChoiceModal.compLeaveHours}시간 부여 후 승인
                 </button>
@@ -684,24 +684,24 @@ export function AdminApprovalsPage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setHistoryModal({ open: false, requestId: '', entries: [] })} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl max-h-[70vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+              <h3 className="text-base font-bold text-dark-900 flex items-center gap-2">
                 <History className="w-4 h-4" />
                 승인 이력
               </h3>
               <button onClick={() => setHistoryModal({ open: false, requestId: '', entries: [] })}>
-                <X className="w-5 h-5 text-gray-400" />
+                <X className="w-5 h-5 text-dark-400" />
               </button>
             </div>
 
             {historyModal.entries.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-6">이력이 없습니다</p>
+              <p className="text-sm text-dark-400 text-center py-6">이력이 없습니다</p>
             ) : (
               <div className="space-y-3">
                 {historyModal.entries.map((entry, i) => (
                   <div key={entry.id} className="relative pl-6">
                     {/* 타임라인 라인 */}
                     {i < historyModal.entries.length - 1 && (
-                      <div className="absolute left-[7px] top-5 bottom-0 w-px bg-gray-200" />
+                      <div className="absolute left-[7px] top-5 bottom-0 w-px bg-dark-200" />
                     )}
                     {/* 타임라인 도트 */}
                     <div className={`absolute left-0 top-1 w-4 h-4 rounded-full border-2 bg-white ${
@@ -711,18 +711,18 @@ export function AdminApprovalsPage() {
                     }`} />
                     <div>
                       <div className="flex items-center gap-2 text-xs">
-                        <span className={`font-semibold ${STATUS_COLOR[entry.from_status] ?? 'text-gray-600'}`}>
+                        <span className={`font-semibold ${STATUS_COLOR[entry.from_status] ?? 'text-dark-600'}`}>
                           {REQUEST_STATUS_LABEL[entry.from_status as keyof typeof REQUEST_STATUS_LABEL] ?? entry.from_status}
                         </span>
-                        <span className="text-gray-400">→</span>
-                        <span className={`font-semibold ${STATUS_COLOR[entry.to_status] ?? 'text-gray-600'}`}>
+                        <span className="text-dark-400">→</span>
+                        <span className={`font-semibold ${STATUS_COLOR[entry.to_status] ?? 'text-dark-600'}`}>
                           {REQUEST_STATUS_LABEL[entry.to_status as keyof typeof REQUEST_STATUS_LABEL] ?? entry.to_status}
                         </span>
                       </div>
                       {entry.reason && (
-                        <p className="text-xs text-gray-500 mt-0.5">{entry.reason}</p>
+                        <p className="text-xs text-dark-500 mt-0.5">{entry.reason}</p>
                       )}
-                      <p className="text-xs text-gray-400 mt-0.5">
+                      <p className="text-xs text-dark-400 mt-0.5">
                         {new Date(entry.created_at).toLocaleString('ko-KR', {
                           year: 'numeric', month: 'short', day: 'numeric',
                           hour: '2-digit', minute: '2-digit',
@@ -736,7 +736,7 @@ export function AdminApprovalsPage() {
 
             <button
               onClick={() => setHistoryModal({ open: false, requestId: '', entries: [] })}
-              className="w-full mt-4 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+              className="w-full mt-4 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50"
             >
               닫기
             </button>

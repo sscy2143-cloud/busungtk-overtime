@@ -106,10 +106,10 @@ export function AdminCompLeavePage() {
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between">
-        <h1 className="text-xl font-bold text-gray-900">대체휴가 현황</h1>
+        <h1 className="text-xl font-bold text-dark-900">대체휴가 현황</h1>
         <button
           onClick={() => setGrantModal({ open: true, employeeId: '', unit: 'hours', value: 1, reason: '' })}
-          className="flex items-center gap-1.5 px-4 py-2 bg-teal-600 text-white text-sm font-semibold rounded-lg hover:bg-teal-700 transition-colors"
+          className="flex items-center gap-1.5 px-4 py-2 bg-primary-500 text-white text-sm font-semibold rounded-lg hover:bg-primary-500 transition-colors"
         >
           <Plus size={16} />
           대체휴가 지급
@@ -119,13 +119,13 @@ export function AdminCompLeavePage() {
       {/* 요약 */}
       {records.length > 0 && (
         <div className="grid grid-cols-2 gap-3">
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 text-center">
-            <p className="text-xs text-gray-500 mb-1">전환 건수</p>
-            <p className="text-2xl font-bold text-teal-600">{records.length}<span className="text-sm ml-1 font-normal">건</span></p>
+          <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-4 text-center">
+            <p className="text-xs text-dark-500 mb-1">전환 건수</p>
+            <p className="text-2xl font-bold text-primary-600">{records.length}<span className="text-sm ml-1 font-normal">건</span></p>
           </div>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 text-center">
-            <p className="text-xs text-gray-500 mb-1">총 전환 시간</p>
-            <p className="text-2xl font-bold text-teal-600">{Math.round(totalHours * 10) / 10}<span className="text-sm ml-1 font-normal">시간</span></p>
+          <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-4 text-center">
+            <p className="text-xs text-dark-500 mb-1">총 전환 시간</p>
+            <p className="text-2xl font-bold text-primary-600">{Math.round(totalHours * 10) / 10}<span className="text-sm ml-1 font-normal">시간</span></p>
           </div>
         </div>
       )}
@@ -133,48 +133,48 @@ export function AdminCompLeavePage() {
       {/* 목록 */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <p className="text-sm text-gray-400">불러오는 중...</p>
+          <p className="text-sm text-dark-400">불러오는 중...</p>
         </div>
       ) : records.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-16 text-center">
-          <RefreshCw className="w-8 h-8 text-gray-200 mx-auto mb-3" />
-          <p className="text-sm text-gray-400">대체휴가로 전환된 야근 내역이 없습니다</p>
-          <p className="text-xs text-gray-300 mt-1">야근 승인 시 "대체휴가로 승인"을 선택하면 여기에 기록됩니다</p>
+        <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] py-16 text-center">
+          <RefreshCw className="w-8 h-8 text-dark-200 mx-auto mb-3" />
+          <p className="text-sm text-dark-400">대체휴가로 전환된 야근 내역이 없습니다</p>
+          <p className="text-xs text-dark-300 mt-1">야근 승인 시 "대체휴가로 승인"을 선택하면 여기에 기록됩니다</p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">직원</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400">부서</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 whitespace-nowrap">야근 일자</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 whitespace-nowrap">야근 시간</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-teal-600 whitespace-nowrap">부여 시간</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">사유</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 whitespace-nowrap">처리일</th>
+                <tr className="border-b border-dark-100 bg-dark-50">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-dark-500">직원</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-dark-400">부서</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-dark-500 whitespace-nowrap">야근 일자</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-dark-500 whitespace-nowrap">야근 시간</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-primary-600 whitespace-nowrap">부여 시간</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-dark-400 whitespace-nowrap">사유</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-dark-400 whitespace-nowrap">처리일</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-dark-50">
                 {records.map((r) => {
                   const hours = Math.round(r.granted_days * 8 * 10) / 10
                   const ot = r.overtime_request
                   return (
-                    <tr key={r.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 font-medium text-gray-800">{r.employee?.name ?? '-'}</td>
-                      <td className="px-4 py-3 text-xs text-gray-400">{r.employee?.department ?? '-'}</td>
-                      <td className="px-4 py-3 text-center text-xs text-gray-600">{ot?.date ?? '-'}</td>
-                      <td className="px-4 py-3 text-center text-xs text-gray-500">
+                    <tr key={r.id} className="hover:bg-dark-50 transition-colors">
+                      <td className="px-4 py-3 font-medium text-dark-800">{r.employee?.name ?? '-'}</td>
+                      <td className="px-4 py-3 text-xs text-dark-400">{r.employee?.department ?? '-'}</td>
+                      <td className="px-4 py-3 text-center text-xs text-dark-600">{ot?.date ?? '-'}</td>
+                      <td className="px-4 py-3 text-center text-xs text-dark-500">
                         {ot ? `${ot.planned_start} ~ ${ot.planned_end}` : '-'}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <span className="inline-flex items-center gap-1 bg-teal-50 text-teal-700 text-xs font-semibold px-2 py-1 rounded-full">
+                        <span className="inline-flex items-center gap-1 bg-dark-50 text-dark-700 text-xs font-semibold px-2 py-1 rounded-full">
                           +{hours}h
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-xs text-gray-500 max-w-[160px] truncate">{r.reason}</td>
-                      <td className="px-4 py-3 text-center text-xs text-gray-400">{fmtDate(r.created_at)}</td>
+                      <td className="px-4 py-3 text-xs text-dark-500 max-w-[160px] truncate">{r.reason}</td>
+                      <td className="px-4 py-3 text-center text-xs text-dark-400">{fmtDate(r.created_at)}</td>
                     </tr>
                   )
                 })}
@@ -190,18 +190,18 @@ export function AdminCompLeavePage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setGrantModal(p => ({ ...p, open: false }))} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-gray-900">대체휴가 지급</h3>
-              <button onClick={() => setGrantModal(p => ({ ...p, open: false }))}><X size={18} className="text-gray-400" /></button>
+              <h3 className="text-base font-bold text-dark-900">대체휴가 지급</h3>
+              <button onClick={() => setGrantModal(p => ({ ...p, open: false }))}><X size={18} className="text-dark-400" /></button>
             </div>
 
             <div className="space-y-4">
               {/* 직원 선택 */}
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">직원 선택 <span className="text-danger-500">*</span></label>
+                <label className="block text-xs font-medium text-dark-600 mb-1.5">직원 선택 <span className="text-danger-500">*</span></label>
                 <select
                   value={grantModal.employeeId}
                   onChange={(e) => setGrantModal(p => ({ ...p, employeeId: e.target.value }))}
-                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white"
+                  className="w-full px-3 py-2.5 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white"
                 >
                   <option value="">직원을 선택하세요</option>
                   {employees.map(emp => (
@@ -211,7 +211,7 @@ export function AdminCompLeavePage() {
                   ))}
                 </select>
                 {selectedEmp && (
-                  <p className="text-xs text-teal-600 mt-1">
+                  <p className="text-xs text-primary-600 mt-1">
                     현재 대체휴가 잔여: <strong>{Math.round(selectedEmp.substitute_total * 8 * 10) / 10}시간</strong>
                   </p>
                 )}
@@ -219,7 +219,7 @@ export function AdminCompLeavePage() {
 
               {/* 단위 선택 */}
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">지급 단위</label>
+                <label className="block text-xs font-medium text-dark-600 mb-1.5">지급 단위</label>
                 <div className="grid grid-cols-2 gap-2">
                   {(['hours', 'days'] as const).map((u) => (
                     <button
@@ -228,8 +228,8 @@ export function AdminCompLeavePage() {
                       onClick={() => setGrantModal(p => ({ ...p, unit: u }))}
                       className={`py-2 text-xs font-medium rounded-xl border transition-colors ${
                         grantModal.unit === u
-                          ? 'bg-teal-600 text-white border-teal-600'
-                          : 'bg-white text-gray-600 border-gray-200 hover:border-teal-300'
+                          ? 'bg-primary-500 text-white border-primary-500'
+                          : 'bg-white text-dark-600 border-dark-200 hover:border-teal-300'
                       }`}
                     >
                       {u === 'hours' ? '시간' : '일'}
@@ -240,7 +240,7 @@ export function AdminCompLeavePage() {
 
               {/* 수량 */}
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                <label className="block text-xs font-medium text-dark-600 mb-1.5">
                   지급 수량 <span className="text-danger-500">*</span>
                 </label>
                 <div className="flex items-center gap-2">
@@ -250,12 +250,12 @@ export function AdminCompLeavePage() {
                     step={grantModal.unit === 'hours' ? 0.5 : 0.5}
                     value={grantModal.value}
                     onChange={(e) => setGrantModal(p => ({ ...p, value: Number(e.target.value) }))}
-                    className="flex-1 px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-400 text-right"
+                    className="flex-1 px-3 py-2.5 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-400 text-right"
                   />
-                  <span className="text-sm text-gray-500 w-8">{grantModal.unit === 'hours' ? '시간' : '일'}</span>
+                  <span className="text-sm text-dark-500 w-8">{grantModal.unit === 'hours' ? '시간' : '일'}</span>
                 </div>
                 {grantModal.value > 0 && (
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="text-xs text-dark-400 mt-1">
                     = {grantModal.unit === 'hours'
                       ? `${grantModal.value / 8}일`
                       : `${grantModal.value * 8}시간`}
@@ -265,7 +265,7 @@ export function AdminCompLeavePage() {
 
               {/* 사유 */}
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                <label className="block text-xs font-medium text-dark-600 mb-1.5">
                   사유 <span className="text-danger-500">*</span>
                 </label>
                 <textarea
@@ -273,7 +273,7 @@ export function AdminCompLeavePage() {
                   onChange={(e) => setGrantModal(p => ({ ...p, reason: e.target.value }))}
                   rows={2}
                   placeholder="예: 2월 휴일근무 대체"
-                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-teal-400"
+                  className="w-full px-3 py-2.5 text-sm border border-dark-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-teal-400"
                 />
               </div>
             </div>
@@ -281,14 +281,14 @@ export function AdminCompLeavePage() {
             <div className="flex gap-2 mt-5">
               <button
                 onClick={() => setGrantModal(p => ({ ...p, open: false }))}
-                className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+                className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50"
               >
                 취소
               </button>
               <button
                 onClick={confirmGrant}
                 disabled={!grantModal.employeeId || !grantModal.reason.trim() || grantModal.value <= 0}
-                className="flex-1 py-2.5 text-sm font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 disabled:opacity-40 transition-colors"
+                className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-500 disabled:opacity-40 transition-colors"
               >
                 지급
               </button>
