@@ -38,6 +38,8 @@ export interface OvertimeRequest {
   created_by: string
   approved_by: string | null
   approved_at: string | null
+  manager_approved_by: string | null
+  manager_approved_at: string | null
   rejection_reason: string | null
   created_at: string
 }

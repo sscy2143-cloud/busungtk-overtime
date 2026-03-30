@@ -87,12 +87,14 @@ export function RequestListPage() {
   const pendingCount = requests.filter(r => r.status === 'pending' || r.status === 'manager_approved').length
 
   const filtered = useMemo(() => {
-    const monthPrefix = `${listYear}-${String(listMonth).padStart(2, '0')}`
-    let list = requests.filter(r => r.date.startsWith(monthPrefix))
+    // "전체" 필터이거나 showAllMonths이면 월 필터 무시
+    let list = (filter === 'all' || showAllMonths)
+      ? requests
+      : requests.filter(r => r.date.startsWith(`${listYear}-${String(listMonth).padStart(2, '0')}`))
     if (filter === 'pending') return list.filter(r => r.status === 'pending' || r.status === 'manager_approved')
     if (filter !== 'all') return list.filter(r => r.status === filter)
     return list
-  }, [requests, filter, listYear, listMonth])
+  }, [requests, filter, listYear, listMonth, showAllMonths])
 
   // 캘린더
   const dayHoursMap = useMemo(() => {
@@ -172,15 +174,28 @@ export function RequestListPage() {
           >
             <ChevronLeft size={16} className="text-dark-500" />
           </button>
-          <span className={`text-sm font-semibold ${showAllMonths ? 'text-dark-400' : 'text-dark-800'}`}>
+          <button
+            onClick={() => setShowAllMonths(false)}
+            className={`text-sm font-semibold ${showAllMonths ? 'text-dark-400' : 'text-dark-800'}`}
+          >
             {listYear}년 {listMonth}월
-          </span>
+          </button>
           <button
             onClick={() => { if (listYear === now.getFullYear() && listMonth === now.getMonth() + 1) return; if (listMonth === 12) { setListYear(y => y + 1); setListMonth(1) } else setListMonth(m => m + 1); setShowAllMonths(false) }}
             disabled={listYear === now.getFullYear() && listMonth === now.getMonth() + 1}
             className="p-1 rounded hover:bg-dark-100 disabled:opacity-30 transition-colors"
           >
             <ChevronRight size={16} className="text-dark-500" />
+          </button>
+          <button
+            onClick={() => setShowAllMonths(v => !v)}
+            className={`ml-2 px-3 py-1 text-xs font-medium rounded-full border transition-colors ${
+              showAllMonths
+                ? 'bg-primary-500 text-white border-primary-500'
+                : 'bg-white text-dark-500 border-dark-200 hover:border-primary-300'
+            }`}
+          >
+            전체
           </button>
         </div>
       </div>
@@ -327,68 +342,10 @@ export function RequestListPage() {
         </div>
       )}
 
-      {/* 전체 보기 */}
-      <button
-        onClick={() => setShowAllMonths(v => !v)}
-        className={`w-full py-2 text-xs font-medium rounded-xl border transition-colors ${
-          showAllMonths
-            ? 'bg-primary-50 text-primary-600 border-primary-200'
-            : 'bg-white text-dark-400 border-dark-200 hover:text-dark-600'
-        }`}
-      >
-        {showAllMonths ? '▲ 전체 보기 닫기' : '전체 보기'}
-      </button>
-
-      {/* 전체 목록 */}
-      {showAllMonths && (
-        <div className="bg-white rounded-xl border border-dark-200 overflow-hidden">
-          <div className="px-4 py-2.5 bg-dark-50 border-b border-dark-200">
-            <p className="text-xs font-semibold text-dark-500">전체 신청 목록 <span className="text-dark-400 font-normal">({requests.length}건)</span></p>
-          </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-dark-100">
-                <th className="px-3 py-2 text-center text-xs font-semibold text-dark-400 w-10">번호</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-dark-500 whitespace-nowrap">날짜</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-dark-500">유형</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-dark-500 whitespace-nowrap">근무시간</th>
-                <th className="px-3 py-2 text-center text-xs font-semibold text-dark-500">시간</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-dark-500 hidden sm:table-cell">현장</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-dark-500">상태</th>
-              </tr>
-            </thead>
-            <tbody>
-              {requests.map((req, idx) => (
-                <tr
-                  key={req.id}
-                  onClick={() => setDetailReq(req)}
-                  className={`border-b border-dark-100 last:border-0 cursor-pointer transition-colors ${idx % 2 === 1 ? 'bg-dark-50/50' : 'bg-white'} hover:bg-primary-50/40`}
-                >
-                  <td className="px-3 py-2 text-center text-xs font-bold text-dark-300">{idx + 1}</td>
-                  <td className="px-3 py-2 text-xs text-dark-700 whitespace-nowrap">{formatDate(req.date)}</td>
-                  <td className="px-3 py-2">
-                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md ${TYPE_COLOR[req.type]}`}>
-                      {OVERTIME_TYPE_LABEL[req.type]}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-xs text-dark-600 whitespace-nowrap">{req.planned_start} ~ {req.planned_end}</td>
-                  <td className="px-3 py-2 text-center text-xs font-semibold text-dark-800">{calcHours(req.planned_start, req.planned_end).toFixed(1)}h</td>
-                  <td className="px-3 py-2 text-xs text-dark-500 hidden sm:table-cell max-w-[100px] truncate">{req.site_name ?? '-'}</td>
-                  <td className="px-3 py-2">
-                    <span className="text-xs text-primary-600 hover:underline cursor-pointer">더보기 →</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
 
       {/* 상세 팝업 */}
       {detailReq && (() => {
         const req = detailReq
-        const approverRole = (req as any).approver?.role
-        const ok = req.status === 'approved'
         const hours = calcHours(req.planned_start, req.planned_end).toFixed(1)
         return (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
@@ -435,14 +392,24 @@ export function RequestListPage() {
                     <p className="text-sm text-dark-700 bg-dark-50 rounded-xl px-3 py-2">{req.reason}</p>
                   </div>
                 )}
+                {(req as any).adjusted_by && (
+                  <div className="bg-primary-50 border border-primary-100 rounded-xl px-3 py-2.5">
+                    <p className="text-xs font-semibold text-primary-700 mb-1">근무시간 확인 안내</p>
+                    {(req as any).original_start && (
+                      <p className="text-xs text-dark-500">변경 전: {(req as any).original_start} ~ {(req as any).original_end}</p>
+                    )}
+                    <p className="text-xs text-dark-500">변경 후: {req.planned_start} ~ {req.planned_end}</p>
+                    <p className="text-xs text-dark-600 mt-1">{(req as any).adjustment_reason}</p>
+                  </div>
+                )}
                 <div className="pt-2 border-t border-dark-100">
                   <p className="text-xs text-dark-400 mb-2">승인 현황</p>
                   <div className="grid grid-cols-2 gap-2">
-                    <div className={`text-xs px-3 py-2 rounded-lg text-center font-medium ${ok && approverRole === 'manager' ? 'bg-success-50 text-success-700' : 'bg-dark-50 text-dark-300'}`}>
-                      인사담당자<br />{ok && approverRole === 'manager' ? '✓ 승인' : '미승인'}
+                    <div className={`text-xs px-3 py-2 rounded-lg text-center font-medium ${(req as any).manager_approved_at ? 'bg-success-50 text-success-700' : 'bg-dark-50 text-dark-300'}`}>
+                      인사담당자<br />{(req as any).manager_approved_at ? '✓ 승인' : '미승인'}
                     </div>
-                    <div className={`text-xs px-3 py-2 rounded-lg text-center font-medium ${ok && approverRole === 'admin' ? 'bg-success-50 text-success-700' : 'bg-dark-50 text-dark-300'}`}>
-                      대표<br />{ok && approverRole === 'admin' ? '✓ 승인' : '미승인'}
+                    <div className={`text-xs px-3 py-2 rounded-lg text-center font-medium ${req.approved_at ? 'bg-success-50 text-success-700' : 'bg-dark-50 text-dark-300'}`}>
+                      대표<br />{req.approved_at ? '✓ 승인' : '미승인'}
                     </div>
                   </div>
                 </div>

@@ -133,7 +133,7 @@ export function Sidebar() {
           )}
         </div>
 
-        {/* 휴가 관리 (직원용) */}
+        {/* 연차 관리 (직원용) */}
         <div>
           <button
             data-tour="nav-leave"
@@ -142,7 +142,7 @@ export function Sidebar() {
           >
             <div className="flex items-center gap-3">
               <Calendar size={18} />
-              휴가 관리
+              연차 관리
             </div>
             <ChevronDown
               size={14}
@@ -153,11 +153,11 @@ export function Sidebar() {
             <div className="ml-4 mt-0.5 space-y-0.5 border-l border-dark-100 pl-3">
               <NavLink to="/leave" end className={subNavLinkClass}>
                 <CalendarCheck size={16} />
-                휴가현황
+                연차현황
               </NavLink>
               <NavLink to="/leave/request" className={subNavLinkClass}>
                 <FileText size={16} />
-                휴가신청
+                연차신청
               </NavLink>
             </div>
           )}
@@ -244,7 +244,7 @@ export function Sidebar() {
             </div>
             <div className="mx-6 my-2 border-b border-dark-50" />
 
-            {/* 휴가 관리 (관리자) */}
+            {/* 연차 관리 (관리자) */}
             <div>
               <button
                 onClick={() => setLeaveOpen(o => !o)}
@@ -252,7 +252,7 @@ export function Sidebar() {
               >
                 <div className="flex items-center gap-3">
                   <CalendarCheck size={18} />
-                  휴가 관리
+                  연차 관리
                 </div>
                 <ChevronDown
                   size={14}
@@ -262,8 +262,12 @@ export function Sidebar() {
               {leaveOpen && (
                 <div className="ml-4 mt-0.5 space-y-0.5 border-l border-dark-100 pl-3">
                   <NavLink to="/admin/leave" end className={subNavLinkClass}>
-                    <CalendarCheck size={16} />
-                    휴가 현황
+                    <CheckSquare size={16} />
+                    승인 관리
+                  </NavLink>
+                  <NavLink to="/admin/leave/balance" className={subNavLinkClass}>
+                    <Calendar size={16} />
+                    직원별 연차
                   </NavLink>
                   <NavLink to="/admin/leave/comp" className={subNavLinkClass}>
                     <RefreshCw size={16} />

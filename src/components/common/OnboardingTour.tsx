@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { X, ChevronRight, ChevronLeft, PartyPopper } from 'lucide-react'
+import { useAuth } from '../../contexts/AuthContext'
 
 interface TourStep {
   target: string        // CSS selector or 'center' for center modal
@@ -93,11 +94,12 @@ const TOUR_STEPS: TourStep[] = [
   },
 ]
 
-const STORAGE_KEY = 'busungtk_onboarding_done'
+const STORAGE_KEY_PREFIX = 'busungtk_onboarding_done_'
 
 export function OnboardingTour() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { employee } = useAuth()
   const [active, setActive] = useState(false)
   const [showComplete, setShowComplete] = useState(false)
   const [step, setStep] = useState(0)
@@ -106,13 +108,16 @@ export function OnboardingTour() {
   const [arrowStyle, setArrowStyle] = useState<React.CSSProperties>({})
   const [arrowDir, setArrowDir] = useState<'top' | 'bottom' | 'left' | 'right'>('top')
 
+  const storageKey = employee?.id ? `${STORAGE_KEY_PREFIX}${employee.id}` : null
+
   useEffect(() => {
-    const done = localStorage.getItem(STORAGE_KEY)
+    if (!storageKey || employee?.force_password_change) return
+    const done = localStorage.getItem(storageKey)
     if (!done) {
       const timer = setTimeout(() => setActive(true), 1200)
       return () => clearTimeout(timer)
     }
-  }, [])
+  }, [storageKey, employee?.force_password_change])
 
   // 페이지 이동 후 안정화 대기
   useEffect(() => {
@@ -202,7 +207,7 @@ export function OnboardingTour() {
 
   function finish() {
     setActive(false)
-    localStorage.setItem(STORAGE_KEY, 'true')
+    if (storageKey) localStorage.setItem(storageKey, 'true')
     // 대시보드로 복귀
     if (location.pathname !== '/') navigate('/')
   }
@@ -213,7 +218,7 @@ export function OnboardingTour() {
     } else {
       setActive(false)
       setShowComplete(true)
-      localStorage.setItem(STORAGE_KEY, 'true')
+      if (storageKey) localStorage.setItem(storageKey, 'true')
       if (location.pathname !== '/') navigate('/')
     }
   }

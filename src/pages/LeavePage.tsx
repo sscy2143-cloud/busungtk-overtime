@@ -77,7 +77,7 @@ export function LeavePage() {
       .select('total_days, used_days, remaining_days, substitute_total, substitute_used')
       .eq('employee_id', employee!.id)
       .eq('year', CURRENT_YEAR)
-      .single()
+      .maybeSingle()
     if (data) setBalance({
       total_days: data.total_days,
       used_days: data.used_days,
@@ -152,7 +152,7 @@ export function LeavePage() {
     <div className="space-y-5">
       {/* 헤더 */}
       <div>
-        <h1 className="text-xl font-bold text-dark-900">휴가현황</h1>
+        <h1 className="text-xl font-bold text-dark-900">연차현황</h1>
         <p className="text-sm text-dark-400 mt-0.5">{TODAY_LABEL}</p>
       </div>
 
@@ -320,7 +320,9 @@ export function LeavePage() {
               { key: 'rejected', label: '반려' },
               { key: 'cancelled', label: '취소' },
             ] as const).map(({ key, label }) => {
-              const count = key === 'all' ? requests.length : requests.filter(r => r.status === key).length
+              const count = key === 'all' ? requests.length
+                : key === 'pending' ? requests.filter(r => r.status === 'pending' || r.status === 'manager_approved').length
+                : requests.filter(r => r.status === key).length
               return (
                 <button
                   key={key}
@@ -344,7 +346,7 @@ export function LeavePage() {
           <div className="flex-1 min-w-0 overflow-hidden">
             {(() => {
               const filtered = requests
-                .filter(r => requestFilter === 'all' || r.status === requestFilter)
+                .filter(r => requestFilter === 'all' || r.status === requestFilter || (requestFilter === 'pending' && r.status === 'manager_approved'))
                 .sort((a, b) => b.created_at.localeCompare(a.created_at))
 
               if (filtered.length === 0) {
@@ -360,32 +362,44 @@ export function LeavePage() {
                   {filtered.map((req, idx) => (
                     <div
                       key={req.id}
-                      className="px-3 py-3 flex items-start gap-2 cursor-pointer hover:bg-dark-50 transition-colors"
+                      className="px-3 py-3 flex items-center gap-2 cursor-pointer hover:bg-dark-50 transition-colors"
                       onClick={() => setDetailReq(req)}
                     >
-                      <span className="shrink-0 text-sm font-bold text-dark-300 w-8 text-center self-center">{idx + 1}</span>
+                      <span className="shrink-0 text-sm font-bold text-dark-300 w-6 text-center">{idx + 1}</span>
                       <div className="self-stretch w-px bg-dark-200 shrink-0 my-1" />
-                      <div className="flex-1 min-w-0 flex items-start justify-between gap-4">
-                        {/* 좌측: 유형 + 사유 */}
-                        <div className="min-w-0">
-                          <span className="text-xs font-medium text-dark-800">{LEAVE_TYPE_LABEL[req.type]}</span>
-                          {req.reason && (
-                            <p className="text-xs text-dark-400 truncate mt-0.5">{req.reason}</p>
-                          )}
-                          {req.status === 'rejected' && (req as any).rejection_reason && (
-                            <p className="text-xs text-danger-500 mt-0.5 truncate">반려: {(req as any).rejection_reason}</p>
-                          )}
-                        </div>
-                        {/* 우측: 일수(위) + 날짜(아래) */}
-                        <div className="shrink-0 text-right">
-                          <p className="text-sm font-bold text-dark-800">{req.days}일</p>
-                          <p className="text-xs text-dark-400 mt-0.5">
-                            {req.start_date}{req.start_date !== req.end_date ? ` ~ ${req.end_date}` : ''}
+                      {/* 유형 + 사유 */}
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-medium text-dark-800">{LEAVE_TYPE_LABEL[req.type]}</span>
+                        {req.reason && (
+                          <p className="text-xs text-dark-400 truncate mt-0.5">{req.reason}</p>
+                        )}
+                        {req.status === 'rejected' && (req as any).rejection_reason && (
+                          <p className="text-xs text-danger-500 mt-0.5 truncate">반려: {(req as any).rejection_reason}</p>
+                        )}
+                      </div>
+                      {/* 일수 + 날짜 */}
+                      <div className="shrink-0 text-right w-24">
+                        <p className="text-sm font-bold text-dark-800">{req.days}일</p>
+                        <p className="text-[10px] text-dark-400 mt-0.5">
+                          {req.start_date}{req.start_date !== req.end_date ? ` ~ ${req.end_date}` : ''}
+                        </p>
+                      </div>
+                      {/* 승인 상태 (대기중만) */}
+                      {(req.status === 'pending' || req.status === 'manager_approved') ? (
+                        <div className="shrink-0 w-16 text-right">
+                          <p className={`text-[10px] leading-relaxed ${req.manager_approved_at ? 'text-success-600 font-semibold' : 'text-dark-300'}`}>
+                            인사 {req.manager_approved_at ? '승인' : '미승인'}
+                          </p>
+                          <p className={`text-[10px] leading-relaxed ${req.approved_at ? 'text-success-600 font-semibold' : 'text-dark-300'}`}>
+                            대표 {req.approved_at ? '승인' : '미승인'}
                           </p>
                         </div>
-                      </div>
-                      {req.status === 'pending' && (
-                        <div className="flex gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                      ) : (
+                        <div className="shrink-0 w-16" />
+                      )}
+                      {/* 수정/취소 버튼 */}
+                      {(req.status === 'pending' || req.status === 'manager_approved') && (
+                        <div className="flex gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
                           <button onClick={() => openEditModal(req)} className="p-1.5 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors">
                             <Pencil className="w-3 h-3" />
                           </button>
@@ -576,7 +590,7 @@ export function LeavePage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setEditModal((p) => ({ ...p, open: false }))} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-dark-900">휴가 신청 수정</h3>
+              <h3 className="text-base font-bold text-dark-900">연차 신청 수정</h3>
               <button onClick={() => setEditModal((p) => ({ ...p, open: false }))}><X className="w-5 h-5 text-dark-400" /></button>
             </div>
             <div className="space-y-3">
@@ -634,10 +648,10 @@ export function LeavePage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setCancelModal({ open: false, id: '' })} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-dark-900">휴가 신청 취소</h3>
+              <h3 className="text-base font-bold text-dark-900">연차 신청 취소</h3>
               <button onClick={() => setCancelModal({ open: false, id: '' })}><X className="w-5 h-5 text-dark-400" /></button>
             </div>
-            <p className="text-sm text-dark-600 mb-4">이 휴가 신청을 취소하시겠습니까?</p>
+            <p className="text-sm text-dark-600 mb-4">이 연차 신청을 취소하시겠습니까?</p>
             <div className="flex gap-2">
               <button onClick={() => setCancelModal({ open: false, id: '' })}
                 className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50">
@@ -853,7 +867,7 @@ export function LeavePage() {
             <div className="absolute inset-0 bg-black/40" onClick={() => setDetailReq(null)} />
             <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-xl">
               <div className="flex items-center justify-between px-5 py-4 border-b border-dark-100">
-                <h3 className="text-base font-bold text-dark-900">휴가 신청 상세</h3>
+                <h3 className="text-base font-bold text-dark-900">연차 신청 상세</h3>
                 <button onClick={() => setDetailReq(null)}><X className="w-5 h-5 text-dark-400" /></button>
               </div>
               <div className="px-5 py-4 space-y-3">
@@ -862,7 +876,7 @@ export function LeavePage() {
                   <StatusBadge status={detailReq.status} />
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-dark-400">휴가 종류</span>
+                  <span className="text-xs text-dark-400">연차 종류</span>
                   <div className="text-right">
                     <span className="text-sm font-medium text-dark-800">{LEAVE_TYPE_LABEL[detailReq.type]}</span>
                     {isSpecial && specialSubType && (
@@ -936,7 +950,7 @@ export function LeavePage() {
                   </span>
                 </div>
               </div>
-              {detailReq.status === 'pending' && (
+              {(detailReq.status === 'pending' || detailReq.status === 'manager_approved') && (
                 <div className="flex gap-2 px-5 pb-5">
                   <button
                     onClick={() => { setDetailReq(null); openEditModal(detailReq) }}

@@ -130,18 +130,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function changePassword(newPassword: string): Promise<{ success: boolean; error?: string }> {
+    // 1. 비밀번호 변경 먼저 수행
     const { error } = await supabase.auth.updateUser({ password: newPassword })
     if (error) {
       return { success: false, error: '비밀번호 변경에 실패했습니다' }
     }
-    // 강제 비밀번호 변경 플래그 해제
+
+    // 2. force_password_change 플래그 해제 (여러 방법 시도)
     if (employee) {
-      await supabase
-        .from('employees')
-        .update({ force_password_change: false })
-        .eq('id', employee.id)
+      // 방법 1: RPC 호출
+      const { error: rpcError } = await supabase.rpc('clear_force_password_change')
+      if (rpcError) {
+        console.warn('clear_force_password_change RPC failed, trying direct update:', rpcError)
+        // 방법 2: 직접 update (manager/admin은 RLS 통과)
+        await supabase
+          .from('employees')
+          .update({ force_password_change: false })
+          .eq('id', employee.id)
+      }
+      // 로컬 상태 즉시 반영
       setEmployee({ ...employee, force_password_change: false })
     }
+
     return { success: true }
   }
 
