@@ -26,7 +26,6 @@ import { AdminOvertimePayPage } from './pages/AdminOvertimePayPage'
 import { AdminLeavePayPage } from './pages/AdminLeavePayPage'
 
 import { AdminEmployeeManagementPage } from './pages/AdminEmployeeManagementPage'
-import { SecondAuthGate } from './components/auth/SecondAuthGate'
 import { AdminCompLeavePage } from './pages/AdminCompLeavePage'
 import { AdminLeaveBalancePage } from './pages/AdminLeaveBalancePage'
 import { AdminPayslipPage } from './pages/AdminPayslipPage'
@@ -69,7 +68,7 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/pending" element={<ProtectedRoute><PendingApprovalPage /></ProtectedRoute>} />
         <Route path="/force-password" element={<ProtectedRoute><ForcePasswordChangePage /></ProtectedRoute>} />
-        <Route path="/" element={<ProtectedRoute><ActiveEmployeeGuard><SecondAuthGate><AppLayout /></SecondAuthGate></ActiveEmployeeGuard></ProtectedRoute>}>
+        <Route path="/" element={<ProtectedRoute><ActiveEmployeeGuard><AppLayout /></ActiveEmployeeGuard></ProtectedRoute>}>
           <Route index element={<DashboardPage />} />
           <Route path="request" element={<RequestPage />} />
           <Route path="requests" element={<RequestListPage />} />
