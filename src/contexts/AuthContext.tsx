@@ -158,6 +158,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signOut() {
     sessionStorage.removeItem('busungtk_otp_verified')
+    sessionStorage.removeItem('busungtk_pay_verified')
+    sessionStorage.removeItem('busungtk_2fa_verified')
     await supabase.auth.signOut()
     setUser(null)
     setEmployee(null)
