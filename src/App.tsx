@@ -1,7 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './contexts/AuthContext'
 import { AppLayout } from './components/layout/AppLayout'
-import { OtpGate } from './components/auth/OtpGate'
 import { PayPasswordGate } from './components/auth/PayPasswordGate'
 import { LoginPage } from './pages/LoginPage'
 import { PendingApprovalPage } from './pages/PendingApprovalPage'
@@ -69,7 +68,7 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/pending" element={<ProtectedRoute><PendingApprovalPage /></ProtectedRoute>} />
         <Route path="/force-password" element={<ProtectedRoute><ForcePasswordChangePage /></ProtectedRoute>} />
-        <Route path="/" element={<ProtectedRoute><ActiveEmployeeGuard><OtpGate><AppLayout /></OtpGate></ActiveEmployeeGuard></ProtectedRoute>}>
+        <Route path="/" element={<ProtectedRoute><ActiveEmployeeGuard><AppLayout /></ActiveEmployeeGuard></ProtectedRoute>}>
           <Route index element={<DashboardPage />} />
           <Route path="request" element={<RequestPage />} />
           <Route path="requests" element={<RequestListPage />} />
