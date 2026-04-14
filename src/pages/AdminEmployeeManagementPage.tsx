@@ -36,14 +36,13 @@ function saveDepartments(deps: string[]) {
   localStorage.setItem(DEPT_STORAGE_KEY, JSON.stringify(deps))
 }
 
-type EditTab = 'basic' | 'account' | 'resign'
-
 interface FormState {
   name: string
   department: string
   role: UserRole
   employeeType: EmployeeType
   hourlyWage: string
+  hireDate: string
   isActive: boolean
 }
 
@@ -52,7 +51,6 @@ interface EditPanel {
   employee: Employee | null
   form: FormState
   originalForm: FormState
-  activeTab: EditTab
   adminPassword: string
   newPassword: string
   accountError: string
@@ -81,6 +79,7 @@ function makeEmptyForm(emp: Employee): FormState {
     role: emp.role,
     employeeType: emp.employee_type,
     hourlyWage: emp.hourly_wage > 0 ? String(emp.hourly_wage) : '',
+    hireDate: emp.hire_date ?? '',
     isActive: emp.is_active,
   }
 }
@@ -99,6 +98,7 @@ function formsEqual(a: FormState, b: FormState): boolean {
     a.role === b.role &&
     a.employeeType === b.employeeType &&
     a.hourlyWage === b.hourlyWage &&
+    a.hireDate === b.hireDate &&
     a.isActive === b.isActive
   )
 }
@@ -123,9 +123,8 @@ export function AdminEmployeeManagementPage() {
   const [editPanel, setEditPanel] = useState<EditPanel>({
     open: false,
     employee: null,
-    form: { name: '', department: '', role: 'employee', employeeType: 'office', hourlyWage: '', isActive: true },
-    originalForm: { name: '', department: '', role: 'employee', employeeType: 'office', hourlyWage: '', isActive: true },
-    activeTab: 'basic',
+    form: { name: '', department: '', role: 'employee', employeeType: 'office', hourlyWage: '', hireDate: '', isActive: true },
+    originalForm: { name: '', department: '', role: 'employee', employeeType: 'office', hourlyWage: '', hireDate: '', isActive: true },
     adminPassword: '',
     newPassword: '',
     accountError: '',
@@ -148,6 +147,8 @@ export function AdminEmployeeManagementPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null)
 
   const [saveLoading, setSaveLoading] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [editTab, setEditTab] = useState<'basic' | 'account' | 'resign'>('basic')
 
   const [unsavedGuard, setUnsavedGuard] = useState<UnsavedGuard>({ open: false, nextAction: null })
 
@@ -171,12 +172,12 @@ export function AdminEmployeeManagementPage() {
       employee: emp,
       form,
       originalForm: form,
-      activeTab: 'basic',
       adminPassword: '',
       newPassword: '',
       accountError: '',
       accountLoading: false,
     })
+    setEditTab('basic')
   }
 
   function closePanel() {
@@ -185,24 +186,6 @@ export function AdminEmployeeManagementPage() {
 
   function isDirty(): boolean {
     return !formsEqual(editPanel.form, editPanel.originalForm)
-  }
-
-  function requestTabSwitch(tab: EditTab) {
-    if (isDirty()) {
-      setUnsavedGuard({
-        open: true,
-        nextAction: () => {
-          setEditPanel(p => ({
-            ...p,
-            form: p.originalForm,
-            activeTab: tab,
-            accountError: '',
-          }))
-        },
-      })
-    } else {
-      setEditPanel(p => ({ ...p, activeTab: tab, accountError: '' }))
-    }
   }
 
   function requestClose() {
@@ -219,37 +202,47 @@ export function AdminEmployeeManagementPage() {
   async function saveBasicInfo() {
     if (!editPanel.employee) return
     setSaveLoading(true)
-    const empId = editPanel.employee.id
-    const { name, department, role, employeeType, hourlyWage, isActive } = editPanel.form
-    const wage = parseInt(hourlyWage.replace(/,/g, ''), 10)
+    setSaveError('')
+    try {
+      const empId = editPanel.employee.id
+      const { name, department, role, employeeType, hourlyWage, isActive } = editPanel.form
+      const wage = parseInt(hourlyWage.replace(/,/g, ''), 10)
 
-    // Update name, department, role, isActive via RPC
-    await supabase.rpc('update_employee_admin', {
-      p_id: empId,
-      p_name: name,
-      p_role: role,
-      p_department: department,
-      p_is_active: isActive,
-    })
+      // 모든 필드를 직접 테이블 UPDATE로 통합 (RPC 오버로드 충돌 우회)
+      // manager는 role 변경 불가 — 원본 role 유지
+      const safeRole = isAdmin ? role : editPanel.employee.role
+      const { hireDate } = editPanel.form
+      const { error: updateError } = await supabase.from('employees').update({
+        name,
+        department,
+        role: safeRole,
+        is_active: isActive,
+        employee_type: employeeType,
+        hourly_wage: isNaN(wage) ? 0 : wage,
+        hire_date: hireDate || null,
+        updated_at: new Date().toISOString(),
+      }).eq('id', empId)
 
-    // Update hourly_wage, employee_type via direct update
-    await supabase.from('employees').update({
-      employee_type: employeeType,
-      hourly_wage: isNaN(wage) ? 0 : wage,
-    }).eq('id', empId)
+      if (updateError) {
+        setSaveError('저장 실패: ' + updateError.message)
+        return
+      }
 
-    setEmployees(prev => prev.map(e => e.id === empId ? {
-      ...e,
-      name,
-      department,
-      role,
-      employee_type: employeeType,
-      hourly_wage: isNaN(wage) ? 0 : wage,
-      is_active: isActive,
-    } : e))
+      setEmployees(prev => prev.map(e => e.id === empId ? {
+        ...e,
+        name,
+        department,
+        role,
+        employee_type: employeeType,
+        hourly_wage: isNaN(wage) ? 0 : wage,
+        hire_date: hireDate || null,
+        is_active: isActive,
+      } : e))
 
-    setEditPanel(p => ({ ...p, originalForm: p.form }))
-    setSaveLoading(false)
+      setEditPanel(p => ({ ...p, originalForm: p.form }))
+    } finally {
+      setSaveLoading(false)
+    }
   }
 
   // --- Account tab ---
@@ -505,43 +498,26 @@ export function AdminEmployeeManagementPage() {
         </div>
       </div>
 
-      {/* Tab filter */}
-      <div className="flex bg-dark-100 rounded-xl p-1 gap-1 w-fit">
-        <button
-          onClick={() => setListTab('active')}
-          className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-            listTab === 'active' ? 'bg-white text-dark-900 shadow-[0_1px_3px_rgba(0,0,0,0.04)]' : 'text-dark-500 hover:text-dark-700'
-          }`}
-        >
-          재직자 {activeEmps.length}
-        </button>
-        <button
-          onClick={() => setListTab('resigned')}
-          className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-            listTab === 'resigned' ? 'bg-white text-dark-900 shadow-[0_1px_3px_rgba(0,0,0,0.04)]' : 'text-dark-500 hover:text-dark-700'
-          }`}
-        >
-          퇴직자 {resignedEmps.length}
-        </button>
-      </div>
-
-      {/* Employee list */}
-      {displayEmps.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] py-16 text-center">
-          <p className="text-sm text-dark-400">{listTab === 'active' ? '재직 중인 직원이 없습니다' : '퇴직자가 없습니다'}</p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+      {/* Employee list + Excel sheet tabs */}
+      <div>
+        <div className="bg-white rounded-t-2xl border border-dark-100 border-b-0 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+          {displayEmps.length === 0 ? (
+            <div className="py-16 text-center">
+              <p className="text-sm text-dark-400">{listTab === 'active' ? '재직 중인 직원이 없습니다' : '퇴직자가 없습니다'}</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
               <thead>
                 <tr className="bg-dark-50 border-b border-dark-100">
                   <th className="px-4 py-3 text-left text-xs font-semibold text-dark-500">이름</th>
                   <th className="px-3 py-3 text-left text-xs font-semibold text-dark-500">사번</th>
                   <th className="px-3 py-3 text-left text-xs font-semibold text-dark-500">부서</th>
                   <th className="px-3 py-3 text-center text-xs font-semibold text-dark-500">고용형태</th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold text-dark-500">포지션</th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold text-dark-500">상태</th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold text-dark-500">권한</th>
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-dark-500">시급</th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold text-dark-500">입사일</th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold text-dark-500">등록일</th>
                   <th className="px-3 py-3 text-center text-xs font-semibold text-dark-500">관리</th>
                 </tr>
               </thead>
@@ -563,11 +539,7 @@ export function AdminEmployeeManagementPage() {
                     <td className="px-3 py-3 text-xs font-mono text-dark-500">{getEmployeeNumber(emp.email)}</td>
                     <td className="px-3 py-3 text-xs text-dark-500">{emp.department || '-'}</td>
                     <td className="px-3 py-3 text-center">
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${
-                        emp.employee_type === 'field'
-                          ? 'bg-primary-50 text-primary-700'
-                          : 'bg-primary-50 text-primary-700'
-                      }`}>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-primary-50 text-primary-700">
                         {EMP_TYPE_LABEL[emp.employee_type]}
                       </span>
                     </td>
@@ -576,14 +548,17 @@ export function AdminEmployeeManagementPage() {
                         {ROLE_LABEL[emp.role]}
                       </span>
                     </td>
-                    <td className="px-3 py-3 text-center">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                        emp.is_active
-                          ? 'bg-success-50 text-success-700'
-                          : 'bg-dark-100 text-dark-500'
-                      }`}>
-                        {emp.is_active ? '재직중' : '퇴직'}
-                      </span>
+                    <td className="px-3 py-3 text-right text-xs">
+                      {emp.hourly_wage > 0
+                        ? <span className="text-dark-700">{emp.hourly_wage.toLocaleString()}원</span>
+                        : <span className="text-dark-400">미설정</span>
+                      }
+                    </td>
+                    <td className="px-3 py-3 text-center text-xs text-dark-500">
+                      {emp.hire_date ? new Date(emp.hire_date + 'T00:00:00').toLocaleDateString('ko-KR') : <span className="text-dark-400">미설정</span>}
+                    </td>
+                    <td className="px-3 py-3 text-center text-xs text-dark-500">
+                      {new Date(emp.created_at).toLocaleDateString('ko-KR')}
                     </td>
                     <td className="px-3 py-3 text-center">
                       <button
@@ -598,20 +573,45 @@ export function AdminEmployeeManagementPage() {
               </tbody>
             </table>
           </div>
+          )}
         </div>
-      )}
 
-      {/* ==================== Edit panel (full-screen modal) ==================== */}
+        {/* Excel-style sheet tabs at bottom */}
+        <div className="flex items-stretch border-x border-b border-dark-100 rounded-b-2xl bg-dark-50 overflow-hidden">
+          <button
+            onClick={() => setListTab('active')}
+            className={`px-5 py-2.5 text-xs font-semibold border-r border-dark-100 transition-colors ${
+              listTab === 'active'
+                ? 'bg-white text-dark-900'
+                : 'bg-dark-100 text-dark-400 hover:bg-dark-50 hover:text-dark-600'
+            }`}
+          >
+            재직자 ({activeEmps.length})
+          </button>
+          <button
+            onClick={() => setListTab('resigned')}
+            className={`px-5 py-2.5 text-xs font-semibold border-r border-dark-100 transition-colors ${
+              listTab === 'resigned'
+                ? 'bg-white text-dark-900'
+                : 'bg-dark-100 text-dark-400 hover:bg-dark-50 hover:text-dark-600'
+            }`}
+          >
+            퇴직자 ({resignedEmps.length})
+          </button>
+          <div className="flex-1 bg-dark-100" />
+        </div>
+      </div>
+
+      {/* ==================== Edit modal (centered popup) ==================== */}
       {editPanel.open && panelEmployee && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/40" onClick={requestClose} />
-          <div className="relative bg-white w-full sm:max-w-md sm:rounded-2xl shadow-xl flex flex-col"
-            style={{ height: '90vh', maxHeight: '680px' }}>
+          <div className="relative bg-white w-full max-w-md rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto">
 
-            {/* Panel header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-dark-100 shrink-0">
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-dark-100">
               <div>
-                <h3 className="text-base font-bold text-dark-900">{panelEmployee.name}</h3>
+                <h3 className="text-base font-bold text-dark-900">{panelEmployee.name} 편집</h3>
                 <p className="text-xs text-dark-400 mt-0.5">{getEmployeeNumber(panelEmployee.email)}</p>
               </div>
               <button onClick={requestClose} className="p-1 rounded-lg hover:bg-dark-100 transition-colors">
@@ -619,11 +619,12 @@ export function AdminEmployeeManagementPage() {
               </button>
             </div>
 
-            {/* Scrollable tab content */}
-            <div className="flex-1 overflow-y-auto px-5 py-4">
-              {/* Tab 1: 기본정보 */}
-              {editPanel.activeTab === 'basic' && (
-                <div className="space-y-4">
+            {/* Tab content */}
+            <div className="px-5 py-4 space-y-4">
+
+              {/* === 시트1: 기본정보 === */}
+              {editTab === 'basic' && (
+                <>
                   <div>
                     <label className="block text-xs font-medium text-dark-600 mb-1">이름</label>
                     <input
@@ -633,7 +634,12 @@ export function AdminEmployeeManagementPage() {
                       className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
                     />
                   </div>
-
+                  <div>
+                    <label className="block text-xs font-medium text-dark-600 mb-1">사번</label>
+                    <p className="text-sm font-mono text-dark-500 px-3 py-2 bg-dark-50 rounded-xl">
+                      {getEmployeeNumber(panelEmployee.email)}
+                    </p>
+                  </div>
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-xs font-medium text-dark-600">부서</label>
@@ -651,7 +657,6 @@ export function AdminEmployeeManagementPage() {
                       )}
                     </select>
                   </div>
-
                   <div>
                     <label className="block text-xs font-medium text-dark-600 mb-1">고용형태</label>
                     <div className="grid grid-cols-2 gap-2">
@@ -671,7 +676,6 @@ export function AdminEmployeeManagementPage() {
                       ))}
                     </div>
                   </div>
-
                   <div>
                     <label className="block text-xs font-medium text-dark-600 mb-1">권한</label>
                     <div className="grid grid-cols-3 gap-2">
@@ -679,19 +683,19 @@ export function AdminEmployeeManagementPage() {
                         <button
                           key={r}
                           type="button"
+                          disabled={!isAdmin}
                           onClick={() => setEditPanel(p => ({ ...p, form: { ...p.form, role: r } }))}
                           className={`py-2 text-xs font-medium rounded-xl border transition-colors ${
                             editPanel.form.role === r
                               ? 'bg-primary-500 text-white border-primary-600'
                               : 'bg-white text-dark-600 border-dark-200 hover:border-primary-300'
-                          }`}
+                          } disabled:opacity-40 disabled:cursor-not-allowed`}
                         >
                           {ROLE_LABEL[r]}
                         </button>
                       ))}
                     </div>
                   </div>
-
                   <div>
                     <label className="block text-xs font-medium text-dark-600 mb-1">시급 (원)</label>
                     <input
@@ -703,72 +707,69 @@ export function AdminEmployeeManagementPage() {
                     />
                     <p className="text-xs text-dark-400 mt-1">연장근무수당 자동 계산에 사용됩니다</p>
                   </div>
-
                   <div>
-                    <label className="block text-xs font-medium text-dark-600 mb-1">등록일</label>
-                    <p className="text-sm text-dark-500 px-3 py-2 bg-dark-50 rounded-xl">
-                      {new Date(panelEmployee.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' })}
-                    </p>
+                    <label className="block text-xs font-medium text-dark-600 mb-1">입사일</label>
+                    <input
+                      type="date"
+                      value={editPanel.form.hireDate}
+                      onChange={e => setEditPanel(p => ({ ...p, form: { ...p.form, hireDate: e.target.value } }))}
+                      className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                    />
+                    <p className="text-xs text-dark-400 mt-1">연차 부여 기준 (근속연수) 계산에 사용됩니다</p>
                   </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-dark-600 mb-1">사번</label>
-                    <p className="text-sm font-mono text-dark-500 px-3 py-2 bg-dark-50 rounded-xl">
-                      {getEmployeeNumber(panelEmployee.email)}
-                    </p>
+                  {saveError && (
+                    <p className="text-xs text-red-500 text-center -mb-1">{saveError}</p>
+                  )}
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      onClick={requestClose}
+                      className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50"
+                    >
+                      취소
+                    </button>
+                    <button
+                      onClick={saveBasicInfo}
+                      disabled={saveLoading || !isDirty()}
+                      className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-600 transition-colors disabled:opacity-50"
+                    >
+                      {saveLoading ? '저장 중...' : '저장'}
+                    </button>
                   </div>
-
-                  <button
-                    onClick={saveBasicInfo}
-                    disabled={saveLoading || !isDirty()}
-                    className="w-full py-2.5 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-600 transition-colors disabled:opacity-50"
-                  >
-                    {saveLoading ? '저장 중...' : '저장'}
-                  </button>
-                </div>
+                </>
               )}
 
-              {/* Tab 2: 계정관리 (admin only) */}
-              {editPanel.activeTab === 'account' && isAdmin && (
-                <div className="space-y-5">
-                  {/* Active toggle */}
-                  <div>
-                    <p className="text-sm font-semibold text-dark-800">&#8226; 계정 활성화</p>
-                    <p className="text-xs text-dark-400 ml-3 mt-0.5">직원의 로그인 가능 여부를 설정합니다</p>
-                  </div>
-                  <div className="bg-dark-50 rounded-xl p-4">
-                    <div className="flex items-center justify-between">
-                      <div></div>
-                      <button
-                        onClick={() => setEditPanel(p => ({ ...p, form: { ...p.form, isActive: !p.form.isActive } }))}
-                        className={`relative w-11 h-6 rounded-full transition-colors ${
-                          editPanel.form.isActive ? 'bg-success-500' : 'bg-dark-300'
-                        }`}
-                      >
-                        <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                          editPanel.form.isActive ? 'translate-x-5' : ''
-                        }`} />
-                      </button>
-                    </div>
-                    {isDirty() && (
-                      <button
-                        onClick={saveBasicInfo}
-                        disabled={saveLoading}
-                        className="mt-3 w-full py-2 text-xs font-semibold text-white bg-primary-500 rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50"
-                      >
-                        {saveLoading ? '저장 중...' : '변경 저장'}
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Password reset */}
-                  <div>
-                    <p className="text-sm font-semibold text-dark-800">&#8226; 비밀번호 초기화</p>
-                    <p className="text-xs text-dark-400 ml-3 mt-0.5">직원의 비밀번호를 임시 비밀번호로 재설정합니다</p>
-                  </div>
-                  <div className="bg-dark-50 rounded-xl p-4 space-y-3">
+              {/* === 시트2: 계정관리 === */}
+              {editTab === 'account' && (
+                <>
+                  <div className="bg-dark-50 rounded-xl p-3 flex items-center justify-between">
                     <div>
-                      <label className="block text-xs font-medium text-dark-600 mb-1">인사담당자 비밀번호 입력</label>
+                      <p className="text-sm font-medium text-dark-700">계정 활성화</p>
+                      <p className="text-xs text-dark-400 mt-0.5">직원의 로그인 가능 여부</p>
+                    </div>
+                    <button
+                      onClick={() => setEditPanel(p => ({ ...p, form: { ...p.form, isActive: !p.form.isActive } }))}
+                      className={`relative w-11 h-6 rounded-full transition-colors ${
+                        editPanel.form.isActive ? 'bg-success-500' : 'bg-dark-300'
+                      }`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                        editPanel.form.isActive ? 'translate-x-5' : ''
+                      }`} />
+                    </button>
+                  </div>
+                  {isDirty() && (
+                    <button
+                      onClick={saveBasicInfo}
+                      disabled={saveLoading}
+                      className="w-full py-2 text-xs font-semibold text-white bg-primary-500 rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50"
+                    >
+                      {saveLoading ? '저장 중...' : '변경 저장'}
+                    </button>
+                  )}
+                  <div className="bg-dark-50 rounded-xl p-4 space-y-3">
+                    <p className="text-sm font-medium text-dark-700">비밀번호 초기화</p>
+                    <div>
+                      <label className="block text-xs font-medium text-dark-600 mb-1">인사담당자 비밀번호</label>
                       <input
                         type="password"
                         value={editPanel.adminPassword}
@@ -778,9 +779,7 @@ export function AdminEmployeeManagementPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-dark-600 mb-1">
-                        {panelEmployee.name}의 새 임시 비밀번호
-                      </label>
+                      <label className="block text-xs font-medium text-dark-600 mb-1">{panelEmployee.name}의 새 임시 비밀번호</label>
                       <input
                         type="password"
                         value={editPanel.newPassword}
@@ -800,13 +799,48 @@ export function AdminEmployeeManagementPage() {
                       {editPanel.accountLoading ? '처리 중...' : '비밀번호 초기화'}
                     </button>
                   </div>
+                </>
+              )}
 
-                  {/* Delete account */}
-                  <div>
-                    <p className="text-sm font-semibold text-danger-700">&#8226; 계정 삭제</p>
-                    <p className="text-xs text-dark-400 ml-3 mt-0.5">직원 계정과 모든 관련 데이터를 영구 삭제합니다</p>
-                  </div>
+              {/* === 시트3: 퇴직관리 === */}
+              {editTab === 'resign' && (
+                <>
+                  {panelEmployee.id !== currentUser?.id ? (
+                    <div className="bg-warning-50 rounded-xl p-4">
+                      {panelEmployee.is_active ? (
+                        <>
+                          <p className="text-sm font-medium text-warning-700 mb-1">퇴직 처리</p>
+                          <div className="space-y-1 mb-3">
+                            <p className="text-xs text-warning-600">· 퇴직 처리 후 해당 직원은 로그인이 비활성화됩니다</p>
+                            <p className="text-xs text-warning-600">· 야근, 휴가, 급여 등 모든 이력은 보존됩니다</p>
+                            <p className="text-xs text-warning-600">· 언제든지 복직 처리할 수 있습니다</p>
+                          </div>
+                          <button
+                            onClick={() => { closePanel(); setResignConfirm({ id: panelEmployee.id, name: panelEmployee.name }) }}
+                            className="w-full py-2.5 text-sm font-semibold text-white bg-warning-500 rounded-xl hover:bg-warning-600 transition-colors"
+                          >
+                            퇴직 처리
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm font-medium text-success-700 mb-1">복직 처리</p>
+                          <p className="text-xs text-dark-400 mb-3">로그인이 다시 활성화됩니다</p>
+                          <button
+                            onClick={() => { closePanel(); setReinstateConfirm({ id: panelEmployee.id, name: panelEmployee.name }) }}
+                            className="w-full py-2.5 text-sm font-semibold text-white bg-success-500 rounded-xl hover:bg-success-600 transition-colors"
+                          >
+                            복직 처리
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-dark-400 text-center py-8">본인 계정은 퇴직 처리할 수 없습니다</p>
+                  )}
                   <div className="bg-danger-50 rounded-xl p-4">
+                    <p className="text-sm font-medium text-danger-700 mb-2">계정 삭제</p>
+                    <p className="text-xs text-dark-400 mb-3">직원 계정과 모든 관련 데이터를 영구 삭제합니다</p>
                     <button
                       onClick={() => setDeleteConfirm({ id: panelEmployee.id, name: panelEmployee.name })}
                       disabled={panelEmployee.id === currentUser?.id}
@@ -815,99 +849,30 @@ export function AdminEmployeeManagementPage() {
                       계정 삭제
                     </button>
                   </div>
-                </div>
-              )}
-
-              {/* Tab 3: 퇴사관리 (admin only) */}
-              {editPanel.activeTab === 'resign' && isAdmin && (
-                <div className="space-y-4">
-                  {/* Current status */}
-                  <div className="bg-dark-50 rounded-xl p-4">
-                    <p className="text-xs font-medium text-dark-500 mb-2">현재 상태</p>
-                    <span className={`text-sm font-semibold px-3 py-1.5 rounded-full ${
-                      panelEmployee.is_active
-                        ? 'bg-success-50 text-success-700'
-                        : 'bg-dark-200 text-dark-600'
-                    }`}>
-                      {panelEmployee.is_active ? '재직중' : '퇴직'}
-                    </span>
-                  </div>
-
-                  {panelEmployee.is_active ? (
-                    <div className="bg-warning-50 rounded-xl p-4">
-                      <p className="text-sm font-medium text-warning-700 mb-1">퇴직 처리</p>
-                      <div className="space-y-1 mb-4">
-                        <p className="text-xs text-warning-600">· 퇴직 처리 후 해당 직원은 로그인이 비활성화됩니다</p>
-                        <p className="text-xs text-warning-600">· 야근, 휴가, 급여 등 모든 이력은 보존됩니다</p>
-                        <p className="text-xs text-warning-600">· 언제든지 복직 처리할 수 있습니다</p>
-                      </div>
-                      <button
-                        onClick={() => setResignConfirm({ id: panelEmployee.id, name: panelEmployee.name })}
-                        disabled={panelEmployee.id === currentUser?.id}
-                        className="w-full py-2.5 text-sm font-semibold text-white bg-warning-500 rounded-xl hover:bg-warning-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        퇴직 처리
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="bg-success-50 rounded-xl p-4">
-                      <p className="text-sm font-medium text-success-700 mb-1">복직 처리</p>
-                      <p className="text-xs text-success-600 mb-4">복직 처리 시 로그인이 다시 활성화됩니다.</p>
-                      <button
-                        onClick={() => setReinstateConfirm({ id: panelEmployee.id, name: panelEmployee.name })}
-                        className="w-full py-2.5 text-sm font-semibold text-white bg-success-500 rounded-xl hover:bg-success-600 transition-colors"
-                      >
-                        복직 처리
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Non-admin fallback for restricted tabs */}
-              {editPanel.activeTab !== 'basic' && !isAdmin && (
-                <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <p className="text-sm text-dark-400">관리자 권한이 필요합니다</p>
-                </div>
+                </>
               )}
             </div>
 
-            {/* Fixed bottom tab bar */}
-            <div className="shrink-0 border-t border-dark-100 bg-white flex">
-              <button
-                onClick={() => requestTabSwitch('basic')}
-                className={`flex-1 py-3.5 text-xs font-semibold transition-colors ${
-                  editPanel.activeTab === 'basic'
-                    ? 'bg-primary-500 text-white'
-                    : 'text-dark-500 hover:bg-dark-50'
-                }`}
-              >
-                기본정보
-              </button>
-              {isAdmin && (
-                <>
-                  <button
-                    onClick={() => requestTabSwitch('account')}
-                    className={`flex-1 py-3.5 text-xs font-semibold transition-colors ${
-                      editPanel.activeTab === 'account'
-                        ? 'bg-primary-500 text-white'
-                        : 'text-dark-500 hover:bg-dark-50'
-                    }`}
-                  >
-                    계정관리
-                  </button>
-                  <button
-                    onClick={() => requestTabSwitch('resign')}
-                    className={`flex-1 py-3.5 text-xs font-semibold transition-colors ${
-                      editPanel.activeTab === 'resign'
-                        ? 'bg-primary-500 text-white'
-                        : 'text-dark-500 hover:bg-dark-50'
-                    }`}
-                  >
-                    퇴사관리
-                  </button>
-                </>
-              )}
+            {/* Excel-style sheet tabs at bottom of modal */}
+            <div className="flex items-stretch border-t border-dark-100 bg-dark-50 rounded-b-2xl overflow-hidden">
+              {([
+                { key: 'basic' as const, label: '기본정보' },
+                { key: 'account' as const, label: '계정관리' },
+                { key: 'resign' as const, label: '퇴직관리' },
+              ]).map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => setEditTab(tab.key)}
+                  className={`px-4 py-2.5 text-xs font-semibold border-r border-dark-200 transition-colors ${
+                    editTab === tab.key
+                      ? 'bg-white text-dark-900'
+                      : 'text-dark-400 hover:bg-dark-100 hover:text-dark-600'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+              <div className="flex-1" />
             </div>
           </div>
         </div>

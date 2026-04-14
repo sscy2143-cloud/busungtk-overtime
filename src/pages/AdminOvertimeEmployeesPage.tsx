@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, LayoutGrid, CalendarDays } from 'lucide-react'
+import { ChevronLeft, ChevronRight, LayoutGrid, CalendarDays, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { calculateOvertimeBreakdown } from '../utils/overtime-calc'
 import type { OvertimeRequest } from '../types'
@@ -55,14 +54,23 @@ function buildCalendarDays(year: number, month: number) {
   return days
 }
 
+interface DetailPopup {
+  empId: string
+  empName: string
+  year: number
+  month: number
+}
+
+const DOW_KO = ['일', '월', '화', '수', '목', '금', '토']
+
 export function AdminOvertimeEmployeesPage() {
-  const navigate = useNavigate()
   const now = new Date()
   const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table')
   const [selectedYear, setSelectedYear] = useState(now.getFullYear())
   const [calMonth, setCalMonth] = useState(now.getMonth() + 1)
   const [allRequests, setAllRequests] = useState<(OvertimeRequest & { employee: any })[]>([])
   const [loading, setLoading] = useState(true)
+  const [detailPopup, setDetailPopup] = useState<DetailPopup | null>(null)
 
   useEffect(() => {
     setLoading(true)
@@ -264,8 +272,7 @@ export function AdminOvertimeEmployeesPage() {
                             }`}
                             onClick={() => {
                               if (minutes === 0) return
-                              const monthStr = String(i + 1).padStart(2, '0')
-                              navigate(`/admin/overtime?month=${selectedYear}-${monthStr}&emp=${row.empId}`)
+                              setDetailPopup({ empId: row.empId, empName: row.name, year: selectedYear, month: i + 1 })
                             }}
                           >
                             {fmtH(minutes)}
@@ -387,6 +394,89 @@ export function AdminOvertimeEmployeesPage() {
           )}
         </div>
       )}
+
+      {/* ── 월별 상세 팝업 ── */}
+      {detailPopup && (() => {
+        const monthStr = `${detailPopup.year}-${String(detailPopup.month).padStart(2, '0')}`
+        const records = allRequests
+          .filter(r => r.employee_id === detailPopup.empId && r.date.startsWith(monthStr))
+          .sort((a, b) => a.date.localeCompare(b.date))
+
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            onClick={() => setDetailPopup(null)}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[80vh] flex flex-col"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* 헤더 */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-dark-100">
+                <div>
+                  <p className="text-base font-bold text-dark-900">{detailPopup.empName}</p>
+                  <p className="text-xs text-dark-400 mt-0.5">{detailPopup.year}년 {detailPopup.month}월 연장근무 상세</p>
+                </div>
+                <button
+                  onClick={() => setDetailPopup(null)}
+                  className="p-1.5 rounded-lg hover:bg-dark-100 transition-colors"
+                >
+                  <X size={18} className="text-dark-500" />
+                </button>
+              </div>
+
+              {/* 목록 */}
+              <div className="overflow-y-auto flex-1 divide-y divide-dark-50">
+                {records.length === 0 ? (
+                  <p className="py-10 text-center text-sm text-dark-400">데이터가 없습니다</p>
+                ) : records.map(r => {
+                  const bd = calculateOvertimeBreakdown(r.date, r.planned_start, r.planned_end)
+                  const dow = DOW_KO[new Date(r.date + 'T00:00:00+09:00').getDay()]
+                  const h = Math.floor(bd.totalMinutes / 60)
+                  const m = bd.totalMinutes % 60
+                  const timeStr = m === 0 ? `${h}시간` : `${h}시간 ${m}분`
+                  return (
+                    <div key={r.id} className="px-5 py-3.5">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-semibold text-dark-800">
+                          {r.date.slice(5).replace('-', '/')} ({dow})
+                        </span>
+                        <span className="text-sm font-bold text-primary-600">{timeStr}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-dark-500 mb-1">
+                        <span>{r.planned_start} ~ {r.planned_end}</span>
+                        {bd.isHoliday && (
+                          <span className="px-1.5 py-0.5 bg-primary-50 text-primary-600 rounded font-medium">휴일</span>
+                        )}
+                      </div>
+                      {(r.site_name || r.reason) && (
+                        <p className="text-xs text-dark-400 truncate">
+                          {r.site_name ? `[${r.site_name}] ` : ''}{r.reason}
+                        </p>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* 합계 */}
+              {records.length > 0 && (() => {
+                const total = records.reduce((s, r) => s + calculateOvertimeBreakdown(r.date, r.planned_start, r.planned_end).totalMinutes, 0)
+                const h = Math.floor(total / 60)
+                const m = total % 60
+                return (
+                  <div className="px-5 py-3 border-t border-dark-100 flex items-center justify-between bg-dark-50 rounded-b-2xl">
+                    <span className="text-xs font-semibold text-dark-600">총 {records.length}건</span>
+                    <span className="text-sm font-bold text-dark-800">
+                      {m === 0 ? `${h}시간` : `${h}시간 ${m}분`}
+                    </span>
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

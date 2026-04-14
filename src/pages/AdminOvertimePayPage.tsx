@@ -1,8 +1,17 @@
 import { useState, useEffect, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Edit2, Check, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Edit2, Check, X, AlertCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { calculateOvertimeBreakdown } from '../utils/overtime-calc'
 import type { OvertimeRequest } from '../types'
+
+const DOW_KO = ['일', '월', '화', '수', '목', '금', '토']
+
+interface VerifyPopup {
+  empId: string
+  empName: string
+  records: (OvertimeRequest & { employee: any })[]
+  loading: boolean
+}
 
 function fmtWon(amount: number) {
   return `${Math.round(amount).toLocaleString('ko-KR')}원`
@@ -27,6 +36,19 @@ export function AdminOvertimePayPage() {
   const [compLeaveRequestIds, setCompLeaveRequestIds] = useState<Set<string>>(new Set())
   const [editingEmpId, setEditingEmpId] = useState<string | null>(null)
   const [editingValue, setEditingValue] = useState('')
+  const [verifyPopup, setVerifyPopup] = useState<VerifyPopup | null>(null)
+
+  async function openVerify(empId: string, empName: string) {
+    setVerifyPopup({ empId, empName, records: [], loading: true })
+    const { data } = await supabase
+      .from('overtime_requests')
+      .select('*, employee:employees!overtime_requests_employee_id_fkey(id, name)')
+      .eq('employee_id', empId)
+      .gte('date', `${monthPrefix}-01`)
+      .lte('date', `${monthPrefix}-31`)
+      .order('date', { ascending: true })
+    setVerifyPopup({ empId, empName, records: (data as any) ?? [], loading: false })
+  }
 
   const monthPrefix = `${calYear}-${String(calMonth).padStart(2, '0')}`
 
@@ -228,7 +250,10 @@ export function AdminOvertimePayPage() {
 
                     return (
                       <tr key={row.empId} className="hover:bg-dark-50 transition-colors">
-                        <td className="px-4 py-3 font-medium text-dark-800">{row.name}</td>
+                        <td
+                          className="px-4 py-3 font-medium text-dark-800 cursor-pointer hover:text-primary-600 underline-offset-2 hover:underline"
+                          onClick={() => openVerify(row.empId, row.name)}
+                        >{row.name}</td>
                         <td className="px-4 py-3 text-xs text-dark-400">{row.department}</td>
                         <td className="px-4 py-3">
                           {isEditing ? (
@@ -300,6 +325,124 @@ export function AdminOvertimePayPage() {
           </div>
         </>
       )}
+      {/* ── 누락 확인 팝업 ── */}
+      {verifyPopup && (() => {
+        const approved = verifyPopup.records.filter(r => r.status === 'approved')
+        const pending = verifyPopup.records.filter(r => r.status === 'pending')
+        const rejected = verifyPopup.records.filter(r => r.status === 'rejected')
+        const hasPending = pending.length > 0
+
+        const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
+          approved: { text: '승인', cls: 'bg-success-50 text-success-700' },
+          pending:  { text: '대기', cls: 'bg-warning-50 text-warning-700' },
+          rejected: { text: '반려', cls: 'bg-red-50 text-red-600' },
+        }
+
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            onClick={() => setVerifyPopup(null)}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[85vh] flex flex-col"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* 헤더 */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-dark-100">
+                <div>
+                  <p className="text-base font-bold text-dark-900">{verifyPopup.empName}</p>
+                  <p className="text-xs text-dark-400 mt-0.5">{calYear}년 {calMonth}월 야근신청 전체 내역</p>
+                </div>
+                <button onClick={() => setVerifyPopup(null)} className="p-1.5 rounded-lg hover:bg-dark-100">
+                  <X size={18} className="text-dark-500" />
+                </button>
+              </div>
+
+              {/* 요약 배지 */}
+              <div className="px-5 py-3 flex items-center gap-2 border-b border-dark-50">
+                <span className="text-xs px-2 py-1 bg-success-50 text-success-700 rounded-full font-medium">승인 {approved.length}건</span>
+                {pending.length > 0 && (
+                  <span className="text-xs px-2 py-1 bg-warning-50 text-warning-700 rounded-full font-medium flex items-center gap-1">
+                    <AlertCircle size={11} /> 대기 {pending.length}건
+                  </span>
+                )}
+                {rejected.length > 0 && (
+                  <span className="text-xs px-2 py-1 bg-red-50 text-red-600 rounded-full font-medium">반려 {rejected.length}건</span>
+                )}
+                {verifyPopup.records.length === 0 && !verifyPopup.loading && (
+                  <span className="text-xs text-dark-400">신청 내역 없음</span>
+                )}
+              </div>
+
+              {/* 대기 건 경고 */}
+              {hasPending && (
+                <div className="mx-5 mt-3 px-3 py-2 bg-warning-50 border border-warning-200 rounded-xl text-xs text-warning-700 flex items-center gap-1.5">
+                  <AlertCircle size={13} />
+                  대기 중인 건은 수당 계산에 미반영됩니다. 승인 후 재확인하세요.
+                </div>
+              )}
+
+              {/* 목록 */}
+              <div className="overflow-y-auto flex-1 divide-y divide-dark-50 mt-2">
+                {verifyPopup.loading ? (
+                  <p className="py-10 text-center text-sm text-dark-400">불러오는 중...</p>
+                ) : verifyPopup.records.length === 0 ? (
+                  <p className="py-10 text-center text-sm text-dark-400">신청 내역이 없습니다</p>
+                ) : verifyPopup.records.map(r => {
+                  const bd = calculateOvertimeBreakdown(r.date, r.planned_start, r.planned_end)
+                  const dow = DOW_KO[new Date(r.date + 'T00:00:00+09:00').getDay()]
+                  const h = Math.floor(bd.totalMinutes / 60)
+                  const m = bd.totalMinutes % 60
+                  const timeStr = m === 0 ? `${h}시간` : `${h}시간 ${m}분`
+                  const st = STATUS_LABEL[r.status] ?? { text: r.status, cls: 'bg-dark-100 text-dark-600' }
+                  const isCompLeave = compLeaveRequestIds.has(r.id)
+
+                  return (
+                    <div key={r.id} className={`px-5 py-3.5 ${r.status === 'pending' ? 'bg-warning-50/30' : ''}`}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-semibold text-dark-800">
+                          {r.date.slice(5).replace('-', '/')} ({dow})
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {isCompLeave && (
+                            <span className="text-xs px-1.5 py-0.5 bg-dark-100 text-dark-500 rounded font-medium">대체휴가</span>
+                          )}
+                          <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${st.cls}`}>{st.text}</span>
+                          <span className="text-sm font-bold text-primary-600">{timeStr}</span>
+                        </div>
+                      </div>
+                      <div className="text-xs text-dark-500 mb-0.5">
+                        {r.planned_start} ~ {r.planned_end}
+                        {bd.isHoliday && <span className="ml-2 text-primary-500 font-medium">휴일</span>}
+                      </div>
+                      {(r.site_name || r.reason) && (
+                        <p className="text-xs text-dark-400 truncate">{r.site_name ? `[${r.site_name}] ` : ''}{r.reason}</p>
+                      )}
+                      {r.rejection_reason && (
+                        <p className="text-xs text-red-400 mt-0.5">반려 사유: {r.rejection_reason}</p>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* 합계 */}
+              {approved.length > 0 && (
+                <div className="px-5 py-3 border-t border-dark-100 flex items-center justify-between bg-dark-50 rounded-b-2xl">
+                  <span className="text-xs text-dark-500">승인분 합계</span>
+                  <span className="text-sm font-bold text-dark-800">
+                    {(() => {
+                      const total = approved.reduce((s, r) => s + calculateOvertimeBreakdown(r.date, r.planned_start, r.planned_end).totalMinutes, 0)
+                      const h = Math.floor(total / 60); const m = total % 60
+                      return m === 0 ? `${h}시간` : `${h}시간 ${m}분`
+                    })()}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
