@@ -382,12 +382,15 @@ export function AdminOvertimePayPage() {
                         </td>
                         <td className="px-4 py-3 text-right text-xs text-dark-500">{fmtH(row.totalMinutes)}</td>
                         <td className="px-4 py-3 text-right text-xs text-primary-600">
+                          <div className="text-[10px] text-dark-400 font-normal">{fmtH(row.extended)}</div>
                           {wage > 0 ? fmtWon(extendedPay) : <span className="text-dark-200">-</span>}
                         </td>
                         <td className="px-4 py-3 text-right text-xs text-dark-700">
+                          <div className="text-[10px] text-dark-400 font-normal">{fmtH(row.night)}</div>
                           {wage > 0 ? fmtWon(nightPay) : <span className="text-dark-200">-</span>}
                         </td>
                         <td className="px-4 py-3 text-right text-xs text-primary-600">
+                          <div className="text-[10px] text-dark-400 font-normal">{fmtH(row.holiday + row.holidayOvertime + row.holidayNight + row.holidayOvertimeNight)}</div>
                           {wage > 0 ? fmtWon(holidayPay) : <span className="text-dark-200">-</span>}
                         </td>
                         <td className="px-4 py-3 text-right font-bold text-dark-800">
