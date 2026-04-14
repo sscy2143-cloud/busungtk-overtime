@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Edit2, Check, X, AlertCircle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Edit2, Check, X, AlertCircle, Download } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import { calculateOvertimeBreakdown } from '../utils/overtime-calc'
 import type { OvertimeRequest } from '../types'
@@ -155,6 +156,86 @@ export function AdminOvertimePayPage() {
     setEditingEmpId(null)
   }
 
+  function downloadExcel() {
+    const DOW_LABELS = ['일', '월', '화', '수', '목', '금', '토']
+
+    // ── 시트 1: 직원별 요약 ──────────────────────────────
+    // payTable은 compLeave 제외된 집계임 (기존 useMemo와 동일 로직)
+    const summaryRows = payTable.map(row => {
+      const wage = getWage(row.empId, row.dbWage)
+      const pay = calcPay(row, wage)
+      return {
+        '직원명': row.name,
+        '부서': row.department,
+        '시급 (원)': wage,
+        '총 근무시간': fmtH(row.totalMinutes),
+        '연장근무 (1.5배)': fmtH(row.extended),
+        '야간근무 (2.0배)': fmtH(row.night),
+        '휴일근무 (1.5배)': fmtH(row.holiday),
+        '휴일근무 8h초과 (2.0배)': fmtH(row.holidayOvertime),
+        '휴일+야간 (2.0배)': fmtH(row.holidayNight),
+        '휴일초과+야간 (2.5배)': fmtH(row.holidayOvertimeNight),
+        '예상 수당 (원)': wage > 0 ? Math.round(pay).toLocaleString('ko-KR') : '-',
+      }
+    })
+
+    // ── 시트 2: 상세 내역 ────────────────────────────────
+    const sorted = [...allRequests].sort((a, b) => {
+      if (a.date < b.date) return -1
+      if (a.date > b.date) return 1
+      const na = a.employee?.name ?? ''
+      const nb = b.employee?.name ?? ''
+      return na.localeCompare(nb, 'ko')
+    })
+
+    const detailRows = sorted.map(r => {
+      const bd = calculateOvertimeBreakdown(r.date, r.planned_start, r.planned_end)
+      const dow = DOW_LABELS[new Date(r.date + 'T00:00:00+09:00').getDay()]
+      const isCompLeave = compLeaveRequestIds.has(r.id)
+      return {
+        '직원명': r.employee?.name ?? '알 수 없음',
+        '부서': r.employee?.department ?? '',
+        '날짜': r.date,
+        '요일': dow,
+        '시작시간': r.planned_start,
+        '종료시간': r.planned_end,
+        '총 근무시간': fmtH(bd.totalMinutes),
+        '연장': fmtH(bd.extendedMinutes),
+        '야간': fmtH(bd.nightMinutes),
+        '휴일': fmtH(bd.holidayMinutes),
+        '휴일 8h초과': fmtH(bd.holidayOvertimeMinutes),
+        '휴일+야간': fmtH(bd.holidayNightMinutes),
+        '휴일초과+야간': fmtH(bd.holidayOvertimeNightMinutes),
+        '작업내용': r.reason ?? '',
+        '휴일여부': bd.isHoliday ? 'Y' : 'N',
+        '대체휴가차감': isCompLeave ? '차감' : '',
+      }
+    })
+
+    const wb = XLSX.utils.book_new()
+
+    const ws1 = XLSX.utils.json_to_sheet(summaryRows)
+    ws1['!cols'] = [
+      { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 12 },
+      { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 18 },
+      { wch: 14 }, { wch: 18 }, { wch: 16 },
+    ]
+
+    const ws2 = XLSX.utils.json_to_sheet(detailRows)
+    ws2['!cols'] = [
+      { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 6 },
+      { wch: 8 }, { wch: 8 }, { wch: 12 }, { wch: 8 },
+      { wch: 8 }, { wch: 8 }, { wch: 10 }, { wch: 10 },
+      { wch: 12 }, { wch: 24 }, { wch: 8 }, { wch: 12 },
+    ]
+
+    XLSX.utils.book_append_sheet(wb, ws1, '직원별 요약')
+    XLSX.utils.book_append_sheet(wb, ws2, '상세 내역')
+
+    const mm = String(calMonth).padStart(2, '0')
+    XLSX.writeFile(wb, `연장근무수당_${calYear}년_${mm}월.xlsx`)
+  }
+
   const totalPay = payTable.reduce((s, row) => s + calcPay(row, getWage(row.empId, row.dbWage)), 0)
   const wageFilledCount = payTable.filter(r => getWage(r.empId, r.dbWage) > 0).length
   const compLeaveExcludedCount = allRequests.filter(r => compLeaveRequestIds.has(r.id)).length
@@ -193,19 +274,28 @@ export function AdminOvertimePayPage() {
         </div>
       )}
 
-      {/* 월 선택 */}
-      <div className="flex items-center gap-2 justify-end">
-        <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-dark-100 transition-colors">
-          <ChevronLeft className="w-4 h-4 text-dark-600" />
-        </button>
-        <span className="text-sm font-semibold text-dark-700 min-w-[80px] text-center">{calYear}년 {calMonth}월</span>
+      {/* 월 선택 + 엑셀 다운로드 */}
+      <div className="flex items-center justify-between">
         <button
-          onClick={nextMonth}
-          disabled={calYear === now.getFullYear() && calMonth === now.getMonth() + 1}
-          className="p-1.5 rounded-lg hover:bg-dark-100 disabled:opacity-30 transition-colors"
+          onClick={downloadExcel}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-success-600 hover:bg-success-700 rounded-lg transition-colors"
         >
-          <ChevronRight className="w-4 h-4 text-dark-600" />
+          <Download size={13} />
+          엑셀 다운로드
         </button>
+        <div className="flex items-center gap-2">
+          <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-dark-100 transition-colors">
+            <ChevronLeft className="w-4 h-4 text-dark-600" />
+          </button>
+          <span className="text-sm font-semibold text-dark-700 min-w-[80px] text-center">{calYear}년 {calMonth}월</span>
+          <button
+            onClick={nextMonth}
+            disabled={calYear === now.getFullYear() && calMonth === now.getMonth() + 1}
+            className="p-1.5 rounded-lg hover:bg-dark-100 disabled:opacity-30 transition-colors"
+          >
+            <ChevronRight className="w-4 h-4 text-dark-600" />
+          </button>
+        </div>
       </div>
 
       {payTable.length === 0 ? (
