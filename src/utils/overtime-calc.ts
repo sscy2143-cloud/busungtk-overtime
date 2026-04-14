@@ -134,8 +134,11 @@ export function calculateOvertimeBreakdown(
   }
 
   // 근로기준법 제54조: 4시간 초과 시 30분, 8시간 초과 시 1시간 휴게 차감
+  // (휴일/야간 장시간 근무에만 실질 적용)
   const breakMinutes = rawMinutes > 480 ? 60 : rawMinutes > 240 ? 30 : 0
-  const totalMinutes = rawMinutes - breakMinutes
+
+  // 포괄임금제 기준: 평일 18:30 이전은 수당 미산정 (17:30~18:30 완충)
+  const WEEKDAY_PAID_START = 18 * 60 + 30 // 18:30
 
   // 분 단위로 순회하며 분류
   let extendedMinutes = 0
@@ -149,8 +152,8 @@ export function calculateOvertimeBreakdown(
   // 휴게시간은 근무 종료 전에 사용한다고 가정 → 실제 계산 범위를 줄임
   const effectiveEndMin = endMin - breakMinutes
   for (let m = startMin; m < effectiveEndMin; m++) {
-    const hourOfDay = (m % (24 * 60)) / 60
-    const hour = Math.floor(hourOfDay)
+    const minuteOfDay = m % (24 * 60)
+    const hour = Math.floor(minuteOfDay / 60)
     const isNight = hour >= 22 || hour < 6
 
     if (isHoliday) {
@@ -169,22 +172,25 @@ export function calculateOvertimeBreakdown(
         if (totalHolidayMinutes > 480) {
           holidayDayMinutesSoFar--
           holidayOvertimeMinutes++
-        } else {
-          // stays in holidayDayMinutesSoFar, will be counted as holidayMinutes
         }
       }
     } else {
       // 평일
       if (isNight) {
-        nightMinutes++ // 야간 (연장+야간 중복 = 2.0배)
-      } else {
-        extendedMinutes++ // 연장 (1.5배)
+        nightMinutes++ // 야간근로 (22:00~06:00)
+      } else if (minuteOfDay >= WEEKDAY_PAID_START) {
+        extendedMinutes++ // 18:30 이후 연장근로만 산정 (포괄임금제)
       }
+      // 17:30~18:30: 포괄임금제 미산정
     }
   }
 
   // holidayDayMinutesSoFar → holidayMinutes (8h 이내 비야간 휴일분)
   holidayMinutes = holidayDayMinutesSoFar
+
+  // totalMinutes: 실제 수당 산정 시간 합계 (포괄임금 완충 제외)
+  const totalMinutes = extendedMinutes + nightMinutes + holidayMinutes +
+    holidayOvertimeMinutes + holidayNightMinutes + holidayOvertimeNightMinutes
 
   // 수당 항목 생성
   const payItems: PayItem[] = []
