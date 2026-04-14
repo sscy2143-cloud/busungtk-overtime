@@ -131,7 +131,7 @@ export function RequestListPage() {
       {/* 헤더 */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-bold text-dark-900">근무 현황</h1>
+          <h1 className="text-xl font-bold text-dark-900">연장근무 현황</h1>
           <p className="text-sm text-dark-400 mt-0.5">
             {now.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
           </p>
@@ -417,6 +417,13 @@ export function RequestListPage() {
                   <div className="bg-danger-50 border border-danger-200 rounded-xl px-3 py-2.5">
                     <p className="text-xs font-semibold text-danger-500 mb-1">반려 사유</p>
                     <p className="text-sm text-danger-700">{req.rejection_reason}</p>
+                  </div>
+                )}
+                {req.status === 'pending' && req.rejection_reason && (
+                  <div className="bg-warning-50 border border-warning-200 rounded-xl px-3 py-2.5">
+                    <p className="text-xs font-semibold text-warning-600 mb-1">승인 취소 사유</p>
+                    <p className="text-sm text-warning-700">{req.rejection_reason}</p>
+                    <p className="text-xs text-dark-500 mt-1">관리자가 승인을 취소하여 다시 대기 상태로 변경했습니다.</p>
                   </div>
                 )}
               </div>

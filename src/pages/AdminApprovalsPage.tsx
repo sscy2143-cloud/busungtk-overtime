@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { markAsSeen } from '../hooks/useUnseenCounts'
 import { useSearchParams } from 'react-router-dom'
 import { CheckSquare, X, Clock, History, Banknote, RefreshCw, Users } from 'lucide-react'
 import { StatusBadge } from '../components/common/StatusBadge'
@@ -62,7 +63,7 @@ export function AdminApprovalsPage() {
   const [detailModal, setDetailModal] = useState<string | null>(null)
   const [managerApproveConfirm, setManagerApproveConfirm] = useState<{ open: boolean; id: string }>({ open: false, id: '' })
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [listFilter, setListFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending')
+  const [listFilter, setListFilter] = useState<'all' | 'pending' | 'approved' | 'rejected' | 'cancelled'>('pending')
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'danger' } | null>(null)
 
   function showToast(message: string, type: 'success' | 'danger') {
@@ -379,6 +380,7 @@ export function AdminApprovalsPage() {
         status: 'pending',
         approved_by: null,
         approved_at: null,
+        rejection_reason: reason,
       })
       .eq('id', id)
 
@@ -389,9 +391,10 @@ export function AdminApprovalsPage() {
 
     await recordHistory(id, 'overtime', 'approved', 'pending', reason)
     setOvertimes((prev) => prev.map((r) =>
-      r.id === id ? { ...r, status: 'pending', approved_by: null, approved_at: null } : r,
+      r.id === id ? { ...r, status: 'pending', approved_by: null, approved_at: null, rejection_reason: reason } : r,
     ))
     setRevokeModal({ open: false, id: '', reason: '' })
+    showToast('승인이 취소되었습니다', 'danger')
   }
 
   // 이력 조회
@@ -427,6 +430,7 @@ export function AdminApprovalsPage() {
     if (listFilter === 'pending') return r.status === 'pending' || r.status === 'manager_approved'
     if (listFilter === 'approved') return r.status === 'approved'
     if (listFilter === 'rejected') return r.status === 'rejected'
+    if (listFilter === 'cancelled') return r.status === 'cancelled'
     return true
   })
 
@@ -434,8 +438,15 @@ export function AdminApprovalsPage() {
   const countPending = filteredOvertimes.filter(r => r.status === 'pending' || r.status === 'manager_approved').length
   const countApproved = filteredOvertimes.filter(r => r.status === 'approved').length
   const countRejected = filteredOvertimes.filter(r => r.status === 'rejected').length
+  const countCancelled = filteredOvertimes.filter(r => r.status === 'cancelled').length
 
   const selectedReq = selectedId ? overtimes.find(r => r.id === selectedId) ?? null : null
+
+  useEffect(() => {
+    if (selectedId && employee?.id) {
+      markAsSeen('overtime', employee.id, selectedId)
+    }
+  }, [selectedId, employee?.id])
 
   return (
     <div className="flex flex-col h-full min-h-0 space-y-3">
@@ -501,7 +512,7 @@ export function AdminApprovalsPage() {
       <div className="flex flex-col lg:flex-row gap-0 bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden flex-1 min-h-0" style={{ minHeight: '520px' }}>
 
         {/* ── LEFT PANEL: list ── */}
-        <div className={`flex flex-col lg:w-80 lg:min-w-[320px] lg:max-w-xs border-b lg:border-b-0 lg:border-r border-dark-100 ${selectedId ? 'hidden lg:flex' : 'flex'}`}>
+        <div className={`flex flex-col lg:w-[500px] lg:min-w-[500px] lg:max-w-[500px] border-b lg:border-b-0 lg:border-r border-dark-100 ${selectedId ? 'hidden lg:flex' : 'flex'}`}>
 
           {/* Tab filter */}
           <div className="px-3 pt-3 pb-2 border-b border-dark-100 shrink-0">
@@ -512,6 +523,7 @@ export function AdminApprovalsPage() {
                   { key: 'pending', label: '대기중', count: countPending },
                   { key: 'approved', label: '승인', count: countApproved },
                   { key: 'rejected', label: '반려', count: countRejected },
+                  { key: 'cancelled', label: '취소', count: countCancelled },
                 ] as const
               ).map(({ key, label, count }) => (
                 <button
@@ -563,7 +575,7 @@ export function AdminApprovalsPage() {
                           {req.date} · {hours}h · {OVERTIME_TYPE_LABEL[req.type as OvertimeType] ?? req.type}
                         </p>
                         {(req as any).manager_approved_at && (
-                          <span className="inline-block mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-success-50 text-success-700 border border-success-200">인사확인</span>
+                          <span className="inline-block mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-success-50 text-success-700 border border-success-200">인사확인완료</span>
                         )}
                         {(req as any).adjusted_by && !(req as any).adjustment_confirmed_by && (
                           <span className="inline-block mt-1 text-[10px] font-bold text-primary-600 bg-primary-50 px-1.5 py-0.5 rounded">조정대기</span>
@@ -784,14 +796,32 @@ export function AdminApprovalsPage() {
                         조정 확인
                       </button>
                     )}
-                    {req.status === 'approved' && isAdminRole && (
-                      <button
-                        onClick={() => openRevokeModal(req.id)}
-                        className="w-full flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium text-warning-700 border border-warning-300 bg-warning-50 rounded-xl hover:bg-warning-100 transition-colors"
-                      >
-                        <RefreshCw className="w-4 h-4" />
-                        승인취소
-                      </button>
+                    {req.status === 'approved' && (
+                      <>
+                        <button
+                          onClick={() => openReject(req.id)}
+                          className="w-full flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium text-white bg-danger-500 rounded-xl hover:bg-danger-600 transition-colors"
+                        >
+                          <X className="w-4 h-4" />
+                          반려로 변경
+                        </button>
+                        <button
+                          onClick={() => openTimeEdit(req.id)}
+                          className="w-full flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium text-dark-700 border border-dark-200 rounded-xl hover:bg-dark-50 transition-colors"
+                        >
+                          <Clock className="w-4 h-4" />
+                          근무시간 수정
+                        </button>
+                        {isAdminRole && (
+                          <button
+                            onClick={() => openRevokeModal(req.id)}
+                            className="w-full flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium text-warning-700 border border-warning-300 bg-warning-50 rounded-xl hover:bg-warning-100 transition-colors"
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                            승인취소 (대기로)
+                          </button>
+                        )}
+                      </>
                     )}
                     <button
                       onClick={() => setDetailModal(req.id)}

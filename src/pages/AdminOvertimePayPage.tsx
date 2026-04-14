@@ -383,14 +383,32 @@ export function AdminOvertimePayPage() {
                         <td className="px-4 py-3 text-right text-xs text-dark-500">{fmtH(row.totalMinutes)}</td>
                         <td className="px-4 py-3 text-right text-xs text-primary-600">
                           <div className="text-[10px] text-dark-400 font-normal">{fmtH(row.extended)}</div>
+                          {wage > 0 && row.extended > 0 && (
+                            <div className="text-[10px] text-dark-400 font-normal">
+                              {(row.extended / 60).toFixed(2)} × {wage.toLocaleString('ko-KR')} × 1.5
+                            </div>
+                          )}
                           {wage > 0 ? fmtWon(extendedPay) : <span className="text-dark-200">-</span>}
                         </td>
                         <td className="px-4 py-3 text-right text-xs text-dark-700">
                           <div className="text-[10px] text-dark-400 font-normal">{fmtH(row.night)}</div>
+                          {wage > 0 && row.night > 0 && (
+                            <div className="text-[10px] text-dark-400 font-normal">
+                              {(row.night / 60).toFixed(2)} × {wage.toLocaleString('ko-KR')} × 2.0
+                            </div>
+                          )}
                           {wage > 0 ? fmtWon(nightPay) : <span className="text-dark-200">-</span>}
                         </td>
                         <td className="px-4 py-3 text-right text-xs text-primary-600">
                           <div className="text-[10px] text-dark-400 font-normal">{fmtH(row.holiday + row.holidayOvertime + row.holidayNight + row.holidayOvertimeNight)}</div>
+                          {wage > 0 && (
+                            <div className="text-[10px] text-dark-400 font-normal leading-tight">
+                              {row.holiday > 0 && <div>{(row.holiday / 60).toFixed(2)} × {wage.toLocaleString('ko-KR')} × 1.5</div>}
+                              {row.holidayOvertime > 0 && <div>{(row.holidayOvertime / 60).toFixed(2)} × {wage.toLocaleString('ko-KR')} × 2.0</div>}
+                              {row.holidayNight > 0 && <div>{(row.holidayNight / 60).toFixed(2)} × {wage.toLocaleString('ko-KR')} × 2.0</div>}
+                              {row.holidayOvertimeNight > 0 && <div>{(row.holidayOvertimeNight / 60).toFixed(2)} × {wage.toLocaleString('ko-KR')} × 2.5</div>}
+                            </div>
+                          )}
                           {wage > 0 ? fmtWon(holidayPay) : <span className="text-dark-200">-</span>}
                         </td>
                         <td className="px-4 py-3 text-right font-bold text-dark-800">
