@@ -28,6 +28,7 @@ const DEMO_EMPLOYEES: Record<string, Employee> = {
     employee_type: 'office',
     hourly_wage: 0,
     manager_id: null,
+    hire_date: null,
     is_active: true,
     created_at: '2024-01-01T00:00:00Z',
   },
@@ -156,6 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOut() {
+    sessionStorage.removeItem('busungtk_otp_verified')
     await supabase.auth.signOut()
     setUser(null)
     setEmployee(null)
