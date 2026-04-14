@@ -1,3 +1,4 @@
+// @deprecated - SecondAuthGate로 대체됨 (2026-04-14)
 import { useState, useEffect, useRef } from 'react'
 import { ShieldCheck, Send } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
