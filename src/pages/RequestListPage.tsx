@@ -371,6 +371,10 @@ export function RequestListPage() {
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
+                  <span className="text-xs text-dark-400">야간근로 유형</span>
+                  <span className="text-sm text-dark-800">{req.work_category ?? '-'}</span>
+                </div>
+                <div className="flex items-center justify-between">
                   <span className="text-xs text-dark-400">근무시간</span>
                   <span className="text-sm text-dark-800">{req.planned_start} ~ {req.planned_end} <span className="font-bold text-dark-900">({hours}h)</span></span>
                 </div>

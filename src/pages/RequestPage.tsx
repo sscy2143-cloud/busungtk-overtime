@@ -64,20 +64,21 @@ export function RequestPage() {
     return opts
   }, [])
 
-  const [date, setDate] = useState(() => {
-    const d = new Date()
-    return d.toISOString().split('T')[0]
-  })
+  const today = new Date().toISOString().split('T')[0]
+  const [date, setDate] = useState(today)
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
   const [reason, setReason] = useState('')
   const [siteName, setSiteName] = useState('')
   const [workDetails, setWorkDetails] = useState('')
+  const [workCategory, setWorkCategory] = useState('')
   const [forceHoliday, setForceHoliday] = useState(false)
   const [groupOpen, setGroupOpen] = useState(false)
   const [groupIds, setGroupIds] = useState<string[]>([])
+  const [allEmployees, setAllEmployees] = useState<{ id: string; name: string; department: string }[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [toast, setToast] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   interface NotionSchedule {
     id: string
@@ -90,6 +91,20 @@ export function RequestPage() {
   const [schedules, setSchedules] = useState<NotionSchedule[]>([])
   const [scheduleLoading, setScheduleLoading] = useState(false)
   const [selectedScheduleId, setSelectedScheduleId] = useState('')
+
+  useEffect(() => {
+    async function fetchEmployees() {
+      const { data } = await supabase
+        .from('employees')
+        .select('id, name, department')
+        .eq('is_active', true)
+        .neq('id', employee?.id ?? '')
+        .not('name', 'in', '("이름 테스트")')
+        .order('name')
+      if (data) setAllEmployees(data)
+    }
+    if (employee?.id) fetchEmployees()
+  }, [employee?.id])
 
   useEffect(() => {
     async function fetchSchedules() {
@@ -136,9 +151,15 @@ export function RequestPage() {
     setTimeout(() => setToast(false), 2500)
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleConfirm(e: React.FormEvent) {
     e.preventDefault()
-    if (!date || !startTime || !endTime || !siteName.trim() || !workDetails.trim() || !breakdown) return
+    if (!date || !startTime || !endTime || !siteName.trim() || !workDetails.trim() || !workCategory || !breakdown) return
+    setConfirmOpen(true)
+  }
+
+  async function handleSubmit() {
+    if (!date || !startTime || !endTime || !siteName.trim() || !workDetails.trim() || !workCategory || !breakdown) return
+    setConfirmOpen(false)
     setSubmitting(true)
 
     const payload = {
@@ -163,6 +184,7 @@ export function RequestPage() {
       reason: payload.reason,
       site_name: siteName.trim() || null,
       work_details: workDetails.trim() || null,
+      work_category: workCategory,
       is_retroactive: payload.is_retroactive,
       created_by: payload.employee_id,
       group_id: groupId,
@@ -173,6 +195,26 @@ export function RequestPage() {
       setSubmitting(false)
       return
     }
+
+    // 카카오 알림톡 발송 (실패해도 신청은 완료)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      await fetch('/api/notify-kakao', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({
+          type: 'overtime',
+          employeeName: employee?.name ?? '직원',
+          date,
+          startTime,
+          endTime,
+          reason: reason.trim(),
+        }),
+      })
+    } catch { /* 알림 실패해도 신청은 완료 */ }
 
     setSubmitting(false)
     showToast()
@@ -199,7 +241,7 @@ export function RequestPage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form onSubmit={handleConfirm} className="space-y-5">
         {/* 노션 스케줄 선택 */}
         {schedules.length > 0 && (
           <div>
@@ -253,6 +295,7 @@ export function RequestPage() {
           <input
             type="date"
             value={date}
+            max={today}
             onChange={(e) => {
               setDate(e.target.value)
               setForceHoliday(false)
@@ -280,6 +323,31 @@ export function RequestPage() {
               <span className="text-xs text-dark-400">공휴일/임시공휴일로 지정</span>
             </label>
           )}
+        </div>
+
+        {/* 야간근로 유형 */}
+        <div>
+          <label className={labelClass}>
+            야간근로 유형 <span className="text-primary-500">*</span>
+          </label>
+          <div className="relative">
+            <select
+              value={workCategory}
+              onChange={(e) => setWorkCategory(e.target.value)}
+              required
+              className={`${inputClass} appearance-none pr-8`}
+            >
+              <option value="">야간근로 유형을 선택하세요</option>
+              <option value="점검/유지보수">점검/유지보수</option>
+              <option value="긴급출동">긴급출동</option>
+              <option value="납품/설치">납품/설치</option>
+              <option value="AS건">AS건</option>
+              <option value="시공건">시공건</option>
+              <option value="설계건">설계건</option>
+              <option value="기타">기타</option>
+            </select>
+            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-dark-300 pointer-events-none" />
+          </div>
         </div>
 
         {/* 시간 */}
@@ -436,6 +504,7 @@ export function RequestPage() {
               <GroupMemberSelect
                 selectedIds={groupIds}
                 onSelect={setGroupIds}
+                employees={allEmployees}
               />
             </div>
           )}
@@ -444,12 +513,77 @@ export function RequestPage() {
         {/* 제출 버튼 */}
         <button
           type="submit"
-          disabled={submitting || !breakdown || breakdown.totalMinutes <= 0}
+          disabled={submitting || !breakdown || breakdown.totalMinutes <= 0 || !workCategory || !siteName.trim() || !workDetails.trim()}
           className="w-full py-3.5 bg-primary-500 text-white font-bold rounded-xl hover:bg-primary-500 disabled:opacity-50 transition-colors mt-2"
         >
           {submitting ? '제출 중...' : '제출하기'}
         </button>
       </form>
+
+      {/* 제출 확인 팝업 */}
+      {confirmOpen && breakdown && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-dark-100">
+              <h3 className="text-base font-bold text-dark-900">신청 내용 확인</h3>
+              <p className="text-xs text-dark-400 mt-0.5">아래 내용을 확인 후 제출해주세요</p>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <div className="flex justify-between">
+                <span className="text-xs text-dark-400">근무 날짜</span>
+                <span className="text-sm font-semibold text-dark-800">{date}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-xs text-dark-400">근무 유형</span>
+                <span className="text-sm font-semibold text-dark-800">{OVERTIME_TYPE_LABEL[breakdown.primaryType]}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-xs text-dark-400">야간근로 유형</span>
+                <span className="text-sm font-semibold text-dark-800">{workCategory}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-xs text-dark-400">근무 시간</span>
+                <span className="text-sm font-semibold text-dark-800">{startTime} ~ {endTime} ({formatMinutes(breakdown.totalMinutes)})</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-xs text-dark-400">현장명</span>
+                <span className="text-sm font-semibold text-dark-800">{siteName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-xs text-dark-400">작업 내용</span>
+                <span className="text-sm font-semibold text-dark-800 text-right max-w-[60%]">{workDetails}</span>
+              </div>
+              {reason.trim() && (
+                <div className="flex justify-between">
+                  <span className="text-xs text-dark-400">기타</span>
+                  <span className="text-sm text-dark-600 text-right max-w-[60%]">{reason}</span>
+                </div>
+              )}
+              {groupIds.length > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-xs text-dark-400">함께 근무</span>
+                  <span className="text-sm font-semibold text-primary-600">{groupIds.length}명</span>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2 px-5 py-4 border-t border-dark-100">
+              <button
+                onClick={() => setConfirmOpen(false)}
+                className="flex-1 py-2.5 text-sm font-semibold text-dark-500 bg-dark-50 rounded-xl hover:bg-dark-100 transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={submitting}
+                className="flex-1 py-2.5 text-sm font-bold text-white bg-primary-500 rounded-xl hover:bg-primary-600 disabled:opacity-50 transition-colors"
+              >
+                {submitting ? '제출 중...' : '제출하기'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 토스트 */}
       {toast && (

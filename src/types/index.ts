@@ -33,6 +33,7 @@ export interface OvertimeRequest {
   reason: string
   site_name?: string
   work_details?: string
+  work_category?: string | null
   status: RequestStatus
   is_retroactive: boolean
   group_id: string | null

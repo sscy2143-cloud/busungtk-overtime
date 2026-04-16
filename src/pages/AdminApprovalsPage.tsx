@@ -673,6 +673,9 @@ export function AdminApprovalsPage() {
                       </div>
                     )}
 
+                    <span className="text-dark-500 font-medium pt-0.5">야간근로 유형</span>
+                    <span className="text-dark-800">{req.work_category || '-'}</span>
+
                     <span className="text-dark-500 font-medium pt-0.5">현장명</span>
                     <span className="text-dark-800">{req.site_name || '-'}</span>
 
@@ -1079,6 +1082,10 @@ export function AdminApprovalsPage() {
                         <span className="font-semibold">{req.planned_end}</span>
                         <span className="ml-2 text-xs text-primary-600 font-bold bg-primary-50 px-1.5 py-0.5 rounded">{hours}시간</span>
                       </div>
+                    </div>
+                    <div className="grid grid-cols-[100px_1fr] divide-x divide-dark-200 border-t border-dark-200">
+                      <div className="bg-dark-50 px-3 py-2.5 font-medium text-dark-600">야간근로 유형</div>
+                      <div className="px-3 py-2.5 text-dark-800">{req.work_category || '-'}</div>
                     </div>
                     <div className="grid grid-cols-[100px_1fr] divide-x divide-dark-200 border-t border-dark-200">
                       <div className="bg-dark-50 px-3 py-2.5 font-medium text-dark-600">현장명</div>
