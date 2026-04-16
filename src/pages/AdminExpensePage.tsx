@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Receipt, X, Check, XCircle, Image, Download, Filter } from 'lucide-react'
+import { markAsSeen } from '../hooks/useUnseenCounts'
+import { useAuth } from '../contexts/AuthContext'
+import { Receipt, X, Check, XCircle, Download, Filter } from 'lucide-react'
 import type { Expense, ExpenseCategory, PaymentMethod } from '../types'
 import { EXPENSE_CATEGORY_LABEL, PAYMENT_METHOD_LABEL } from '../types'
 import { StatusBadge } from '../components/common/StatusBadge'
@@ -23,6 +25,7 @@ interface RejectModal {
   open: boolean
   id: string
   reason: string
+  mode: 'reject' | 'revoke'
 }
 
 interface PayModal {
@@ -39,10 +42,12 @@ interface PayModal {
 }
 
 export function AdminExpensePage() {
+  const { employee } = useAuth()
   const [expenses, setExpenses] = useState<Expense[]>([])
-  const [rejectModal, setRejectModal] = useState<RejectModal>({ open: false, id: '', reason: '' })
+  const [rejectModal, setRejectModal] = useState<RejectModal>({ open: false, id: '', reason: '', mode: 'reject' })
   const [payModal, setPayModal] = useState<PayModal>({ open: false, id: '', expense_amount: 0, paid_at: new Date().toISOString().slice(0, 10), paid_amount: '', payout_method: 'transfer', payment_bank: '', payment_account: '', payment_note: '', admin_note: '' })
   const [detailExp, setDetailExp] = useState<Expense | null>(null)
+  const [receiptImageUrl, setReceiptImageUrl] = useState<string | null>(null)
   const [showExportPreview, setShowExportPreview] = useState(false)
   const [filterDateMode, setFilterDateMode] = useState<'all' | 'this_month' | 'last_month' | '3months' | '6months' | 'custom'>('all')
   const [filterDateFrom, setFilterDateFrom] = useState('')
@@ -53,6 +58,22 @@ export function AdminExpensePage() {
   useEffect(() => {
     fetchExpenses()
   }, [])
+
+  useEffect(() => {
+    if (detailExp?.id && employee?.id) {
+      markAsSeen('expense', employee.id, detailExp.id)
+    }
+  }, [detailExp?.id, employee?.id])
+
+  useEffect(() => {
+    if (!detailExp?.receipt_url) { setReceiptImageUrl(null); return }
+    if (detailExp.receipt_url.startsWith('http')) {
+      setReceiptImageUrl(detailExp.receipt_url)
+    } else {
+      supabase.storage.from('receipts').createSignedUrl(detailExp.receipt_url, 600)
+        .then(({ data }) => setReceiptImageUrl(data?.signedUrl ?? null))
+    }
+  }, [detailExp?.receipt_url])
 
   async function fetchExpenses() {
     const { data, error } = await supabase
@@ -77,23 +98,46 @@ export function AdminExpensePage() {
   }
 
   function openRejectExpense(id: string) {
-    setRejectModal({ open: true, id, reason: '' })
+    setRejectModal({ open: true, id, reason: '', mode: 'reject' })
+  }
+
+  function openRevokeExpense(id: string) {
+    setRejectModal({ open: true, id, reason: '', mode: 'revoke' })
   }
 
   async function confirmRejectExpense() {
-    const { error } = await supabase
-      .from('expenses')
-      .update({ status: 'rejected', rejection_reason: rejectModal.reason })
-      .eq('id', rejectModal.id)
-
-    if (!error) {
-      setExpenses((prev) => prev.map((e) =>
-        e.id === rejectModal.id
-          ? { ...e, status: 'rejected' as const, rejection_reason: rejectModal.reason }
-          : e,
-      ))
+    const { id, reason, mode } = rejectModal
+    if (mode === 'revoke') {
+      const { error } = await supabase
+        .from('expenses')
+        .update({
+          status: 'pending',
+          approved_at: null,
+          rejection_reason: reason,
+          paid_at: null,
+          paid_amount: null,
+          payout_method: null,
+          payment_bank: null,
+          payment_account: null,
+          payment_note: null,
+          employee_confirmed_at: null,
+          cancel_requested_at: null,
+          cancel_reason: null,
+        })
+        .eq('id', id)
+      if (!error) fetchExpenses()
+    } else {
+      const { error } = await supabase
+        .from('expenses')
+        .update({ status: 'rejected', rejection_reason: reason })
+        .eq('id', id)
+      if (!error) {
+        setExpenses((prev) => prev.map((e) =>
+          e.id === id ? { ...e, status: 'rejected' as const, rejection_reason: reason } : e,
+        ))
+      }
     }
-    setRejectModal({ open: false, id: '', reason: '' })
+    setRejectModal({ open: false, id: '', reason: '', mode: 'reject' })
   }
 
   async function approveCancelRequest(id: string) {
@@ -159,14 +203,6 @@ export function AdminExpensePage() {
     return new Intl.NumberFormat('ko-KR').format(amount) + '원'
   }
 
-  async function openReceipt(receiptUrl: string) {
-    if (receiptUrl.startsWith('http')) {
-      window.open(receiptUrl, '_blank')
-      return
-    }
-    const { data } = await supabase.storage.from('receipts').createSignedUrl(receiptUrl, 600)
-    if (data?.signedUrl) window.open(data.signedUrl, '_blank')
-  }
 
   const pendingExpenses = expenses.filter((e) => e.status === 'pending')
   const approvedExpenses = expenses.filter((e) => e.status === 'approved')
@@ -279,7 +315,7 @@ export function AdminExpensePage() {
             <select
               value={filterDateMode}
               onChange={(e) => setFilterDateMode(e.target.value as typeof filterDateMode)}
-              className="w-full px-2 py-1.5 text-xs border border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
+              className="w-full px-2 py-2 text-xs border border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
             >
               <option value="all">전체</option>
               <option value="this_month">이번달</option>
@@ -295,7 +331,7 @@ export function AdminExpensePage() {
             <select
               value={filterPayment}
               onChange={(e) => setFilterPayment(e.target.value as typeof filterPayment)}
-              className="w-full px-2 py-1.5 text-xs border border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
+              className="w-full px-2 py-2 text-xs border border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
             >
               <option value="all">전체</option>
               <option value="pending">미지급</option>
@@ -309,7 +345,7 @@ export function AdminExpensePage() {
             <select
               value={filterCategory}
               onChange={(e) => setFilterCategory(e.target.value as typeof filterCategory)}
-              className="w-full px-2 py-1.5 text-xs border border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
+              className="w-full px-2 py-2 text-xs border border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
             >
               <option value="all">전체</option>
               {(['meal', 'transport', 'supplies', 'other'] as ExpenseCategory[]).map((c) => (
@@ -324,12 +360,12 @@ export function AdminExpensePage() {
             <div>
               <label className="text-xs text-dark-400 mb-1 block">시작일</label>
               <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)}
-                className="w-full px-2 py-1.5 text-xs border border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400" />
+                className="w-full px-2 py-2 text-xs border border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400" />
             </div>
             <div>
               <label className="text-xs text-dark-400 mb-1 block">종료일</label>
               <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)}
-                className="w-full px-2 py-1.5 text-xs border border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400" />
+                className="w-full px-2 py-2 text-xs border border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400" />
             </div>
           </div>
         )}
@@ -338,8 +374,135 @@ export function AdminExpensePage() {
         </p>
       </div>
 
-      {/* 경비 목록 - 표 형식 */}
-      <div className="bg-white border border-dark-200 overflow-hidden">
+      {/* 경비 목록 - 모바일 카드 뷰 */}
+      <div className="md:hidden space-y-2">
+        <div className="flex items-center justify-between px-1">
+          <span className="text-sm font-bold text-dark-800">경비지출 내역</span>
+          <span className="text-xs text-dark-500">총 {filteredExpenses.length}건 · {formatWon(filteredExpenses.reduce((s, e) => s + e.amount, 0))}</span>
+        </div>
+        {filteredExpenses.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-dark-100 py-16 text-center">
+            <Receipt className="w-10 h-10 text-dark-200 mx-auto mb-2" />
+            <p className="text-sm text-dark-400">제출된 경비가 없습니다</p>
+          </div>
+        ) : (
+          filteredExpenses.map((exp) => (
+            <div
+              key={exp.id}
+              onClick={() => setDetailExp(exp)}
+              className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] px-4 py-3 cursor-pointer active:bg-dark-50 transition-colors"
+            >
+              {/* 상단: 이름 + 날짜 */}
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <span className="text-sm font-bold text-dark-900">{exp.employee?.name ?? '-'}</span>
+                  <span className="ml-2 text-xs text-dark-400">{exp.employee?.department ?? ''}</span>
+                </div>
+                <span className="text-xs text-dark-500">{exp.date}</span>
+              </div>
+              {/* 중단: 분류 뱃지 + 금액 */}
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5">
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${CATEGORY_COLOR[exp.category]}`}>
+                    {EXPENSE_CATEGORY_LABEL[exp.category]}
+                  </span>
+                  {exp.payment_method && (
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${PAYMENT_METHOD_COLOR[exp.payment_method]}`}>
+                      {PAYMENT_METHOD_LABEL[exp.payment_method]}
+                    </span>
+                  )}
+                </div>
+                <span className="text-base font-bold text-dark-900">{formatWon(exp.amount)}</span>
+              </div>
+              {/* 지출내용 */}
+              {exp.description && (
+                <p className="text-xs text-dark-500 truncate mb-2">{exp.description}</p>
+              )}
+              {/* 하단: 상태 뱃지 + 액션 버튼 */}
+              <div className="flex items-center justify-between pt-2 border-t border-dark-100" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-1.5">
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                    exp.status === 'pending' ? 'bg-warning-50 text-warning-700' :
+                    exp.status === 'approved' ? 'bg-success-50 text-success-700' :
+                    exp.status === 'manager_approved' ? 'bg-primary-50 text-primary-700' :
+                    'bg-danger-50 text-danger-700'
+                  }`}>
+                    {exp.status === 'pending' ? '검토중' : exp.status === 'approved' ? '승인' : exp.status === 'manager_approved' ? '1차승인' : '반려'}
+                  </span>
+                  {exp.cancel_requested_at && (
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-warning-50 text-warning-700">취소요청</span>
+                  )}
+                  {!exp.cancel_requested_at && exp.employee_confirmed_at && (
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-success-50 text-success-700">수령확인</span>
+                  )}
+                </div>
+                <div className="flex gap-1.5">
+                  {exp.status === 'pending' && (
+                    <>
+                      <button
+                        onClick={() => approveExpense(exp.id)}
+                        className="px-3 py-2.5 text-xs font-semibold bg-success-500 text-white rounded-xl hover:bg-success-600 active:bg-success-700 transition-colors min-h-[44px]"
+                      >
+                        승인
+                      </button>
+                      <button
+                        onClick={() => openRejectExpense(exp.id)}
+                        className="px-3 py-2.5 text-xs font-semibold border border-danger-400 text-danger-600 rounded-xl hover:bg-danger-50 active:bg-danger-100 transition-colors min-h-[44px]"
+                      >
+                        반려
+                      </button>
+                    </>
+                  )}
+                  {exp.status === 'approved' && !exp.paid_at && (
+                    <button
+                      onClick={() => setPayModal({ open: true, id: exp.id, expense_amount: exp.amount, paid_at: new Date().toISOString().slice(0, 10), paid_amount: String(exp.amount), payout_method: 'transfer', payment_bank: '', payment_account: '', payment_note: '', admin_note: '' })}
+                      className="px-3 py-2.5 text-xs font-semibold bg-primary-500 text-white rounded-xl hover:bg-primary-600 active:bg-primary-700 transition-colors min-h-[44px]"
+                    >
+                      지급
+                    </button>
+                  )}
+                  {exp.status === 'approved' && exp.paid_at && !exp.cancel_requested_at && (
+                    <span className="text-xs text-success-600 font-semibold px-2 py-2.5">완료</span>
+                  )}
+                  {exp.status === 'approved' && !exp.cancel_requested_at && (
+                    <button
+                      onClick={() => openRevokeExpense(exp.id)}
+                      className="px-3 py-2.5 text-xs font-semibold border border-warning-400 text-warning-600 rounded-xl hover:bg-warning-50 active:bg-warning-100 transition-colors min-h-[44px]"
+                    >
+                      승인취소
+                    </button>
+                  )}
+                  {exp.cancel_requested_at && (
+                    <>
+                      <button
+                        onClick={() => approveCancelRequest(exp.id)}
+                        className="px-3 py-2.5 text-xs font-semibold bg-warning-500 text-white rounded-xl hover:bg-warning-600 active:bg-warning-700 transition-colors min-h-[44px]"
+                      >
+                        취소승인
+                      </button>
+                      <button
+                        onClick={() => rejectCancelRequest(exp.id)}
+                        className="px-3 py-2.5 text-xs font-semibold border border-dark-200 text-dark-600 rounded-xl hover:bg-dark-50 active:bg-dark-100 transition-colors min-h-[44px]"
+                      >
+                        거절
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+        {filteredExpenses.length > 0 && (
+          <div className="bg-dark-50 rounded-2xl border border-dark-100 px-4 py-3 flex items-center justify-between">
+            <span className="text-xs font-semibold text-dark-600">합계</span>
+            <span className="text-sm font-bold text-dark-900">{formatWon(filteredExpenses.reduce((s, e) => s + e.amount, 0))}</span>
+          </div>
+        )}
+      </div>
+
+      {/* 경비 목록 - 표 형식 (데스크탑) */}
+      <div className="hidden md:block bg-white border border-dark-200 overflow-hidden">
         {/* 표 제목 행 */}
         <div className="bg-dark-100 border-b border-dark-200 px-4 py-2 flex items-center justify-between">
           <span className="text-sm font-bold text-dark-800">경비지출 내역</span>
@@ -443,6 +606,16 @@ export function AdminExpensePage() {
                       {exp.status === 'approved' && exp.paid_at && !exp.cancel_requested_at && (
                         <span className="text-xs text-success-600 font-semibold">완료</span>
                       )}
+                      {exp.status === 'approved' && !exp.cancel_requested_at && (
+                        <div className="flex gap-1 justify-center mt-1">
+                          <button
+                            onClick={() => openRevokeExpense(exp.id)}
+                            className="px-2 py-1 text-xs border border-warning-400 text-warning-600 rounded hover:bg-warning-50 whitespace-nowrap"
+                          >
+                            승인취소
+                          </button>
+                        </div>
+                      )}
                       {exp.cancel_requested_at && (
                         <div className="flex gap-1 justify-center">
                           <button onClick={() => approveCancelRequest(exp.id)} className="px-2 py-1 text-xs bg-warning-500 text-white rounded hover:bg-warning-600 whitespace-nowrap">취소승인</button>
@@ -470,6 +643,7 @@ export function AdminExpensePage() {
       </div>
 
       {/* 경비 상세 팝업 */}
+
       {detailExp && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => setDetailExp(null)} />
@@ -524,13 +698,19 @@ export function AdminExpensePage() {
                   <p className="text-sm text-dark-700 bg-dark-50 rounded-xl px-3 py-2">{detailExp.description}</p>
                 </div>
                 {detailExp.receipt_url && (
-                  <button
-                    onClick={() => openReceipt(detailExp.receipt_url!)}
-                    className="flex items-center gap-2 px-3 py-2.5 bg-primary-50 border border-primary-100 rounded-xl text-sm text-primary-600 font-medium hover:bg-primary-100 transition-colors w-full"
-                  >
-                    <Image size={16} />
-                    증빙자료 보기
-                  </button>
+                  <div>
+                    <p className="text-xs text-dark-400 mb-1">증빙자료</p>
+                    {receiptImageUrl ? (
+                      <img
+                        src={receiptImageUrl}
+                        alt="증빙자료"
+                        className="w-full rounded-xl border border-dark-200 max-h-60 object-contain bg-dark-50 cursor-pointer"
+                        onClick={() => window.open(receiptImageUrl, '_blank')}
+                      />
+                    ) : (
+                      <p className="text-xs text-dark-400">로딩 중...</p>
+                    )}
+                  </div>
                 )}
                 <div className="flex items-center justify-between pt-1 border-t border-dark-100">
                   <span className="text-xs text-dark-400">제출일</span>
@@ -875,22 +1055,37 @@ export function AdminExpensePage() {
       {/* 경비 반려 모달 */}
       {rejectModal.open && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setRejectModal({ open: false, id: '', reason: '' })} />
+          <div className="absolute inset-0 bg-black/40" onClick={() => setRejectModal({ open: false, id: '', reason: '', mode: 'reject' })} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-dark-900">경비 반려 사유</h3>
-              <button onClick={() => setRejectModal({ open: false, id: '', reason: '' })}><X className="w-5 h-5 text-dark-400" /></button>
+              <h3 className="text-base font-bold text-dark-900">
+                {rejectModal.mode === 'revoke' ? '경비 승인취소 사유' : '경비 반려 사유'}
+              </h3>
+              <button onClick={() => setRejectModal({ open: false, id: '', reason: '', mode: 'reject' })}><X className="w-5 h-5 text-dark-400" /></button>
             </div>
+            {rejectModal.mode === 'revoke' && (
+              <p className="text-xs text-warning-600 bg-warning-50 border border-warning-200 rounded-lg px-3 py-2 mb-3">
+                승인을 취소하면 지급 정보가 초기화되고 대기 상태로 돌아갑니다.
+              </p>
+            )}
             <textarea
               className="w-full border border-dark-200 rounded-xl px-3 py-2.5 text-sm text-dark-800 resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
               rows={3}
-              placeholder="반려 사유를 입력하세요"
+              placeholder={rejectModal.mode === 'revoke' ? '승인취소 사유를 입력하세요' : '반려 사유를 입력하세요'}
               value={rejectModal.reason}
               onChange={(e) => setRejectModal((p) => ({ ...p, reason: e.target.value }))}
             />
             <div className="flex gap-2 mt-4">
-              <button onClick={() => setRejectModal({ open: false, id: '', reason: '' })} className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50">취소</button>
-              <button onClick={confirmRejectExpense} disabled={!rejectModal.reason.trim()} className="flex-1 py-2.5 text-sm font-semibold text-white bg-danger-500 rounded-xl hover:bg-danger-600 disabled:opacity-40 transition-colors">반려</button>
+              <button onClick={() => setRejectModal({ open: false, id: '', reason: '', mode: 'reject' })} className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50">취소</button>
+              <button
+                onClick={confirmRejectExpense}
+                disabled={!rejectModal.reason.trim()}
+                className={`flex-1 py-2.5 text-sm font-semibold text-white rounded-xl disabled:opacity-40 transition-colors ${
+                  rejectModal.mode === 'revoke' ? 'bg-warning-500 hover:bg-warning-600' : 'bg-danger-500 hover:bg-danger-600'
+                }`}
+              >
+                {rejectModal.mode === 'revoke' ? '승인취소' : '반려'}
+              </button>
             </div>
           </div>
         </div>

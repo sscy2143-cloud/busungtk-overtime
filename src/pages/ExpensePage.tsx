@@ -10,7 +10,7 @@ import { EXPENSE_CATEGORY_LABEL, PAYMENT_METHOD_LABEL, REQUEST_STATUS_LABEL } fr
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 원본 최대 10MB (압축 전)
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf']
 
-async function processFile(file: File, employeeName: string): Promise<{ file: File; fileName: string } | null> {
+async function processFile(file: File, _employeeName: string): Promise<{ file: File; fileName: string } | null> {
   let processed = file
 
   // HEIC → JPEG 변환
@@ -38,11 +38,11 @@ async function processFile(file: File, employeeName: string): Promise<{ file: Fi
     }
   }
 
-  // 파일명: YYYYMMDD_이름.확장자
+  // 파일명: YYYYMMDD_receipt_랜덤.확장자 (Supabase Storage는 한글 키 불가)
   const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '')
   const ext = processed.name.split('.').pop() ?? 'jpg'
-  const safeName = employeeName.replace(/[^가-힣a-zA-Z0-9]/g, '')
-  const fileName = `${dateStr}_${safeName}.${ext}`
+  const rand = Math.random().toString(36).slice(2, 8)
+  const fileName = `${dateStr}_receipt_${rand}.${ext}`
 
   return { file: processed, fileName }
 }
@@ -91,6 +91,7 @@ export function ExpensePage() {
   const [submitting, setSubmitting] = useState(false)
   const [toast, setToast] = useState(false)
   const [detailExp, setDetailExp] = useState<Expense | null>(null)
+  const [receiptImageUrl, setReceiptImageUrl] = useState<string | null>(null)
   const [cancelModal, setCancelModal] = useState<{ open: boolean; id: string; reason: string }>({ open: false, id: '', reason: '' })
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -98,6 +99,16 @@ export function ExpensePage() {
     if (!employee?.id) return
     fetchExpenses()
   }, [employee?.id])
+
+  useEffect(() => {
+    if (!detailExp?.receipt_url) { setReceiptImageUrl(null); return }
+    if (detailExp.receipt_url.startsWith('http')) {
+      setReceiptImageUrl(detailExp.receipt_url)
+    } else {
+      supabase.storage.from('receipts').createSignedUrl(detailExp.receipt_url, 600)
+        .then(({ data }) => setReceiptImageUrl(data?.signedUrl ?? null))
+    }
+  }, [detailExp?.receipt_url])
 
   async function fetchExpenses() {
     const { data, error } = await supabase
@@ -143,15 +154,7 @@ export function ExpensePage() {
     setCancelModal({ open: false, id: '', reason: '' })
   }
 
-  async function openReceipt(receiptUrl: string) {
-    // 이미 서명 URL이면 그대로 열고, 경로이면 새 서명 URL 생성
-    if (receiptUrl.startsWith('http')) {
-      window.open(receiptUrl, '_blank')
-      return
-    }
-    const { data } = await supabase.storage.from('receipts').createSignedUrl(receiptUrl, 600)
-    if (data?.signedUrl) window.open(data.signedUrl, '_blank')
-  }
+
 
   const filtered = filter === 'all'
     ? expenses
@@ -223,7 +226,11 @@ export function ExpensePage() {
       .from('receipts')
       .upload(storagePath, result.file, { cacheControl: '3600', upsert: false })
 
-    if (error) return null
+    if (error) {
+      console.error('증빙자료 업로드 실패:', error.message)
+      alert('증빙자료 업로드에 실패했습니다: ' + error.message)
+      return null
+    }
 
     // 스토리지 경로를 반환 (서명 URL 대신 경로 저장)
     return storagePath
@@ -241,12 +248,20 @@ export function ExpensePage() {
 
     let receiptUrl: string | undefined = undefined
 
+    // 파일 업로드 디버그
+    console.log('receiptFile:', receiptFile?.name, receiptFile?.size)
+
     // 파일 업로드
     if (receiptFile) {
       setUploading(true)
       const url = await uploadReceipt(receiptFile)
       setUploading(false)
-      if (url) receiptUrl = url
+      if (url) {
+        receiptUrl = url
+      } else {
+        setSubmitting(false)
+        return
+      }
     }
 
     const categoryPrefix = category === 'other' && otherCategoryNote.trim() ? `[분류: ${otherCategoryNote.trim()}]` : ''
@@ -269,7 +284,8 @@ export function ExpensePage() {
       .single()
 
     if (error) {
-      void error
+      console.error('경비 등록 실패:', error.message)
+      alert('경비 등록에 실패했습니다: ' + error.message)
       setSubmitting(false)
       return
     }
@@ -450,7 +466,7 @@ export function ExpensePage() {
 
           {/* 증빙자료 업로드 */}
           <div>
-            <label className="block text-xs font-medium text-dark-600 mb-1">증빙자료</label>
+            <label className="block text-xs font-medium text-dark-600 mb-1">증빙자료 <span className="text-danger-500">*</span></label>
             <p className="text-xs text-dark-400 mb-1.5">1MB 이하 파일만 첨부 가능합니다.</p>
             {receiptFile ? (
               <div className="border border-dark-200 rounded-xl p-3">
@@ -495,7 +511,7 @@ export function ExpensePage() {
 
           <button
             type="submit"
-            disabled={submitting || uploading || !amount || !description.trim() || (category === 'other' && !otherCategoryNote.trim()) || (paymentMethod === 'other' && !otherPaymentNote.trim())}
+            disabled={submitting || uploading || !amount || !description.trim() || !receiptFile || (category === 'other' && !otherCategoryNote.trim()) || (paymentMethod === 'other' && !otherPaymentNote.trim())}
             className="w-full py-2.5 bg-primary-500 text-white text-sm font-semibold rounded-xl hover:bg-primary-500 disabled:opacity-50 transition-colors"
           >
             {uploading ? '업로드 중...' : submitting ? '제출 중...' : '경비 제출'}
@@ -637,6 +653,14 @@ export function ExpensePage() {
                     <p className="text-sm text-primary-700">{detailExp.rejection_reason}</p>
                   </div>
                 )}
+                {/* 승인 취소 사유 */}
+                {detailExp.status === 'pending' && detailExp.rejection_reason && (
+                  <div className="bg-warning-50 border border-warning-200 rounded-xl px-3 py-2.5">
+                    <p className="text-xs font-semibold text-warning-600 mb-1">승인 취소 사유</p>
+                    <p className="text-sm text-warning-700">{detailExp.rejection_reason}</p>
+                    <p className="text-xs text-dark-500 mt-1">관리자가 승인을 취소하여 다시 검토 상태로 변경했습니다.</p>
+                  </div>
+                )}
                 {/* 날짜 */}
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-dark-400">지출 날짜</span>
@@ -672,13 +696,19 @@ export function ExpensePage() {
                 </div>
                 {/* 증빙자료 */}
                 {detailExp.receipt_url && (
-                  <button
-                    onClick={() => openReceipt(detailExp.receipt_url!)}
-                    className="flex items-center gap-2 px-3 py-2.5 bg-primary-50 border border-primary-100 rounded-xl text-sm text-primary-600 font-medium hover:bg-primary-100 transition-colors w-full"
-                  >
-                    <Image size={16} />
-                    증빙자료 보기
-                  </button>
+                  <div>
+                    <p className="text-xs text-dark-400 mb-1">증빙자료</p>
+                    {receiptImageUrl ? (
+                      <img
+                        src={receiptImageUrl}
+                        alt="증빙자료"
+                        className="w-full rounded-xl border border-dark-200 max-h-60 object-contain bg-dark-50 cursor-pointer"
+                        onClick={() => window.open(receiptImageUrl, '_blank')}
+                      />
+                    ) : (
+                      <p className="text-xs text-dark-400">로딩 중...</p>
+                    )}
+                  </div>
                 )}
                 {/* 제출일 */}
                 <div className="flex items-center justify-between pt-1 border-t border-dark-100">
