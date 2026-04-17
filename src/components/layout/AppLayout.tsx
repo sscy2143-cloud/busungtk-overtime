@@ -15,7 +15,7 @@ export function AppLayout() {
 
       {/* 메인 콘텐츠 */}
       <main className="md:ml-64 pt-14 md:pt-0 pb-16 md:pb-0">
-        <div className="max-w-5xl mx-auto px-4 py-6">
+        <div className="max-w-7xl mx-auto px-4 py-6">
           <Outlet />
         </div>
       </main>

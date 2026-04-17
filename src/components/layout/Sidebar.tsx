@@ -22,6 +22,7 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import { useUnseenCounts } from '../../hooks/useUnseenCounts'
 
 interface NavItem {
   to: string
@@ -39,6 +40,7 @@ export function Sidebar() {
   const [leaveEmployeeOpen, setLeaveEmployeeOpen] = useState(true)
   const [etcOpen, setEtcOpen] = useState(true)
   const [payOpen, setPayOpen] = useState(true)
+  const { overtimeCount, leaveCount, expenseCount } = useUnseenCounts(employee?.id, isAdmin)
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
@@ -80,12 +82,7 @@ export function Sidebar() {
     { to: '/admin/employee-management', label: '직원 관리', icon: <Contact size={18} /> },
   ]
 
-  const adminNavAfter: NavItem[] = [
-    { to: '/admin/expenses', label: '경비 관리', icon: <Receipt size={18} /> },
-    { to: '/admin/payroll', label: '급여 계산', icon: <DollarSign size={18} /> },
-  ]
-
-  const superAdminNav: NavItem[] = []
+const superAdminNav: NavItem[] = []
 
   return (
     <aside className="hidden md:flex flex-col w-64 h-screen fixed left-0 top-0 bg-white border-r border-dark-100 z-30">
@@ -123,7 +120,7 @@ export function Sidebar() {
             <div className="ml-4 mt-0.5 space-y-0.5 border-l border-dark-100 pl-3">
               <NavLink to="/requests" className={subNavLinkClass}>
                 <FileText size={16} />
-                근무 현황
+                연장근무 현황
               </NavLink>
               <NavLink to="/request" className={subNavLinkClass}>
                 <FilePlus size={16} />
@@ -207,6 +204,9 @@ export function Sidebar() {
                   <NavLink to="/admin/approvals" className={subNavLinkClass}>
                     <CheckSquare size={16} />
                     승인 관리
+                    {overtimeCount > 0 && (
+                      <span className="ml-auto text-[10px] font-bold text-white bg-danger-500 rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">{overtimeCount}</span>
+                    )}
                   </NavLink>
                   <NavLink to="/admin/overtime/employees" className={subNavLinkClass}>
                     <UserSquare2 size={16} />
@@ -264,6 +264,9 @@ export function Sidebar() {
                   <NavLink to="/admin/leave" end className={subNavLinkClass}>
                     <CheckSquare size={16} />
                     승인 관리
+                    {leaveCount > 0 && (
+                      <span className="ml-auto text-[10px] font-bold text-white bg-danger-500 rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">{leaveCount}</span>
+                    )}
                   </NavLink>
                   <NavLink to="/admin/leave/balance" className={subNavLinkClass}>
                     <Calendar size={16} />
@@ -282,15 +285,23 @@ export function Sidebar() {
             </div>
             <div className="mx-6 my-2 border-b border-dark-50" />
 
-            {adminNavAfter.map((item) => (
-              <div key={item.to}>
-                <NavLink to={item.to} className={adminNavLinkClass}>
-                  {item.icon}
-                  {item.label}
-                </NavLink>
-                <div className="mx-6 my-2 border-b border-dark-50" />
-              </div>
-            ))}
+            <div>
+              <NavLink to="/admin/expenses" className={adminNavLinkClass}>
+                <Receipt size={18} />
+                경비 관리
+                {expenseCount > 0 && (
+                  <span className="ml-auto text-[10px] font-bold text-white bg-danger-500 rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">{expenseCount}</span>
+                )}
+              </NavLink>
+              <div className="mx-6 my-2 border-b border-dark-50" />
+            </div>
+            <div>
+              <NavLink to="/admin/payroll" className={adminNavLinkClass}>
+                <DollarSign size={18} />
+                급여 계산
+              </NavLink>
+              <div className="mx-6 my-2 border-b border-dark-50" />
+            </div>
 
             {/* 기타 */}
             <div>

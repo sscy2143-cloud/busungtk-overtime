@@ -160,20 +160,20 @@ export function ApprovalCard({
           {isOvertime && onEditTime && (
             <button
               onClick={() => onEditTime(request.id)}
-              className="flex-1 py-1.5 text-xs font-semibold bg-white text-primary-600 border border-primary-300 rounded-lg hover:bg-primary-50 transition-colors"
+              className="flex-1 py-2.5 px-4 text-sm font-semibold bg-white text-primary-600 border border-primary-300 rounded-lg hover:bg-primary-50 transition-colors"
             >
               시간 수정
             </button>
           )}
           <button
             onClick={() => onApprove(request.id)}
-            className="flex-1 py-1.5 text-xs font-semibold bg-success-500 text-white rounded-lg hover:bg-success-600 active:bg-success-700 transition-colors"
+            className="flex-1 py-2.5 px-4 text-sm font-semibold bg-success-500 text-white rounded-lg hover:bg-success-600 active:bg-success-700 transition-colors"
           >
             승인
           </button>
           <button
             onClick={() => onReject(request.id)}
-            className="flex-1 py-1.5 text-xs font-semibold bg-white text-danger-600 border border-danger-300 rounded-lg hover:bg-danger-50 active:bg-danger-100 transition-colors"
+            className="flex-1 py-2.5 px-4 text-sm font-semibold bg-white text-danger-600 border border-danger-300 rounded-lg hover:bg-danger-50 active:bg-danger-100 transition-colors"
           >
             반려
           </button>
@@ -186,7 +186,7 @@ export function ApprovalCard({
           {onRevokeApproval && (
             <button
               onClick={() => onRevokeApproval(request.id)}
-              className="flex-1 py-1.5 text-xs font-semibold bg-white text-warning-600 border border-warning-300 rounded-lg hover:bg-warning-50 transition-colors flex items-center justify-center gap-1"
+              className="flex-1 py-2.5 px-4 text-sm font-semibold bg-white text-warning-600 border border-warning-300 rounded-lg hover:bg-warning-50 transition-colors flex items-center justify-center gap-1"
             >
               <RotateCcw className="w-3 h-3" />
               승인 취소
@@ -195,7 +195,7 @@ export function ApprovalCard({
           {onViewHistory && (
             <button
               onClick={() => onViewHistory(request.id)}
-              className="flex-1 py-1.5 text-xs font-semibold bg-white text-dark-600 border border-dark-200 rounded-lg hover:bg-dark-50 transition-colors flex items-center justify-center gap-1"
+              className="flex-1 py-2.5 px-4 text-sm font-semibold bg-white text-dark-600 border border-dark-200 rounded-lg hover:bg-dark-50 transition-colors flex items-center justify-center gap-1"
             >
               <History className="w-3 h-3" />
               이력 보기
