@@ -15,12 +15,12 @@ function verifyAuth(req: VercelRequest) {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS
-  const allowed = 'https://busungtk-overtime.vercel.app'
+  const allowedOrigin = process.env.ALLOWED_ORIGIN || 'https://busungtk-overtime-beta.vercel.app'
   const origin = req.headers.origin
-  if (origin === allowed || process.env.NODE_ENV === 'development') {
+  if (origin === allowedOrigin || origin === 'https://busungtk-overtime.vercel.app' || process.env.NODE_ENV === 'development') {
     res.setHeader('Access-Control-Allow-Origin', origin || '*')
   }
-  res.setHeader('Access-Control-Allow-Methods', 'POST, PUT, OPTIONS')
+  res.setHeader('Access-Control-Allow-Methods', 'POST, PUT, PATCH, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
 
   if (req.method === 'OPTIONS') return res.status(204).end()
@@ -31,12 +31,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: '인증이 필요합니다' })
   }
 
-  // 관리자 권한 확인
-  const supabaseAnon = createClient(
+  // 관리자 권한 확인 (서비스 롤로 조회 — anon은 RLS에 막힘)
+  const supabaseService = createClient(
     process.env.VITE_SUPABASE_URL!,
-    process.env.VITE_SUPABASE_ANON_KEY!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
   )
-  const { data: caller } = await supabaseAnon
+  const { data: caller } = await supabaseService
     .from('employees')
     .select('role')
     .eq('id', authResult.data.user.id)
@@ -46,12 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(403).json({ error: '관리자 권한이 필요합니다' })
   }
 
-  // 서비스 롤 클라이언트 (사용자 생성/비밀번호 변경용)
-  const supabaseAdmin = createClient(
-    process.env.VITE_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
+  const supabaseAdmin = supabaseService
 
   // POST: 직원 계정 생성
   if (req.method === 'POST') {
@@ -150,6 +146,52 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .eq('id', userId)
 
     return res.status(200).json({ success: true })
+  }
+
+  // PATCH: 사번 변경 (Auth 이메일 + employees.email 동시 변경)
+  if (req.method === 'PATCH') {
+    const { userId, newEmployeeNumber } = req.body
+
+    if (!userId || !newEmployeeNumber) {
+      return res.status(400).json({ error: '사용자 ID와 새 사번은 필수입니다' })
+    }
+
+    const newEmail = `${newEmployeeNumber.toLowerCase()}${EMAIL_DOMAIN}`
+
+    // Auth 이메일 변경 (SDK 대신 REST API 직접 호출 — SDK email_confirm 호환 문제 우회)
+    const supabaseUrl = process.env.VITE_SUPABASE_URL!
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+    const authRes = await fetch(`${supabaseUrl}/auth/v1/admin/users/${userId}`, {
+      method: 'PUT',
+      headers: {
+        'apikey': serviceKey,
+        'Authorization': `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email: newEmail, email_confirm: true }),
+    })
+
+    if (!authRes.ok) {
+      const errBody = await authRes.text()
+      if (errBody.includes('already been registered') || errBody.includes('duplicate')) {
+        return res.status(409).json({ error: '이미 사용 중인 사번입니다' })
+      }
+      return res.status(500).json({ error: `사번 변경 실패: ${errBody}` })
+    }
+
+    // employees 테이블 이메일 업데이트
+    const { error: empError } = await supabaseAdmin
+      .from('employees')
+      .update({ email: newEmail })
+      .eq('id', userId)
+
+    if (empError) {
+      // 롤백: Auth 이메일 원복은 어렵지만 로그 남김
+      console.error('employees 테이블 이메일 업데이트 실패:', empError)
+      return res.status(500).json({ error: '직원 정보 업데이트 실패' })
+    }
+
+    return res.status(200).json({ success: true, newEmail })
   }
 
   return res.status(405).json({ error: '허용되지 않는 메서드입니다' })
