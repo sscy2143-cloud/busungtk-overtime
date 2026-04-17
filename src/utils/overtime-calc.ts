@@ -137,8 +137,16 @@ export function calculateOvertimeBreakdown(
   // (휴일/야간 장시간 근무에만 실질 적용)
   const breakMinutes = rawMinutes > 480 ? 60 : rawMinutes > 240 ? 30 : 0
 
-  // 포괄임금제 기준: 평일 18:30 이전은 수당 미산정 (17:30~18:30 완충)
-  const WEEKDAY_PAID_START = 18 * 60 + 30 // 18:30
+  // 휴게시간은 근무 종료 전에 사용한다고 가정 → 실제 계산 범위를 줄임
+  const effectiveEndMin = endMin - breakMinutes
+
+  // 포괄임금제 기준: 17:30~18:30 완충구간
+  // - 야근이 18:30을 넘기면 → 17:30부터 전부 인정
+  // - 18:30 이전에 끝나면 → 미인정
+  const BUFFER_START = 17 * 60 + 30 // 17:30
+  const BUFFER_END = 18 * 60 + 30   // 18:30
+  const crossesBuffer = !isHoliday && effectiveEndMin > BUFFER_END
+  const weekdayPaidStart = crossesBuffer ? BUFFER_START : BUFFER_END
 
   // 분 단위로 순회하며 분류
   let extendedMinutes = 0
@@ -148,9 +156,6 @@ export function calculateOvertimeBreakdown(
   let holidayNightMinutes = 0
   let holidayOvertimeNightMinutes = 0
   let holidayDayMinutesSoFar = 0 // 휴일 비야간 누적 (8h 기준 판단용)
-
-  // 휴게시간은 근무 종료 전에 사용한다고 가정 → 실제 계산 범위를 줄임
-  const effectiveEndMin = endMin - breakMinutes
   for (let m = startMin; m < effectiveEndMin; m++) {
     const minuteOfDay = m % (24 * 60)
     const hour = Math.floor(minuteOfDay / 60)
@@ -178,12 +183,14 @@ export function calculateOvertimeBreakdown(
       // 평일
       if (isNight) {
         nightMinutes++ // 야간근로 (22:00~06:00)
-      } else if (minuteOfDay >= WEEKDAY_PAID_START) {
-        extendedMinutes++ // 18:30 이후 연장근로만 산정 (포괄임금제)
+      } else if (minuteOfDay >= weekdayPaidStart) {
+        extendedMinutes++
       }
-      // 17:30~18:30: 포괄임금제 미산정
     }
   }
+
+  // 연장근로 30분 단위 절삭 (예: 100분 → 90분)
+  extendedMinutes = Math.floor(extendedMinutes / 30) * 30
 
   // holidayDayMinutesSoFar → holidayMinutes (8h 이내 비야간 휴일분)
   holidayMinutes = holidayDayMinutesSoFar
