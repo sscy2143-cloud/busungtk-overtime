@@ -14,7 +14,7 @@ async function verifyAuth(req: VercelRequest): Promise<boolean> {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS - 허용 도메인만
-  const allowedOrigin = process.env.ALLOWED_ORIGIN || 'https://busungtk-overtime.vercel.app'
+  const allowedOrigin = process.env.ALLOWED_ORIGIN || 'https://busungtk-overtime-beta.vercel.app'
   res.setHeader('Access-Control-Allow-Origin', allowedOrigin)
   res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type')
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')

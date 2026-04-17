@@ -36,14 +36,14 @@ export function BottomNav() {
             onClick={() => { navigate('/leave'); setMoreOpen(false) }}
           >
             <Calendar size={18} className="text-primary-500" />
-            휴가현황
+            연차현황
           </button>
           <button
             className="flex items-center gap-3 w-full px-4 py-3 text-sm text-dark-700 hover:bg-dark-50"
             onClick={() => { navigate('/leave/request'); setMoreOpen(false) }}
           >
             <FileText size={18} className="text-primary-500" />
-            휴가신청
+            연차신청
           </button>
           <button
             className="flex items-center gap-3 w-full px-4 py-3 text-sm text-dark-700 hover:bg-dark-50"

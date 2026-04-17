@@ -28,10 +28,10 @@ const TOUR_STEPS: TourStep[] = [
       '공지사항 / 급여명세서',
     ],
   },
-  // ── 2. 근무 현황 페이지 ──
+  // ── 2. 연장근무 현황 페이지 ──
   {
     target: '[data-tour="work-summary"]',
-    title: '근무 현황',
+    title: '연장근무 현황',
     description: '금주/이번달 연장근무 시간과 승인 대기 건수를 확인할 수 있어요. 캘린더로 월별 근무 내역도 볼 수 있습니다.',
     position: 'bottom',
     route: '/requests',
@@ -112,7 +112,13 @@ export function OnboardingTour() {
 
   useEffect(() => {
     if (!storageKey || employee?.force_password_change) return
+    // 이전 키(employee ID 없는 버전)로 완료한 경우도 인정
+    const legacyDone = localStorage.getItem('busungtk_onboarding_done')
     const done = localStorage.getItem(storageKey)
+    if (legacyDone && !done) {
+      localStorage.setItem(storageKey, 'true')
+      return
+    }
     if (!done) {
       const timer = setTimeout(() => setActive(true), 1200)
       return () => clearTimeout(timer)

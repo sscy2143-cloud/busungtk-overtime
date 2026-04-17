@@ -60,7 +60,7 @@ export function UserGuidePage() {
           <div className="space-y-3 text-sm text-dark-700 leading-relaxed">
             <h3 className="font-semibold text-dark-800 mt-4">1-1. 접속 방법</h3>
             <ul className="list-disc list-inside space-y-1 ml-2">
-              <li>웹 브라우저에서 <strong>busungtk-overtime.vercel.app</strong> 접속</li>
+              <li>웹 브라우저에서 <strong>busungtk-overtime-beta.vercel.app</strong> 접속</li>
               <li>모바일(스마트폰)에서도 동일한 주소로 접속 가능 (PWA 지원)</li>
               <li>홈 화면에 추가하면 앱처럼 사용 가능 (Chrome: 메뉴 → "홈 화면에 추가")</li>
             </ul>

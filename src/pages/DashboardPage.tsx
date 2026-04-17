@@ -131,7 +131,7 @@ export function DashboardPage() {
         .select('total_days, used_days, remaining_days')
         .eq('employee_id', employee!.id)
         .eq('year', currentYear)
-        .single()
+        .maybeSingle()
 
       if (bal) {
         setLeave({ total: bal.total_days, used: bal.used_days, remaining: bal.remaining_days })
@@ -309,7 +309,7 @@ export function DashboardPage() {
           <div className="w-9 h-9 bg-primary-50 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform">
             <CalendarPlus size={18} className="text-primary-500" />
           </div>
-          휴가 신청
+          연차 신청
         </button>
         <button
           onClick={() => navigate('/timesheet')}
