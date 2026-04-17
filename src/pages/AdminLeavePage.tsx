@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { markAsSeen } from '../hooks/useUnseenCounts'
 import { X, Trash2, CheckSquare } from 'lucide-react'
 import type { LeaveRequest } from '../types'
 import { LEAVE_TYPE_LABEL } from '../types'
@@ -33,7 +34,7 @@ export function AdminLeavePage() {
   const { employee } = useAuth()
   const [requests, setRequests] = useState<LeaveRequest[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [listFilter, setListFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending')
+  const [listFilter, setListFilter] = useState<'all' | 'pending' | 'approved' | 'rejected' | 'cancelled' | 'cancel_requested'>('pending')
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'danger' } | null>(null)
 
   function showToast(message: string, type: 'success' | 'danger') {
@@ -44,6 +45,8 @@ export function AdminLeavePage() {
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; id: string; employeeName: string; days: number; status: string }>({ open: false, id: '', employeeName: '', days: 0, status: '' })
   const [detailModal, setDetailModal] = useState<{ open: boolean; request: LeaveRequest | null }>({ open: false, request: null })
   const [approveModal, setApproveModal] = useState<{ open: boolean; id: string }>({ open: false, id: '' })
+  const [cancelApproveModal, setCancelApproveModal] = useState<{ open: boolean; id: string }>({ open: false, id: '' })
+  const [cancelRejectModal, setCancelRejectModal] = useState<{ open: boolean; id: string; reason: string }>({ open: false, id: '', reason: '' })
 
   const currentYear = new Date().getFullYear()
 
@@ -199,22 +202,112 @@ export function AdminLeavePage() {
     setDeleteModal({ open: false, id: '', employeeName: '', days: 0, status: '' })
   }
 
+  async function confirmApproveCancel() {
+    const { id } = cancelApproveModal
+    const req = requests.find((r) => r.id === id)
+    if (!req) {
+      setCancelApproveModal({ open: false, id: '' })
+      return
+    }
+
+    const now = new Date().toISOString()
+    const { error } = await supabase
+      .from('leave_requests')
+      .update({
+        status: 'cancelled',
+        cancel_approved_at: now,
+        cancel_approved_by: employee?.id ?? null,
+      })
+      .eq('id', id)
+
+    if (error) {
+      alert('취소 승인에 실패했습니다: ' + error.message)
+      setCancelApproveModal({ open: false, id: '' })
+      return
+    }
+
+    // 이미 approved 였던 휴가라면 잔여 연차 복구
+    if (req.status === 'approved') {
+      const { data: bal } = await supabase
+        .from('leave_balances')
+        .select('used_days, substitute_used')
+        .eq('employee_id', req.employee_id)
+        .eq('year', currentYear)
+        .single()
+      if (bal) {
+        if (req.use_substitute) {
+          await supabase
+            .from('leave_balances')
+            .update({ substitute_used: Math.max(0, Number(bal.substitute_used) - Number(req.days)) })
+            .eq('employee_id', req.employee_id)
+            .eq('year', currentYear)
+        } else {
+          await supabase
+            .from('leave_balances')
+            .update({ used_days: Math.max(0, Number(bal.used_days) - Number(req.days)) })
+            .eq('employee_id', req.employee_id)
+            .eq('year', currentYear)
+        }
+      }
+    }
+
+    await fetchLeaveRequests()
+    showToast('취소 승인되었습니다', 'success')
+    setCancelApproveModal({ open: false, id: '' })
+  }
+
+  async function confirmRejectCancel() {
+    const { id, reason } = cancelRejectModal
+    if (!reason.trim()) {
+      alert('반려 사유를 입력해주세요.')
+      return
+    }
+    const now = new Date().toISOString()
+    const { error } = await supabase
+      .from('leave_requests')
+      .update({
+        cancel_rejected_at: now,
+        cancel_rejected_by: employee?.id ?? null,
+        cancel_rejection_reason: reason.trim(),
+      })
+      .eq('id', id)
+
+    if (error) {
+      alert('취소 반려에 실패했습니다: ' + error.message)
+      return
+    }
+
+    await fetchLeaveRequests()
+    showToast('취소 요청을 반려했습니다', 'danger')
+    setCancelRejectModal({ open: false, id: '', reason: '' })
+  }
+
   // list filter counts
   const countAll = requests.length
   const countPending = requests.filter(r => r.status === 'pending' || r.status === 'manager_approved').length
   const countApproved = requests.filter(r => r.status === 'approved').length
   const countRejected = requests.filter(r => r.status === 'rejected').length
+  const countCancelled = requests.filter(r => r.status === 'cancelled').length
+  const countCancelRequested = requests.filter(r => r.cancel_requested_at && !r.cancel_approved_at && !r.cancel_rejected_at && r.status !== 'cancelled').length
 
   const listFilteredRequests = useMemo(() => {
     return requests.filter((r) => {
       if (listFilter === 'pending') return r.status === 'pending' || r.status === 'manager_approved'
       if (listFilter === 'approved') return r.status === 'approved'
       if (listFilter === 'rejected') return r.status === 'rejected'
+      if (listFilter === 'cancelled') return r.status === 'cancelled'
+      if (listFilter === 'cancel_requested') return r.cancel_requested_at && !r.cancel_approved_at && !r.cancel_rejected_at && r.status !== 'cancelled'
       return true
     })
   }, [requests, listFilter])
 
   const selectedReq = selectedId ? requests.find(r => r.id === selectedId) ?? null : null
+
+  useEffect(() => {
+    if (selectedId && employee?.id) {
+      markAsSeen('leave', employee.id, selectedId)
+    }
+  }, [selectedId, employee?.id])
 
   return (
     <div className="flex flex-col h-full min-h-0 space-y-3">
@@ -236,7 +329,7 @@ export function AdminLeavePage() {
       <div className="flex flex-col lg:flex-row gap-0 bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden flex-1 min-h-0" style={{ minHeight: '520px' }}>
 
         {/* LEFT PANEL: list */}
-        <div className={`flex flex-col lg:w-80 lg:min-w-[320px] lg:max-w-xs border-b lg:border-b-0 lg:border-r border-dark-100 ${selectedId ? 'hidden lg:flex' : 'flex'}`}>
+        <div className={`flex flex-col lg:w-[500px] lg:min-w-[500px] lg:max-w-[500px] border-b lg:border-b-0 lg:border-r border-dark-100 ${selectedId ? 'hidden lg:flex' : 'flex'}`}>
 
           {/* Tab filter */}
           <div className="px-3 pt-3 pb-2 border-b border-dark-100 shrink-0">
@@ -245,8 +338,10 @@ export function AdminLeavePage() {
                 [
                   { key: 'all', label: '전체', count: countAll },
                   { key: 'pending', label: '대기중', count: countPending },
+                  { key: 'cancel_requested', label: '취소요청', count: countCancelRequested },
                   { key: 'approved', label: '승인', count: countApproved },
                   { key: 'rejected', label: '반려', count: countRejected },
+                  { key: 'cancelled', label: '취소', count: countCancelled },
                 ] as const
               ).map(({ key, label, count }) => (
                 <button
@@ -298,7 +393,7 @@ export function AdminLeavePage() {
                           </span>
                         </p>
                         {req.manager_approved_at && (
-                          <span className="inline-block mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-success-50 text-success-700 border border-success-200">인사확인</span>
+                          <span className="inline-block mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-success-50 text-success-700 border border-success-200">인사확인완료</span>
                         )}
                       </div>
                       <span className={`text-[11px] font-semibold shrink-0 mt-0.5 ${STATUS_COLOR[req.status] ?? 'text-dark-500'}`}>
@@ -427,6 +522,24 @@ export function AdminLeavePage() {
 
                 {/* Action buttons */}
                 <div className="px-5 py-4 border-t border-dark-100 flex flex-col gap-2 shrink-0">
+                  {req.cancel_requested_at && !req.cancel_approved_at && !req.cancel_rejected_at && req.status !== 'cancelled' && (
+                    <>
+                      <button
+                        onClick={() => setCancelApproveModal({ open: true, id: req.id })}
+                        className="w-full flex items-center justify-center gap-2 py-3.5 text-base font-bold text-white bg-success-500 rounded-xl hover:bg-success-600 transition-colors"
+                      >
+                        <CheckSquare className="w-5 h-5" />
+                        취소 승인
+                      </button>
+                      <button
+                        onClick={() => setCancelRejectModal({ open: true, id: req.id, reason: '' })}
+                        className="w-full flex items-center justify-center gap-2 py-3.5 text-base font-bold text-white bg-danger-500 rounded-xl hover:bg-danger-600 transition-colors"
+                      >
+                        <X className="w-5 h-5" />
+                        취소 반려
+                      </button>
+                    </>
+                  )}
                   {(req.status === 'pending' || req.status === 'manager_approved') && (
                     <>
                       <button
@@ -612,6 +725,89 @@ export function AdminLeavePage() {
                   </div>
                 </div>
 
+                {/* 취소 요청 이력 */}
+                {req.cancel_requested_at && (
+                  <div>
+                    <p className="text-xs font-semibold text-dark-500 mb-2 tracking-wider">취소 요청</p>
+                    <div className="border border-dark-200 rounded-xl overflow-hidden">
+                      <table className="w-full text-sm">
+                        <tbody>
+                          <tr className="border-b border-dark-100">
+                            <td className="bg-dark-50 px-3 py-2 text-xs text-dark-500 font-medium w-24">상태</td>
+                            <td className="px-3 py-2">
+                              <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
+                                req.cancel_approved_at ? 'bg-dark-50 text-dark-600 border-dark-200' :
+                                req.cancel_rejected_at ? 'bg-danger-50 text-danger-700 border-danger-200' :
+                                'bg-warning-50 text-warning-700 border-warning-200'
+                              }`}>
+                                {req.cancel_approved_at ? '취소 승인완료' : req.cancel_rejected_at ? '취소 반려됨' : '취소 요청중'}
+                              </span>
+                            </td>
+                          </tr>
+                          <tr className="border-b border-dark-100">
+                            <td className="bg-dark-50 px-3 py-2 text-xs text-dark-500 font-medium">요청일시</td>
+                            <td className="px-3 py-2 text-dark-800 text-xs">
+                              {new Date(req.cancel_requested_at).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                            </td>
+                          </tr>
+                          <tr className="border-b border-dark-100">
+                            <td className="bg-dark-50 px-3 py-2 text-xs text-dark-500 font-medium">요청 사유</td>
+                            <td className="px-3 py-2 text-dark-800 text-xs whitespace-pre-wrap">{req.cancel_reason ?? '-'}</td>
+                          </tr>
+                          {req.cancel_approved_at && (
+                            <tr className="border-b border-dark-100">
+                              <td className="bg-dark-50 px-3 py-2 text-xs text-dark-500 font-medium">승인일시</td>
+                              <td className="px-3 py-2 text-success-700 text-xs">
+                                {new Date(req.cancel_approved_at).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                              </td>
+                            </tr>
+                          )}
+                          {req.cancel_rejected_at && (
+                            <>
+                              <tr className="border-b border-dark-100">
+                                <td className="bg-dark-50 px-3 py-2 text-xs text-dark-500 font-medium">반려일시</td>
+                                <td className="px-3 py-2 text-danger-700 text-xs">
+                                  {new Date(req.cancel_rejected_at).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                </td>
+                              </tr>
+                              {req.cancel_rejection_reason && (
+                                <tr>
+                                  <td className="bg-dark-50 px-3 py-2 text-xs text-dark-500 font-medium">반려 사유</td>
+                                  <td className="px-3 py-2 text-danger-700 text-xs whitespace-pre-wrap">{req.cancel_rejection_reason}</td>
+                                </tr>
+                              )}
+                            </>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* 취소 요청중이면 취소승인/취소반려 버튼 */}
+                {req.cancel_requested_at && !req.cancel_approved_at && !req.cancel_rejected_at && req.status !== 'cancelled' && (
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={() => {
+                        setDetailModal({ open: false, request: null })
+                        setCancelApproveModal({ open: true, id: req.id })
+                      }}
+                      className="flex-1 py-2.5 text-sm font-semibold text-white bg-success-500 rounded-xl hover:bg-success-600 transition-colors"
+                    >
+                      취소 승인
+                    </button>
+                    <button
+                      onClick={() => {
+                        setDetailModal({ open: false, request: null })
+                        setCancelRejectModal({ open: true, id: req.id, reason: '' })
+                      }}
+                      className="flex-1 py-2.5 text-sm font-semibold text-danger-600 border border-danger-300 rounded-xl hover:bg-danger-50 transition-colors"
+                    >
+                      취소 반려
+                    </button>
+                  </div>
+                )}
+
                 {/* 대기중이면 승인/반려 버튼 */}
                 {(req.status === 'pending' || req.status === 'manager_approved') && (
                   <div className="flex gap-2 pt-2">
@@ -774,6 +970,99 @@ export function AdminLeavePage() {
           </div>
         </div>
       )}
+
+      {/* 취소 승인 확인 모달 */}
+      {cancelApproveModal.open && (() => {
+        const req = requests.find((r) => r.id === cancelApproveModal.id)
+        return (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setCancelApproveModal({ open: false, id: '' })} />
+          <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-dark-900">휴가 취소 승인</h3>
+              <button onClick={() => setCancelApproveModal({ open: false, id: '' })}>
+                <X className="w-5 h-5 text-dark-400" />
+              </button>
+            </div>
+            <p className="text-sm text-dark-600 mb-2">
+              <span className="font-semibold">{req?.employee?.name ?? ''}</span>의 휴가 취소 요청을 승인하시겠습니까?
+            </p>
+            {req?.status === 'approved' && (
+              <p className="text-xs text-warning-600 bg-warning-50 rounded-lg px-3 py-2 mt-2 mb-3">
+                승인된 휴가({req.days}일)의 취소를 승인하면 잔여 연차가 복원됩니다.
+              </p>
+            )}
+            {req?.cancel_reason && (
+              <div className="bg-dark-50 rounded-lg px-3 py-2 mt-3 mb-3">
+                <p className="text-xs text-dark-500 font-medium mb-1">직원 취소 사유</p>
+                <p className="text-sm text-dark-800 whitespace-pre-wrap">{req.cancel_reason}</p>
+              </div>
+            )}
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => setCancelApproveModal({ open: false, id: '' })}
+                className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50"
+              >
+                돌아가기
+              </button>
+              <button
+                onClick={confirmApproveCancel}
+                className="flex-1 py-2.5 text-sm font-semibold text-white bg-success-500 rounded-xl hover:bg-success-600 transition-colors"
+              >
+                취소 승인
+              </button>
+            </div>
+          </div>
+        </div>
+        )
+      })()}
+
+      {/* 취소 반려 모달 */}
+      {cancelRejectModal.open && (() => {
+        const req = requests.find((r) => r.id === cancelRejectModal.id)
+        return (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setCancelRejectModal({ open: false, id: '', reason: '' })} />
+          <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-dark-900">취소 요청 반려</h3>
+              <button onClick={() => setCancelRejectModal({ open: false, id: '', reason: '' })}>
+                <X className="w-5 h-5 text-dark-400" />
+              </button>
+            </div>
+            {req?.cancel_reason && (
+              <div className="bg-dark-50 rounded-lg px-3 py-2 mb-3">
+                <p className="text-xs text-dark-500 font-medium mb-1">직원 취소 사유</p>
+                <p className="text-sm text-dark-800 whitespace-pre-wrap">{req.cancel_reason}</p>
+              </div>
+            )}
+            <textarea
+              className="w-full border border-dark-200 rounded-xl px-3 py-2.5 text-sm text-dark-800 resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
+              rows={3}
+              placeholder="반려 사유를 입력하세요"
+              value={cancelRejectModal.reason}
+              onChange={(e) => setCancelRejectModal((prev) => ({ ...prev, reason: e.target.value }))}
+            />
+            <p className="text-xs text-dark-400 mt-2">반려하면 직원은 이 휴가에 대해 재취소 요청을 할 수 없습니다.</p>
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => setCancelRejectModal({ open: false, id: '', reason: '' })}
+                className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50"
+              >
+                돌아가기
+              </button>
+              <button
+                onClick={confirmRejectCancel}
+                disabled={!cancelRejectModal.reason.trim()}
+                className="flex-1 py-2.5 text-sm font-semibold text-white bg-danger-500 rounded-xl hover:bg-danger-600 disabled:opacity-40 transition-colors"
+              >
+                반려
+              </button>
+            </div>
+          </div>
+        </div>
+        )
+      })()}
     </div>
   )
 }

@@ -111,6 +111,13 @@ export interface LeaveRequest {
   rejection_reason: string | null
   use_substitute: boolean
   created_at: string
+  cancel_requested_at?: string | null
+  cancel_reason?: string | null
+  cancel_approved_at?: string | null
+  cancel_approved_by?: string | null
+  cancel_rejected_at?: string | null
+  cancel_rejected_by?: string | null
+  cancel_rejection_reason?: string | null
 }
 
 export interface Notification {

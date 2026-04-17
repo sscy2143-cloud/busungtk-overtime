@@ -7,6 +7,32 @@ import { LEAVE_TYPE_LABEL } from '../types'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 
+// 2026년 대한민국 공휴일 (대체공휴일 포함)
+const HOLIDAYS_2026: Record<string, boolean> = {
+  '2026-01-01': true, '2026-02-16': true, '2026-02-17': true, '2026-02-18': true,
+  '2026-03-01': true, '2026-03-02': true, '2026-05-01': true, '2026-05-05': true,
+  '2026-05-24': true, '2026-05-25': true, '2026-06-06': true, '2026-08-15': true,
+  '2026-08-17': true, '2026-09-24': true, '2026-09-25': true, '2026-09-26': true,
+  '2026-09-28': true, '2026-10-03': true, '2026-10-05': true, '2026-10-09': true,
+  '2026-12-25': true,
+}
+
+function calcBusinessDays(start: string, end: string): number {
+  if (!start || !end) return 0
+  const s = new Date(start)
+  const e = new Date(end)
+  if (s > e) return 0
+  let count = 0
+  const cur = new Date(s)
+  while (cur <= e) {
+    const day = cur.getDay()
+    const dateStr = cur.toISOString().slice(0, 10)
+    if (day !== 0 && day !== 6 && !HOLIDAYS_2026[dateStr]) count++
+    cur.setDate(cur.getDate() + 1)
+  }
+  return Math.max(count, 1)
+}
+
 const CURRENT_YEAR = new Date().getFullYear()
 const TODAY_LABEL = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '-').replace('.', '')
 
@@ -21,7 +47,7 @@ export function LeavePage() {
   const [editModal, setEditModal] = useState<{
     open: boolean; id: string; type: LeaveType; start_date: string; end_date: string; reason: string
   }>({ open: false, id: '', type: 'annual', start_date: '', end_date: '', reason: '' })
-  const [cancelModal, setCancelModal] = useState<{ open: boolean; id: string }>({ open: false, id: '' })
+  const [cancelModal, setCancelModal] = useState<{ open: boolean; id: string; reason: string }>({ open: false, id: '', reason: '' })
   const [subHistoryModal, setSubHistoryModal] = useState<{ open: boolean; entries: SubstituteHistory[] }>({ open: false, entries: [] })
   const [subHistory, setSubHistory] = useState<(SubstituteHistory & {
     overtime_request?: { date: string; planned_start: string; planned_end: string; type: string; site_name: string | null; work_details: string | null; reason: string | null } | null
@@ -105,35 +131,84 @@ export function LeavePage() {
     const { id, type, start_date, end_date, reason } = editModal
     const days = type.startsWith('half')
       ? 0.5
-      : Math.max(1, Math.ceil((new Date(end_date).getTime() - new Date(start_date).getTime()) / 86400000) + 1)
-    const { error } = await supabase
+      : calcBusinessDays(start_date, end_date || start_date)
+    const { data, error } = await supabase
       .from('leave_requests')
       .update({ type, start_date, end_date, days, reason })
       .eq('id', id)
-    if (!error) {
+      .select()
+    if (!error && data && data.length > 0) {
       setRequests((prev) => prev.map((r) => r.id === id ? { ...r, type, start_date, end_date, days, reason } : r))
+      fetchBalance()
+    } else {
+      alert('수정에 실패했습니다. 이미 승인 처리된 신청은 수정할 수 없습니다.')
     }
     setEditModal({ open: false, id: '', type: 'annual', start_date: '', end_date: '', reason: '' })
   }
 
   async function handleCancel() {
-    const { id } = cancelModal
-    const { error } = await supabase
-      .from('leave_requests')
-      .update({ status: 'cancelled' as const })
-      .eq('id', id)
-    if (!error) {
-      setRequests((prev) => prev.map((r) => r.id === id ? { ...r, status: 'cancelled' as const } : r))
+    const { id, reason } = cancelModal
+    const trimmed = reason.trim()
+    if (!trimmed) {
+      alert('취소 사유를 입력해주세요.')
+      return
     }
-    setCancelModal({ open: false, id: '' })
+    const req = requests.find((r) => r.id === id)
+    if (!req) {
+      setCancelModal({ open: false, id: '', reason: '' })
+      return
+    }
+    const today = new Date().toISOString().slice(0, 10)
+    if (req.status === 'approved' && req.start_date < today) {
+      alert('이미 시작된 휴가는 취소할 수 없습니다. 관리자에게 문의해주세요.')
+      return
+    }
+    // pending 단계는 즉시 취소, approved/manager_approved 는 관리자 승인 필요
+    if (req.status === 'pending' || req.status === 'manager_approved') {
+      const now = new Date().toISOString()
+      const { data, error } = await supabase
+        .from('leave_requests')
+        .update({
+          cancel_requested_at: now,
+          cancel_reason: trimmed,
+          cancel_approved_at: now,
+          status: 'cancelled' as const,
+        })
+        .eq('id', id)
+        .select()
+      if (!error && data && data.length > 0) {
+        setRequests((prev) => prev.map((r) => r.id === id ? { ...r, status: 'cancelled' as const, cancel_requested_at: now, cancel_approved_at: now, cancel_reason: trimmed } : r))
+        fetchBalance()
+      } else {
+        alert('취소에 실패했습니다.')
+      }
+    } else if (req.status === 'approved') {
+      // 승인된 휴가: 관리자 승인이 필요한 취소 요청 생성
+      const { data, error } = await supabase
+        .from('leave_requests')
+        .update({
+          cancel_requested_at: new Date().toISOString(),
+          cancel_reason: trimmed,
+        })
+        .eq('id', id)
+        .is('cancel_requested_at', null)
+        .select()
+      if (!error && data && data.length > 0) {
+        setRequests((prev) => prev.map((r) => r.id === id ? { ...r, cancel_requested_at: data[0].cancel_requested_at, cancel_reason: trimmed } : r))
+      } else {
+        alert('취소 요청에 실패했습니다.')
+      }
+    }
+    setCancelModal({ open: false, id: '', reason: '' })
   }
 
   const { total_days, used_days, remaining_days, substitute_total, substitute_used } = balance
   const usedPct = total_days > 0 ? Math.round((used_days / total_days) * 100) : 0
   const substituteRemaining = substitute_total - substitute_used
 
-  const yearsOfService = employee?.created_at
-    ? Math.max(1, Math.floor((Date.now() - new Date(employee.created_at).getTime()) / (365.25 * 24 * 3600 * 1000)) + 1)
+  const hireRef = employee?.hire_date ?? employee?.created_at
+  const yearsOfService = hireRef
+    ? Math.max(1, Math.floor((Date.now() - new Date(hireRef).getTime()) / (365.25 * 24 * 3600 * 1000)) + 1)
     : 1
 
   // 연차내역 모달용: 선택 연도의 월별 사용 내역
@@ -376,6 +451,12 @@ export function LeavePage() {
                         {req.status === 'rejected' && (req as any).rejection_reason && (
                           <p className="text-xs text-danger-500 mt-0.5 truncate">반려: {(req as any).rejection_reason}</p>
                         )}
+                        {req.cancel_requested_at && !req.cancel_approved_at && !req.cancel_rejected_at && (
+                          <p className="text-xs text-warning-600 mt-0.5 truncate">취소 요청중: {req.cancel_reason}</p>
+                        )}
+                        {req.cancel_rejected_at && (
+                          <p className="text-xs text-danger-500 mt-0.5 truncate">취소 반려: {req.cancel_rejection_reason}</p>
+                        )}
                       </div>
                       {/* 일수 + 날짜 */}
                       <div className="shrink-0 text-right w-24">
@@ -398,16 +479,24 @@ export function LeavePage() {
                         <div className="shrink-0 w-16" />
                       )}
                       {/* 수정/취소 버튼 */}
-                      {(req.status === 'pending' || req.status === 'manager_approved') && (
-                        <div className="flex gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                          <button onClick={() => openEditModal(req)} className="p-1.5 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors">
-                            <Pencil className="w-3 h-3" />
-                          </button>
-                          <button onClick={() => setCancelModal({ open: true, id: req.id })} className="p-1.5 text-danger-500 hover:bg-danger-50 rounded-lg transition-colors">
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      )}
+                      {(() => {
+                        const today = new Date().toISOString().slice(0, 10)
+                        const canCancelPending = req.status === 'pending' || req.status === 'manager_approved'
+                        const canCancelApproved = req.status === 'approved' && req.start_date >= today && !req.cancel_requested_at && !req.cancel_rejected_at
+                        if (!canCancelPending && !canCancelApproved) return null
+                        return (
+                          <div className="flex gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                            {req.status === 'pending' && (
+                              <button onClick={() => openEditModal(req)} className="p-1.5 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors">
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                            )}
+                            <button onClick={() => setCancelModal({ open: true, id: req.id, reason: '' })} className="p-1.5 text-danger-500 hover:bg-danger-50 rounded-lg transition-colors">
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )
+                      })()}
                     </div>
                   ))}
                 </div>
@@ -643,28 +732,43 @@ export function LeavePage() {
       )}
 
       {/* 취소 확인 모달 */}
-      {cancelModal.open && (
+      {cancelModal.open && (() => {
+        const req = requests.find((r) => r.id === cancelModal.id)
+        const needsApproval = req?.status === 'approved'
+        return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setCancelModal({ open: false, id: '' })} />
+          <div className="absolute inset-0 bg-black/40" onClick={() => setCancelModal({ open: false, id: '', reason: '' })} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-dark-900">연차 신청 취소</h3>
-              <button onClick={() => setCancelModal({ open: false, id: '' })}><X className="w-5 h-5 text-dark-400" /></button>
+              <h3 className="text-base font-bold text-dark-900">정말 취소할거니?</h3>
+              <button onClick={() => setCancelModal({ open: false, id: '', reason: '' })}><X className="w-5 h-5 text-dark-400" /></button>
             </div>
-            <p className="text-sm text-dark-600 mb-4">이 연차 신청을 취소하시겠습니까?</p>
+            <p className="text-sm text-dark-600 mb-3">
+              {needsApproval
+                ? '승인된 휴가 취소는 관리자 승인이 필요합니다. 취소 사유를 입력해주세요.'
+                : '이 연차 신청을 취소하시겠습니까? 취소 사유를 입력해주세요.'}
+            </p>
+            <textarea
+              value={cancelModal.reason}
+              onChange={(e) => setCancelModal((m) => ({ ...m, reason: e.target.value }))}
+              placeholder="취소 사유를 입력하세요"
+              rows={3}
+              className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:border-primary-500 resize-none mb-4"
+            />
             <div className="flex gap-2">
-              <button onClick={() => setCancelModal({ open: false, id: '' })}
+              <button onClick={() => setCancelModal({ open: false, id: '', reason: '' })}
                 className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50">
                 돌아가기
               </button>
-              <button onClick={handleCancel}
-                className="flex-1 py-2.5 text-sm font-semibold text-white bg-danger-500 rounded-xl hover:bg-danger-600 transition-colors">
-                취소하기
+              <button onClick={handleCancel} disabled={!cancelModal.reason.trim()}
+                className="flex-1 py-2.5 text-sm font-semibold text-white bg-danger-500 rounded-xl hover:bg-danger-600 disabled:opacity-40 transition-colors">
+                {needsApproval ? '취소 요청' : '취소하기'}
               </button>
             </div>
           </div>
         </div>
-      )}
+        )
+      })()}
 
       {/* 연차내역 모달 */}
       {leaveHistoryModal && (
@@ -943,6 +1047,43 @@ export function LeavePage() {
                     <p className="text-sm text-danger-700 mt-0.5">{(detailReq as any).rejection_reason}</p>
                   </div>
                 )}
+                {detailReq.cancel_requested_at && (
+                  <div className={`rounded-xl px-3 py-2 space-y-1 ${detailReq.cancel_approved_at ? 'bg-dark-50' : detailReq.cancel_rejected_at ? 'bg-danger-50' : 'bg-warning-50'}`}>
+                    <p className={`text-xs font-medium ${detailReq.cancel_approved_at ? 'text-dark-500' : detailReq.cancel_rejected_at ? 'text-danger-500' : 'text-warning-600'}`}>
+                      {detailReq.cancel_approved_at ? '취소 승인 완료' : detailReq.cancel_rejected_at ? '취소 반려됨' : '취소 요청중'}
+                    </p>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-dark-500">취소 요청일</span>
+                      <span className="text-dark-700">{new Date(detailReq.cancel_requested_at).toLocaleString('ko-KR')}</span>
+                    </div>
+                    {detailReq.cancel_reason && (
+                      <div className="text-xs">
+                        <span className="text-dark-500">취소 사유: </span>
+                        <span className="text-dark-700">{detailReq.cancel_reason}</span>
+                      </div>
+                    )}
+                    {detailReq.cancel_approved_at && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-dark-500">승인일</span>
+                        <span className="text-dark-700">{new Date(detailReq.cancel_approved_at).toLocaleString('ko-KR')}</span>
+                      </div>
+                    )}
+                    {detailReq.cancel_rejected_at && (
+                      <>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-danger-500">반려일</span>
+                          <span className="text-danger-700">{new Date(detailReq.cancel_rejected_at).toLocaleString('ko-KR')}</span>
+                        </div>
+                        {detailReq.cancel_rejection_reason && (
+                          <div className="text-xs">
+                            <span className="text-danger-500">반려 사유: </span>
+                            <span className="text-danger-700">{detailReq.cancel_rejection_reason}</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
                 <div className="flex items-center justify-between pt-1">
                   <span className="text-xs text-dark-400">신청일</span>
                   <span className="text-xs text-dark-500">
@@ -950,22 +1091,30 @@ export function LeavePage() {
                   </span>
                 </div>
               </div>
-              {(detailReq.status === 'pending' || detailReq.status === 'manager_approved') && (
-                <div className="flex gap-2 px-5 pb-5">
-                  <button
-                    onClick={() => { setDetailReq(null); openEditModal(detailReq) }}
-                    className="flex-1 py-2.5 text-sm font-medium text-primary-600 border border-primary-300 rounded-xl hover:bg-primary-50 transition-colors"
-                  >
-                    수정
-                  </button>
-                  <button
-                    onClick={() => { setDetailReq(null); setCancelModal({ open: true, id: detailReq.id }) }}
-                    className="flex-1 py-2.5 text-sm font-medium text-danger-600 border border-danger-300 rounded-xl hover:bg-danger-50 transition-colors"
-                  >
-                    취소
-                  </button>
-                </div>
-              )}
+              {(() => {
+                const today = new Date().toISOString().slice(0, 10)
+                const canCancelPending = detailReq.status === 'pending' || detailReq.status === 'manager_approved'
+                const canCancelApproved = detailReq.status === 'approved' && detailReq.start_date >= today && !detailReq.cancel_requested_at && !detailReq.cancel_rejected_at
+                if (!canCancelPending && !canCancelApproved) return null
+                return (
+                  <div className="flex gap-2 px-5 pb-5">
+                    {detailReq.status === 'pending' && (
+                      <button
+                        onClick={() => { setDetailReq(null); openEditModal(detailReq) }}
+                        className="flex-1 py-2.5 text-sm font-medium text-primary-600 border border-primary-300 rounded-xl hover:bg-primary-50 transition-colors"
+                      >
+                        수정
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { setDetailReq(null); setCancelModal({ open: true, id: detailReq.id, reason: '' }) }}
+                      className="flex-1 py-2.5 text-sm font-medium text-danger-600 border border-danger-300 rounded-xl hover:bg-danger-50 transition-colors"
+                    >
+                      {canCancelApproved ? '취소 요청' : '취소'}
+                    </button>
+                  </div>
+                )
+              })()}
             </div>
           </div>
         )
