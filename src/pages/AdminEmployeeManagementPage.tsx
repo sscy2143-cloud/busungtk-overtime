@@ -265,13 +265,6 @@ export function AdminEmployeeManagementPage() {
       return
     }
 
-    const email = currentUser?.email ?? ''
-    const { error: verifyErr } = await supabase.auth.signInWithPassword({ email, password: adminPassword })
-    if (verifyErr) {
-      setEditPanel(p => ({ ...p, accountError: '본인 비밀번호가 올바르지 않습니다', accountLoading: false }))
-      return
-    }
-
     try {
       const res = await fetch('/api/admin-user', {
         method: 'PUT',
@@ -279,7 +272,7 @@ export function AdminEmployeeManagementPage() {
           'Content-Type': 'application/json',
           ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
-        body: JSON.stringify({ userId: emp.id, newPassword }),
+        body: JSON.stringify({ userId: emp.id, newPassword, adminPassword }),
       })
       const data = await res.json()
       if (!res.ok) {
