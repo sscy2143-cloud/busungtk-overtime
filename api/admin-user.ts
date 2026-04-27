@@ -109,7 +109,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // PUT: 비밀번호 초기화
   if (req.method === 'PUT') {
-    const { userId, newPassword } = req.body
+    const { userId, newPassword, adminPassword } = req.body
 
     if (!userId || !newPassword) {
       return res.status(400).json({ error: '사용자 ID와 새 비밀번호는 필수입니다' })
@@ -117,6 +117,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (newPassword.length < 6) {
       return res.status(400).json({ error: '비밀번호는 6자 이상이어야 합니다' })
+    }
+
+    // 관리자 본인 비밀번호 서버에서 검증 (클라이언트에서 signInWithPassword 호출 시 세션 변경 부작용 방지)
+    if (!adminPassword) {
+      return res.status(400).json({ error: '본인 비밀번호를 입력하세요' })
+    }
+    const callerEmail = authResult.data.user.email!
+    const supabaseVerify = createClient(
+      process.env.VITE_SUPABASE_URL!,
+      process.env.VITE_SUPABASE_ANON_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } },
+    )
+    const { error: verifyErr } = await supabaseVerify.auth.signInWithPassword({
+      email: callerEmail,
+      password: adminPassword,
+    })
+    if (verifyErr) {
+      return res.status(401).json({ error: '본인 비밀번호가 올바르지 않습니다' })
     }
 
     // 매니저는 관리자 비밀번호 초기화 불가

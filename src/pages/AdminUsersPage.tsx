@@ -184,23 +184,15 @@ export function AdminUsersPage() {
 
     setActionLoading(true)
 
-    // 본인 비밀번호 재확인
-    const email = currentUser?.email ?? ''
-    const { error: verifyErr } = await supabase.auth.signInWithPassword({ email, password: adminPassword })
-    if (verifyErr) {
-      setActionError('본인 비밀번호가 올바르지 않습니다')
-      setActionLoading(false)
-      return
-    }
-
     try {
+      // adminPassword를 서버로 전달해 서버에서 검증 (클라이언트 signInWithPassword 호출 시 세션 변경으로 모달이 닫히는 버그 방지)
       const res = await fetch('/api/admin-user', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
-        body: JSON.stringify({ userId, newPassword }),
+        body: JSON.stringify({ userId, newPassword, adminPassword }),
       })
 
       const data = await res.json()
