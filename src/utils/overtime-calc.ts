@@ -140,11 +140,13 @@ export function calculateOvertimeBreakdown(
   // 휴게시간은 근무 종료 전에 사용한다고 가정 → 실제 계산 범위를 줄임
   const effectiveEndMin = endMin - breakMinutes
 
-  // 포괄임금제 기준: 17:30~18:30 완충구간
-  // - 야근이 18:30을 넘기면 → 17:30부터 전부 인정
-  // - 18:30 이전에 끝나면 → 미인정
-  const BUFFER_START = 17 * 60 + 30 // 17:30
-  const BUFFER_END = 18 * 60 + 30   // 18:30
+  // 2026-05-01부터 완충구간 변경 (17:30~18:30 → 18:00~19:00)
+  // 조기출근(09:00 이전)은 날짜 무관 항상 연장근로 인정
+  const isNewSchedule = dateStr >= '2026-05-01'
+
+  const REGULAR_START = 9 * 60 // 09:00 — 항상 적용
+  const BUFFER_START = isNewSchedule ? 18 * 60 : 17 * 60 + 30 // 18:00 / 17:30
+  const BUFFER_END   = isNewSchedule ? 19 * 60 : 18 * 60 + 30 // 19:00 / 18:30
   const crossesBuffer = !isHoliday && effectiveEndMin > BUFFER_END
   const weekdayPaidStart = crossesBuffer ? BUFFER_START : BUFFER_END
 
@@ -183,8 +185,8 @@ export function calculateOvertimeBreakdown(
       // 평일
       if (isNight) {
         nightMinutes++ // 야간근로 (22:00~06:00)
-      } else if (minuteOfDay >= weekdayPaidStart) {
-        extendedMinutes++
+      } else if (minuteOfDay < REGULAR_START || minuteOfDay >= weekdayPaidStart) {
+        extendedMinutes++ // 정규시간(09:00~) 이전 조기출근 또는 퇴근 후 연장
       }
     }
   }
