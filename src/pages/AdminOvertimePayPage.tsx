@@ -46,12 +46,14 @@ export function AdminOvertimePayPage() {
       .select('*, employee:employees!overtime_requests_employee_id_fkey(id, name)')
       .eq('employee_id', empId)
       .gte('date', `${monthPrefix}-01`)
-      .lte('date', `${monthPrefix}-31`)
+      .lte('date', monthEnd)
       .order('date', { ascending: true })
     setVerifyPopup({ empId, empName, records: (data as any) ?? [], loading: false })
   }
 
   const monthPrefix = `${calYear}-${String(calMonth).padStart(2, '0')}`
+  const monthLastDay = new Date(calYear, calMonth, 0).getDate()
+  const monthEnd = `${monthPrefix}-${String(monthLastDay).padStart(2, '0')}`
 
   useEffect(() => {
     supabase
@@ -70,7 +72,7 @@ export function AdminOvertimePayPage() {
       .select('*, employee:employees!overtime_requests_employee_id_fkey(id, name, department, hourly_wage)')
       .eq('status', 'approved')
       .gte('date', `${monthPrefix}-01`)
-      .lte('date', `${monthPrefix}-31`)
+      .lte('date', monthEnd)
       .then(({ data }) => {
         if (data) setAllRequests(data as any)
         setLoading(false)
