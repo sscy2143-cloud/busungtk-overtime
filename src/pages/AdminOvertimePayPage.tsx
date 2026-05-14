@@ -31,6 +31,7 @@ export function AdminOvertimePayPage() {
   const [calYear, setCalYear] = useState(now.getFullYear())
   const [calMonth, setCalMonth] = useState(now.getMonth() + 1)
   const [allRequests, setAllRequests] = useState<(OvertimeRequest & { employee: any })[]>([])
+  const [allEmployees, setAllEmployees] = useState<{ id: string; name: string; department: string; hourly_wage: number }[]>([])
   const [loading, setLoading] = useState(true)
   // 시급 로컬 오버라이드 (DB 반영 전 즉시 UI 반영용)
   const [wageOverrides, setWageOverrides] = useState<Record<string, number>>({})
@@ -62,6 +63,16 @@ export function AdminOvertimePayPage() {
       .not('related_request_id', 'is', null)
       .then(({ data }) => {
         if (data) setCompLeaveRequestIds(new Set(data.map((r: any) => r.related_request_id as string)))
+      })
+  }, [])
+
+  useEffect(() => {
+    supabase
+      .from('employees')
+      .select('id, name, department, hourly_wage')
+      .eq('is_active', true)
+      .then(({ data }) => {
+        if (data) setAllEmployees(data as any)
       })
   }, [])
 
@@ -98,6 +109,18 @@ export function AdminOvertimePayPage() {
       holidayNight: number; holidayOvertimeNight: number
       totalMinutes: number
     }>()
+    // 전체 활성 직원을 먼저 0으로 초기화
+    for (const emp of allEmployees) {
+      map.set(emp.id, {
+        empId: emp.id,
+        name: emp.name,
+        department: emp.department ?? '',
+        dbWage: emp.hourly_wage ?? 0,
+        extended: 0, night: 0, holiday: 0, holidayOvertime: 0,
+        holidayNight: 0, holidayOvertimeNight: 0, totalMinutes: 0,
+      })
+    }
+    // 승인된 야근 신청 누적
     for (const r of allRequests.filter(r => !compLeaveRequestIds.has(r.id))) {
       const empId = r.employee_id
       const bd = calculateOvertimeBreakdown(r.date, r.planned_start, r.planned_end)
@@ -122,7 +145,7 @@ export function AdminOvertimePayPage() {
       entry.totalMinutes += bd.totalMinutes
     }
     return Array.from(map.values()).sort((a, b) => b.totalMinutes - a.totalMinutes)
-  }, [allRequests, compLeaveRequestIds])
+  }, [allRequests, allEmployees, compLeaveRequestIds])
 
   function getWage(empId: string, dbWage: number): number {
     return wageOverrides[empId] ?? dbWage
