@@ -14,6 +14,16 @@ interface VerifyPopup {
   loading: boolean
 }
 
+interface DrillPopup {
+  empName: string
+  type: 'extended' | 'night' | 'holiday'
+  records: Array<{
+    r: OvertimeRequest & { employee: any }
+    bd: ReturnType<typeof calculateOvertimeBreakdown>
+    minutes: number
+  }>
+}
+
 function fmtWon(amount: number) {
   return `${Math.round(amount).toLocaleString('ko-KR')}원`
 }
@@ -39,6 +49,7 @@ export function AdminOvertimePayPage() {
   const [editingEmpId, setEditingEmpId] = useState<string | null>(null)
   const [editingValue, setEditingValue] = useState('')
   const [verifyPopup, setVerifyPopup] = useState<VerifyPopup | null>(null)
+  const [drillPopup, setDrillPopup] = useState<DrillPopup | null>(null)
 
   async function openVerify(empId: string, empName: string) {
     setVerifyPopup({ empId, empName, records: [], loading: true })
@@ -50,6 +61,22 @@ export function AdminOvertimePayPage() {
       .lte('date', monthEnd)
       .order('date', { ascending: true })
     setVerifyPopup({ empId, empName, records: (data as any) ?? [], loading: false })
+  }
+
+  function openDrill(empId: string, empName: string, type: 'extended' | 'night' | 'holiday') {
+    const records = allRequests
+      .filter(r => r.employee_id === empId && !compLeaveRequestIds.has(r.id))
+      .map(r => {
+        const bd = calculateOvertimeBreakdown(r.date, r.planned_start, r.planned_end)
+        const minutes =
+          type === 'extended' ? bd.extendedMinutes :
+          type === 'night' ? bd.nightMinutes :
+          bd.holidayMinutes + bd.holidayOvertimeMinutes + bd.holidayNightMinutes + bd.holidayOvertimeNightMinutes
+        return { r, bd, minutes }
+      })
+      .filter(({ minutes }) => minutes > 0)
+      .sort((a, b) => a.r.date.localeCompare(b.r.date))
+    setDrillPopup({ empName, type, records })
   }
 
   const monthPrefix = `${calYear}-${String(calMonth).padStart(2, '0')}`
@@ -406,7 +433,10 @@ export function AdminOvertimePayPage() {
                           )}
                         </td>
                         <td className="px-4 py-3 text-right text-xs text-dark-500">{fmtH(row.totalMinutes)}</td>
-                        <td className="px-4 py-3 text-right text-xs text-primary-600">
+                        <td
+                          className={`px-4 py-3 text-right text-xs text-primary-600 ${row.extended > 0 ? 'cursor-pointer hover:bg-primary-50' : ''}`}
+                          onClick={() => row.extended > 0 && openDrill(row.empId, row.name, 'extended')}
+                        >
                           <div className="text-[10px] text-dark-400 font-normal">{fmtH(row.extended)}</div>
                           {wage > 0 && row.extended > 0 && (
                             <div className="text-[10px] text-dark-400 font-normal">
@@ -415,7 +445,10 @@ export function AdminOvertimePayPage() {
                           )}
                           {wage > 0 ? fmtWon(extendedPay) : <span className="text-dark-200">-</span>}
                         </td>
-                        <td className="px-4 py-3 text-right text-xs text-dark-700">
+                        <td
+                          className={`px-4 py-3 text-right text-xs text-dark-700 ${row.night > 0 ? 'cursor-pointer hover:bg-primary-50' : ''}`}
+                          onClick={() => row.night > 0 && openDrill(row.empId, row.name, 'night')}
+                        >
                           <div className="text-[10px] text-dark-400 font-normal">{fmtH(row.night)}</div>
                           {wage > 0 && row.night > 0 && (
                             <div className="text-[10px] text-dark-400 font-normal">
@@ -424,7 +457,10 @@ export function AdminOvertimePayPage() {
                           )}
                           {wage > 0 ? fmtWon(nightPay) : <span className="text-dark-200">-</span>}
                         </td>
-                        <td className="px-4 py-3 text-right text-xs text-primary-600">
+                        <td
+                          className={`px-4 py-3 text-right text-xs text-primary-600 ${(row.holiday + row.holidayOvertime + row.holidayNight + row.holidayOvertimeNight) > 0 ? 'cursor-pointer hover:bg-primary-50' : ''}`}
+                          onClick={() => (row.holiday + row.holidayOvertime + row.holidayNight + row.holidayOvertimeNight) > 0 && openDrill(row.empId, row.name, 'holiday')}
+                        >
                           <div className="text-[10px] text-dark-400 font-normal">{fmtH(row.holiday + row.holidayOvertime + row.holidayNight + row.holidayOvertimeNight)}</div>
                           {wage > 0 && (
                             <div className="text-[10px] text-dark-400 font-normal leading-tight">
@@ -461,6 +497,51 @@ export function AdminOvertimePayPage() {
           </div>
         </>
       )}
+      {/* ── 드릴다운 팝업 ── */}
+      {drillPopup && (() => {
+        const TYPE_LABEL = { extended: '연장근로', night: '야간근로', holiday: '휴일근로' }
+        const totalMinutes = drillPopup.records.reduce((s, { minutes }) => s + minutes, 0)
+        const h = Math.floor(totalMinutes / 60), m = totalMinutes % 60
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setDrillPopup(null)}>
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-5 py-4 border-b border-dark-100">
+                <div>
+                  <p className="text-base font-bold text-dark-900">{drillPopup.empName}</p>
+                  <p className="text-xs text-dark-400 mt-0.5">{calYear}년 {calMonth}월 {TYPE_LABEL[drillPopup.type]} 상세</p>
+                </div>
+                <button onClick={() => setDrillPopup(null)} className="p-1.5 rounded-lg hover:bg-dark-100"><X size={18} className="text-dark-500" /></button>
+              </div>
+              <div className="overflow-y-auto flex-1 divide-y divide-dark-50">
+                {drillPopup.records.map(({ r, bd, minutes }) => {
+                  const dow = DOW_KO[new Date(r.date + 'T00:00:00+09:00').getDay()]
+                  const mh = Math.floor(minutes / 60), mm = minutes % 60
+                  return (
+                    <div key={r.id} className="px-5 py-3.5">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-semibold text-dark-800">{r.date.slice(5).replace('-', '/')} ({dow})</span>
+                        <span className="text-sm font-bold text-primary-600">{mm === 0 ? `${mh}시간` : `${mh}시간 ${mm}분`}</span>
+                      </div>
+                      <div className="text-xs text-dark-500 mb-0.5">
+                        {r.planned_start} ~ {r.planned_end}
+                        {bd.isHoliday && <span className="ml-2 text-primary-500 font-medium">휴일</span>}
+                      </div>
+                      {(r.site_name || r.reason) && (
+                        <p className="text-xs text-dark-400 truncate">{r.site_name ? `[${r.site_name}] ` : ''}{r.reason}</p>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="px-5 py-3 border-t border-dark-100 flex items-center justify-between bg-dark-50 rounded-b-2xl">
+                <span className="text-xs font-semibold text-dark-600">총 {drillPopup.records.length}건</span>
+                <span className="text-sm font-bold text-dark-800">{m === 0 ? `${h}시간` : `${h}시간 ${m}분`}</span>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* ── 누락 확인 팝업 ── */}
       {verifyPopup && (() => {
         const approved = verifyPopup.records.filter(r => r.status === 'approved')
