@@ -372,7 +372,10 @@ export function AdminOvertimePayPage() {
                     <th className="px-4 py-3 text-center text-xs font-semibold text-dark-600 whitespace-nowrap">시급</th>
                     <th className="px-4 py-3 text-right text-xs font-semibold text-dark-500 whitespace-nowrap">총 근무</th>
                     <th className="px-4 py-3 text-right text-xs font-semibold text-primary-600 whitespace-nowrap">연장수당</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-dark-700 whitespace-nowrap">야간수당</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-dark-700 whitespace-nowrap">
+                      야간수당
+                      <div className="text-[10px] font-normal text-dark-400">22:00~06:00</div>
+                    </th>
                     <th className="px-4 py-3 text-right text-xs font-semibold text-primary-600 whitespace-nowrap">휴일수당</th>
                     <th className="px-4 py-3 text-right text-xs font-semibold text-dark-700 whitespace-nowrap">수당 합계</th>
                   </tr>
