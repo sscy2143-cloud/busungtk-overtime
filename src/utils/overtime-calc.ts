@@ -133,12 +133,7 @@ export function calculateOvertimeBreakdown(
     return emptyBreakdown(isHoliday)
   }
 
-  // 근로기준법 제54조: 4시간 초과 시 30분, 8시간 초과 시 1시간 휴게 차감
-  // (휴일/야간 장시간 근무에만 실질 적용)
-  const breakMinutes = rawMinutes > 480 ? 60 : rawMinutes > 240 ? 30 : 0
-
-  // 휴게시간은 근무 종료 전에 사용한다고 가정 → 실제 계산 범위를 줄임
-  const effectiveEndMin = endMin - breakMinutes
+  const effectiveEndMin = endMin
 
   // 2026-05-01부터 완충구간 변경 (17:30~18:30 → 18:00~19:00)
   // 조기출근(09:00 이전)은 날짜 무관 항상 연장근로 인정
