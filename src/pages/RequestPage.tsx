@@ -162,33 +162,28 @@ export function RequestPage() {
     setConfirmOpen(false)
     setSubmitting(true)
 
-    const payload = {
-      employee_id: employee?.id ?? '',
+    const groupId = groupIds.length > 0 ? crypto.randomUUID() : null
+
+    const baseRecord = {
       type: breakdown.primaryType,
       date,
       planned_start: startTime,
       planned_end: endTime,
       reason: reason.trim(),
-      is_retroactive: true,
-      group_member_ids: groupIds,
-    }
-
-    const groupId = groupIds.length > 0 ? crypto.randomUUID() : null
-
-    const { error } = await supabase.from('overtime_requests').insert({
-      employee_id: payload.employee_id,
-      type: payload.type,
-      date: payload.date,
-      planned_start: payload.planned_start,
-      planned_end: payload.planned_end,
-      reason: payload.reason,
       site_name: siteName.trim() || null,
       work_details: workDetails.trim() || null,
       work_category: workCategory,
-      is_retroactive: payload.is_retroactive,
-      created_by: payload.employee_id,
+      is_retroactive: true,
+      created_by: employee?.id ?? '',
       group_id: groupId,
-    })
+    }
+
+    const records = [
+      { ...baseRecord, employee_id: employee?.id ?? '' },
+      ...groupIds.map(id => ({ ...baseRecord, employee_id: id })),
+    ]
+
+    const { error } = await supabase.from('overtime_requests').insert(records)
 
     if (error) {
       void error
