@@ -109,6 +109,64 @@ export function AdminApprovalsPage() {
     })
   }
 
+  // 다른 승인자가 먼저 "대체휴가로 승인"을 선택했으나, 최종 승인이 아직 안 나서
+  // 대체휴가 지급이 보류된 건이 있으면 이번 승인으로 마무리 처리
+  async function finalizeCompLeaveIfPending(id: string, finalStatus: string) {
+    if (finalStatus !== 'approved') return
+
+    const { data: existing } = await supabase
+      .from('substitute_history')
+      .select('id')
+      .eq('related_request_id', id)
+      .maybeSingle()
+    if (existing) return
+
+    const { data: histEntries } = await supabase
+      .from('approval_history')
+      .select('reason')
+      .eq('request_id', id)
+      .not('reason', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(5)
+
+    const match = histEntries?.map((h: { reason: string | null }) => h.reason).find(r => r && /대체휴가\s*([\d.]+)\s*시간\s*전환/.test(r))
+    const hoursMatch = match?.match(/대체휴가\s*([\d.]+)\s*시간\s*전환/)
+    const compLeaveHours = hoursMatch ? parseFloat(hoursMatch[1]) : 0
+    if (compLeaveHours <= 0) return
+
+    const req = overtimes.find(r => r.id === id)
+    if (!req) return
+
+    const grantedDays = compLeaveHours / 8
+    await supabase.from('substitute_history').insert({
+      employee_id: req.employee_id,
+      granted_days: grantedDays,
+      reason: `야근 대체전환: ${req.date} (${compLeaveHours}시간)`,
+      granted_by: employee?.id ?? '',
+      related_request_id: id,
+    })
+
+    const year = new Date().getFullYear()
+    const { data: bal } = await supabase
+      .from('leave_balances')
+      .select('substitute_total')
+      .eq('employee_id', req.employee_id)
+      .eq('year', year)
+      .maybeSingle()
+
+    if (bal) {
+      await supabase
+        .from('leave_balances')
+        .update({ substitute_total: (bal.substitute_total ?? 0) + grantedDays })
+        .eq('employee_id', req.employee_id)
+        .eq('year', year)
+    } else {
+      await supabase
+        .from('leave_balances')
+        .insert({ employee_id: req.employee_id, year, substitute_total: grantedDays, total_days: 0, used_days: 0, substitute_used: 0 })
+    }
+  }
+
   // 2단계 승인 (대표 + 인사담당자 모두 승인해야 최종 approved)
   async function handleApprove(id: string) {
     const req = overtimes.find(r => r.id === id)
@@ -142,6 +200,7 @@ export function AdminApprovalsPage() {
     }
 
     await recordHistory(id, 'overtime', req.status, updateFields.status as string, null)
+    await finalizeCompLeaveIfPending(id, updateFields.status as string)
     await fetchOvertimes()
     setCheckedIds((prev) => { const s = new Set(prev); s.delete(id); return s })
     showToast(updateFields.status === 'approved' ? '최종 승인 처리되었습니다' : '1차 승인 처리되었습니다', 'success')
@@ -296,6 +355,7 @@ export function AdminApprovalsPage() {
         .update(updateFields)
         .eq('id', id)
       await recordHistory(id, 'overtime', req.status, updateFields.status as string, null)
+      await finalizeCompLeaveIfPending(id, updateFields.status as string)
     }
 
     await fetchOvertimes()
