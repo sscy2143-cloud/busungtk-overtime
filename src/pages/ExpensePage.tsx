@@ -129,28 +129,32 @@ export function ExpensePage() {
     const os = /Windows/.test(ua) ? 'Windows' : /Mac/.test(ua) ? 'macOS' : /Android/.test(ua) ? 'Android' : /iPhone|iPad/.test(ua) ? 'iOS' : 'Other'
     const deviceInfo = `${os} / ${browser}${isMobile ? ' (모바일)' : ' (PC)'}`
 
-    const { error } = await supabase
-      .from('expenses')
-      .update({ employee_confirmed_at: now, confirmed_device: deviceInfo })
-      .eq('id', id)
-    if (!error) {
-      setExpenses(prev => prev.map(e => e.id === id ? { ...e, employee_confirmed_at: now, confirmed_device: deviceInfo } : e))
-      if (detailExp?.id === id) setDetailExp(prev => prev ? { ...prev, employee_confirmed_at: now, confirmed_device: deviceInfo } : null)
+    const { error } = await supabase.rpc('confirm_expense_receipt', {
+      p_expense_id: id,
+      p_device: deviceInfo,
+    })
+    if (error) {
+      alert('수령 확인에 실패했습니다: ' + error.message)
+      return
     }
+    setExpenses(prev => prev.map(e => e.id === id ? { ...e, employee_confirmed_at: now, confirmed_device: deviceInfo } : e))
+    if (detailExp?.id === id) setDetailExp(prev => prev ? { ...prev, employee_confirmed_at: now, confirmed_device: deviceInfo } : null)
   }
 
   async function requestCancel() {
     const { id, reason } = cancelModal
     if (!reason.trim()) return
     const now = new Date().toISOString()
-    const { error } = await supabase
-      .from('expenses')
-      .update({ cancel_requested_at: now, cancel_reason: reason.trim() })
-      .eq('id', id)
-    if (!error) {
-      setExpenses(prev => prev.map(e => e.id === id ? { ...e, cancel_requested_at: now, cancel_reason: reason.trim() } : e))
-      if (detailExp?.id === id) setDetailExp(prev => prev ? { ...prev, cancel_requested_at: now, cancel_reason: reason.trim() } : null)
+    const { error } = await supabase.rpc('request_expense_cancel', {
+      p_expense_id: id,
+      p_reason: reason.trim(),
+    })
+    if (error) {
+      alert('취소 요청에 실패했습니다: ' + error.message)
+      return
     }
+    setExpenses(prev => prev.map(e => e.id === id ? { ...e, cancel_requested_at: now, cancel_reason: reason.trim() } : e))
+    if (detailExp?.id === id) setDetailExp(prev => prev ? { ...prev, cancel_requested_at: now, cancel_reason: reason.trim() } : null)
     setCancelModal({ open: false, id: '', reason: '' })
   }
 
