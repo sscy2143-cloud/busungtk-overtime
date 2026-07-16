@@ -181,29 +181,24 @@ export function AdminLeaveBalancePage() {
     const grantedDays = unit === 'hours' ? value / 8 : value
     const displayText = unit === 'hours' ? `${value}시간` : `${value}일`
 
-    await supabase.from('substitute_history').insert({
-      employee_id: employeeId,
-      granted_days: grantedDays,
-      reason: `${reason.trim()} (${displayText})`,
-      granted_by: employee?.id ?? '',
+    const { data: newTotal, error } = await supabase.rpc('grant_substitute_leave', {
+      p_employee_id: employeeId,
+      p_granted_days: grantedDays,
+      p_reason: `${reason.trim()} (${displayText})`,
+      p_year: currentYear,
     })
-
-    const target = balances.find((b) => b.id === employeeId)
-    if (target) {
-      await supabase
-        .from('leave_balances')
-        .update({ substitute_total: (target.substitute_total ?? 0) + grantedDays })
-        .eq('employee_id', employeeId)
-        .eq('year', currentYear)
-
-      setBalances((prev) =>
-        prev.map((b) =>
-          b.id === employeeId
-            ? { ...b, substitute_total: (b.substitute_total ?? 0) + grantedDays }
-            : b,
-        ),
-      )
+    if (error) {
+      alert('대체휴가 부여에 실패했습니다: ' + error.message)
+      return
     }
+
+    setBalances((prev) =>
+      prev.map((b) =>
+        b.id === employeeId
+          ? { ...b, substitute_total: typeof newTotal === 'number' ? newTotal : (b.substitute_total ?? 0) + grantedDays }
+          : b,
+      ),
+    )
 
     setSubGrantModal({ open: false, employeeId: '', employeeName: '', unit: 'hours', value: 1, reason: '' })
   }

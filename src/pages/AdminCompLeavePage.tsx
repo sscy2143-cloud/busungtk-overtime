@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { RefreshCw, Plus, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { useAuth } from '../contexts/AuthContext'
 
 interface CompLeaveRecord {
   id: string
@@ -30,7 +29,6 @@ interface EmployeeOption {
 }
 
 export function AdminCompLeavePage() {
-  const { employee: currentUser } = useAuth()
   const [records, setRecords] = useState<CompLeaveRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [employees, setEmployees] = useState<EmployeeOption[]>([])
@@ -75,20 +73,15 @@ export function AdminCompLeavePage() {
     const grantedDays = unit === 'hours' ? value / 8 : value
     const displayText = unit === 'hours' ? `${value}시간` : `${value}일`
 
-    await supabase.from('substitute_history').insert({
-      employee_id: employeeId,
-      granted_days: grantedDays,
-      reason: `${reason.trim()} (${displayText})`,
-      granted_by: currentUser?.id ?? '',
+    const { error } = await supabase.rpc('grant_substitute_leave', {
+      p_employee_id: employeeId,
+      p_granted_days: grantedDays,
+      p_reason: `${reason.trim()} (${displayText})`,
+      p_year: currentYear,
     })
-
-    const target = employees.find(e => e.id === employeeId)
-    if (target) {
-      await supabase
-        .from('leave_balances')
-        .update({ substitute_total: (target.substitute_total ?? 0) + grantedDays })
-        .eq('employee_id', employeeId)
-        .eq('year', currentYear)
+    if (error) {
+      alert('대체휴가 지급에 실패했습니다: ' + error.message)
+      return
     }
 
     setGrantModal({ open: false, employeeId: '', unit: 'hours', value: 1, reason: '' })

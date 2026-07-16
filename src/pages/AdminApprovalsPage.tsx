@@ -138,33 +138,13 @@ export function AdminApprovalsPage() {
     if (!req) return
 
     const grantedDays = compLeaveHours / 8
-    await supabase.from('substitute_history').insert({
-      employee_id: req.employee_id,
-      granted_days: grantedDays,
-      reason: `야근 대체전환: ${req.date} (${compLeaveHours}시간)`,
-      granted_by: employee?.id ?? '',
-      related_request_id: id,
+    await supabase.rpc('grant_substitute_leave', {
+      p_employee_id: req.employee_id,
+      p_granted_days: grantedDays,
+      p_reason: `야근 대체전환: ${req.date} (${compLeaveHours}시간)`,
+      p_year: new Date().getFullYear(),
+      p_related_request_id: id,
     })
-
-    const year = new Date().getFullYear()
-    const { data: bal } = await supabase
-      .from('leave_balances')
-      .select('substitute_total')
-      .eq('employee_id', req.employee_id)
-      .eq('year', year)
-      .maybeSingle()
-
-    if (bal) {
-      await supabase
-        .from('leave_balances')
-        .update({ substitute_total: (bal.substitute_total ?? 0) + grantedDays })
-        .eq('employee_id', req.employee_id)
-        .eq('year', year)
-    } else {
-      await supabase
-        .from('leave_balances')
-        .insert({ employee_id: req.employee_id, year, substitute_total: grantedDays, total_days: 0, used_days: 0, substitute_used: 0 })
-    }
   }
 
   // 2단계 승인 (대표 + 인사담당자 모두 승인해야 최종 approved)
@@ -259,36 +239,18 @@ export function AdminApprovalsPage() {
 
     await recordHistory(id, 'overtime', req.status, updateFields.status as string, `대체휴가 ${compLeaveHours}시간 전환`)
 
-    // 둘 다 승인 완료 시에만 대체휴가 부여
+    // 둘 다 승인 완료 시에만 대체휴가 부여.
+    // 한쪽만 승인된 상태(manager_approved)면 여기서 부여하지 않고,
+    // 나머지 승인자가 handleApprove로 최종 승인할 때 finalizeCompLeaveIfPending가
+    // 승인 이력의 "대체휴가 N시간 전환"을 읽어 부여함.
     if (updateFields.status === 'approved') {
-      const grantedDays = compLeaveHours / 8
-      await supabase.from('substitute_history').insert({
-        employee_id: employeeId,
-        granted_days: grantedDays,
-        reason: `야근 대체전환: ${date} (${compLeaveHours}시간)`,
-        granted_by: employee?.id ?? '',
-        related_request_id: id,
+      await supabase.rpc('grant_substitute_leave', {
+        p_employee_id: employeeId,
+        p_granted_days: compLeaveHours / 8,
+        p_reason: `야근 대체전환: ${date} (${compLeaveHours}시간)`,
+        p_year: new Date().getFullYear(),
+        p_related_request_id: id,
       })
-
-      const year = new Date().getFullYear()
-      const { data: bal } = await supabase
-        .from('leave_balances')
-        .select('substitute_total')
-        .eq('employee_id', employeeId)
-        .eq('year', year)
-        .maybeSingle()
-
-      if (bal) {
-        await supabase
-          .from('leave_balances')
-          .update({ substitute_total: (bal.substitute_total ?? 0) + grantedDays })
-          .eq('employee_id', employeeId)
-          .eq('year', year)
-      } else {
-        await supabase
-          .from('leave_balances')
-          .insert({ employee_id: employeeId, year, substitute_total: grantedDays, total_days: 0, used_days: 0, substitute_used: 0 })
-      }
     }
 
     await fetchOvertimes()
