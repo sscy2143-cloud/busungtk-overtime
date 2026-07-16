@@ -37,6 +37,18 @@ interface SubstituteGrantModal {
   reason: string
 }
 
+interface SubHistoryRow {
+  id: string
+  granted_days: number
+  reason: string
+  created_at: string
+  related_request_id: string | null
+  overtime_request: { date: string; planned_start: string; planned_end: string } | null
+}
+
+const SUB_HISTORY_SELECT =
+  'id, granted_days, reason, created_at, related_request_id, overtime_request:overtime_requests!substitute_history_related_request_id_fkey(date, planned_start, planned_end)'
+
 export function AdminLeaveBalancePage() {
   const navigate = useNavigate()
   const { employee } = useAuth()
@@ -49,6 +61,12 @@ export function AdminLeaveBalancePage() {
   const [usedDetailModal, setUsedDetailModal] = useState<{ open: boolean; employeeId: string; employeeName: string }>({ open: false, employeeId: '', employeeName: '' })
   const [leaveDetails, setLeaveDetails] = useState<{ id: string; type: LeaveType; start_date: string; end_date: string; days: number }[]>([])
   const [leaveDetailsLoading, setLeaveDetailsLoading] = useState(false)
+  const [subDetailModal, setSubDetailModal] = useState<{ open: boolean; employeeId: string; employeeName: string }>({ open: false, employeeId: '', employeeName: '' })
+  const [subHistory, setSubHistory] = useState<SubHistoryRow[]>([])
+  const [subHistoryLoading, setSubHistoryLoading] = useState(false)
+  const [editingSubId, setEditingSubId] = useState<string | null>(null)
+  const [editSubHours, setEditSubHours] = useState('')
+  const [editSubReason, setEditSubReason] = useState('')
 
   const currentYear = new Date().getFullYear()
 
@@ -122,6 +140,56 @@ export function AdminLeaveBalancePage() {
       .order('start_date', { ascending: false })
     setLeaveDetails(data ?? [])
     setLeaveDetailsLoading(false)
+  }
+
+  async function loadSubHistory(employeeId: string) {
+    const { data } = await supabase
+      .from('substitute_history')
+      .select(SUB_HISTORY_SELECT)
+      .eq('employee_id', employeeId)
+      .order('created_at', { ascending: false })
+    setSubHistory((data as unknown as SubHistoryRow[]) ?? [])
+  }
+
+  async function openSubDetail(emp: EmployeeBalance) {
+    setSubDetailModal({ open: true, employeeId: emp.id, employeeName: emp.name })
+    setEditingSubId(null)
+    setSubHistoryLoading(true)
+    await loadSubHistory(emp.id)
+    setSubHistoryLoading(false)
+  }
+
+  function startEditSub(row: SubHistoryRow) {
+    setEditingSubId(row.id)
+    setEditSubHours(String(Math.round(row.granted_days * 8 * 100) / 100))
+    setEditSubReason(row.reason)
+  }
+
+  async function saveEditSub(id: string) {
+    const hours = parseFloat(editSubHours)
+    if (!hours || hours <= 0) { alert('시간을 올바르게 입력하세요'); return }
+    const { error } = await supabase.rpc('adjust_substitute_grant', {
+      p_history_id: id,
+      p_new_granted_days: hours / 8,
+      p_new_reason: editSubReason.trim(),
+    })
+    if (error) { alert('수정에 실패했습니다: ' + error.message); return }
+    setEditingSubId(null)
+    await loadSubHistory(subDetailModal.employeeId)
+    await loadBalances()
+    await loadOtCompLeave()
+  }
+
+  async function deleteSub(row: SubHistoryRow) {
+    const msg = row.related_request_id
+      ? '이 건은 야근을 대체휴가로 전환한 내역입니다.\n삭제하면 해당 야근이 다시 수당 계산 대상이 됩니다.\n삭제할까요?'
+      : '이 대체휴가 지급 내역을 삭제할까요?'
+    if (!window.confirm(msg)) return
+    const { error } = await supabase.rpc('delete_substitute_grant', { p_history_id: row.id })
+    if (error) { alert('삭제에 실패했습니다: ' + error.message); return }
+    await loadSubHistory(subDetailModal.employeeId)
+    await loadBalances()
+    await loadOtCompLeave()
   }
 
   function openAdjust(emp: EmployeeBalance) {
@@ -286,12 +354,17 @@ export function AdminLeaveBalancePage() {
                           const hours = Math.round(days * 8 * 10) / 10
                           const otHours = Math.round((otCompLeaveHours[b.id] ?? 0) * 10) / 10
                           return (
-                            <>
+                            <button
+                              type="button"
+                              onClick={() => openSubDetail(b)}
+                              className="mx-auto block rounded-lg px-2 py-1 hover:bg-primary-50 transition-colors"
+                              title="대체휴가 내역 보기/수정"
+                            >
                               {days}일 <span className="text-xs font-normal text-primary-400">({hours}h)</span>
                               {otHours > 0 && (
-                                <div className="text-xs font-normal text-primary-500 mt-0.5">야근전환 -{otHours}h</div>
+                                <div className="text-xs font-normal text-primary-500 mt-0.5 underline underline-offset-2">야근전환 -{otHours}h</div>
                               )}
-                            </>
+                            </button>
                           )
                         })()}
                       </td>
@@ -357,16 +430,20 @@ export function AdminLeaveBalancePage() {
                       </div>
                     </div>
 
-                    <div className="bg-primary-50 rounded-xl px-3 py-2 flex items-center justify-between">
-                      <p className="text-xs text-primary-600 font-medium">대체휴가 잔여</p>
+                    <button
+                      type="button"
+                      onClick={() => openSubDetail(b)}
+                      className="w-full bg-primary-50 rounded-xl px-3 py-2 flex items-center justify-between hover:bg-primary-100 transition-colors text-left"
+                    >
+                      <p className="text-xs text-primary-600 font-medium">대체휴가 잔여 <span className="text-primary-400">›</span></p>
                       <div className="text-right">
                         <span className="text-sm font-bold text-primary-700">{subDays}일</span>
                         <span className="text-xs font-normal text-primary-400 ml-1">({subHours}h)</span>
                         {otHours > 0 && (
-                          <p className="text-xs text-primary-500">야근전환 -{otHours}h</p>
+                          <p className="text-xs text-primary-500 underline underline-offset-2">야근전환 -{otHours}h</p>
                         )}
                       </div>
-                    </div>
+                    </button>
 
                     <div className="flex gap-2">
                       <button
@@ -430,6 +507,103 @@ export function AdminLeaveBalancePage() {
               <span className="text-xs text-dark-400">총 사용</span>
               <span className="text-sm font-bold text-warning-600">
                 {leaveDetails.reduce((sum, r) => sum + r.days, 0)}일
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 대체휴가 내역 상세/관리 모달 */}
+      {subDetailModal.open && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setSubDetailModal((p) => ({ ...p, open: false }))} />
+          <div className="relative bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-dark-100 shrink-0">
+              <div>
+                <h3 className="text-base font-bold text-dark-900">{subDetailModal.employeeName} 대체휴가 내역</h3>
+                <p className="text-xs text-dark-400 mt-0.5">{currentYear}년 · 부여 내역 수정/삭제 가능</p>
+              </div>
+              <button onClick={() => setSubDetailModal((p) => ({ ...p, open: false }))}>
+                <X className="w-5 h-5 text-dark-400" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1">
+              {subHistoryLoading ? (
+                <p className="text-center text-sm text-dark-400 py-8">불러오는 중...</p>
+              ) : subHistory.length === 0 ? (
+                <p className="text-center text-sm text-dark-400 py-8">대체휴가 지급 내역이 없습니다</p>
+              ) : (
+                <div className="divide-y divide-dark-100">
+                  {subHistory.map((row) => {
+                    const hours = Math.round(row.granted_days * 8 * 100) / 100
+                    const isOt = !!row.related_request_id
+                    const isEditing = editingSubId === row.id
+                    return (
+                      <div key={row.id} className="px-5 py-3.5">
+                        {isEditing ? (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min="0.5"
+                                step="0.5"
+                                value={editSubHours}
+                                onChange={(e) => setEditSubHours(e.target.value)}
+                                className="w-24 px-2 py-1.5 text-sm border border-primary-300 rounded-lg text-right focus:outline-none focus:ring-1 focus:ring-primary-400"
+                                autoFocus
+                              />
+                              <span className="text-sm text-dark-500">시간 = {(parseFloat(editSubHours || '0') / 8).toFixed(2)}일</span>
+                            </div>
+                            <input
+                              type="text"
+                              value={editSubReason}
+                              onChange={(e) => setEditSubReason(e.target.value)}
+                              placeholder="사유"
+                              className="w-full px-2 py-1.5 text-sm border border-dark-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-400"
+                            />
+                            <div className="flex gap-2 pt-1">
+                              <button onClick={() => setEditingSubId(null)} className="flex-1 py-1.5 text-xs font-medium text-dark-600 border border-dark-200 rounded-lg hover:bg-dark-50">취소</button>
+                              <button onClick={() => saveEditSub(row.id)} className="flex-1 py-1.5 text-xs font-semibold text-white bg-primary-500 rounded-lg hover:bg-primary-600">저장</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-sm font-bold text-primary-600">+{hours}h</span>
+                                <span className="text-xs text-dark-400">({row.granted_days}일)</span>
+                                {isOt && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary-50 text-primary-600 font-medium">야근전환</span>
+                                )}
+                              </div>
+                              {isOt && row.overtime_request && (
+                                <p className="text-xs text-dark-500 mt-0.5">
+                                  야근 {row.overtime_request.date} ({row.overtime_request.planned_start}~{row.overtime_request.planned_end})
+                                </p>
+                              )}
+                              <p className="text-xs text-dark-400 mt-0.5 truncate">{row.reason}</p>
+                              <p className="text-[11px] text-dark-300 mt-0.5">
+                                {new Date(row.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric' })} 지급
+                              </p>
+                            </div>
+                            <div className="flex gap-1 shrink-0">
+                              <button onClick={() => startEditSub(row)} className="text-xs text-dark-500 border border-dark-200 px-2 py-1 rounded-lg hover:border-primary-400 hover:text-primary-600 transition-colors">수정</button>
+                              <button onClick={() => deleteSub(row)} className="text-xs text-danger-600 border border-danger-200 px-2 py-1 rounded-lg hover:bg-danger-50 transition-colors">삭제</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="px-5 py-3 border-t border-dark-100 flex items-center justify-between bg-dark-50 shrink-0">
+              <span className="text-xs text-dark-500">대체휴가 총 지급</span>
+              <span className="text-sm font-bold text-primary-700">
+                {Math.round(subHistory.reduce((s, r) => s + r.granted_days * 8, 0) * 100) / 100}h
               </span>
             </div>
           </div>
