@@ -106,6 +106,8 @@ function formsEqual(a: FormState, b: FormState): boolean {
 export function AdminEmployeeManagementPage() {
   const { employee: currentUser, session } = useAuth()
   const isAdmin = currentUser?.role === 'admin'
+  const isManager = currentUser?.role === 'manager'
+  const canCreate = isAdmin || isManager
 
   const [employees, setEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(true)
@@ -461,7 +463,7 @@ export function AdminEmployeeManagementPage() {
           <h1 className="text-xl font-bold text-dark-900">직원 관리</h1>
           <p className="text-sm text-dark-500 mt-0.5">재직자 및 퇴직자 정보를 관리합니다</p>
         </div>
-        {isAdmin && (
+        {canCreate && (
           <button
             onClick={() => setCreateModal({ open: true, employeeNumber: '', name: '', department: '', role: 'employee', password: '', passwordConfirm: '' })}
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-600 transition-colors"
@@ -970,8 +972,8 @@ export function AdminEmployeeManagementPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-dark-600 mb-1">포지션</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {(['employee', 'manager', 'admin'] as UserRole[]).map(r => (
+                    <div className={`grid gap-2 ${isAdmin ? 'grid-cols-3' : 'grid-cols-1'}`}>
+                      {(isAdmin ? (['employee', 'manager', 'admin'] as UserRole[]) : (['employee'] as UserRole[])).map(r => (
                         <button
                           key={r}
                           type="button"
@@ -986,6 +988,9 @@ export function AdminEmployeeManagementPage() {
                         </button>
                       ))}
                     </div>
+                    {!isAdmin && (
+                      <p className="text-xs text-dark-400 mt-1">인사담당자는 일반 직원만 등록할 수 있습니다</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-dark-600 mb-1">비밀번호</label>
