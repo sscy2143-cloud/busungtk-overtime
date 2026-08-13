@@ -116,8 +116,8 @@ const HOURLY_RATE_MULTIPLIER: Record<string, number> = {
 }
 
 function LineItemEditor({
-  title, items, onChange, employeeName, onDrill, hourlyWage,
-}: { title: string; items: PayslipLineItem[]; onChange: (items: PayslipLineItem[]) => void; employeeName?: string; onDrill?: (label: string) => void; hourlyWage?: number }) {
+  title, items, onChange, employeeName, onDrill, hourlyWage, originalHours,
+}: { title: string; items: PayslipLineItem[]; onChange: (items: PayslipLineItem[]) => void; employeeName?: string; onDrill?: (label: string) => void; hourlyWage?: number; originalHours?: Record<string, number> }) {
   const total = items.reduce((s, i) => s + (i.amount || 0), 0)
 
   function adjustHours(i: number, delta: number) {
@@ -140,6 +140,7 @@ function LineItemEditor({
         <div className="divide-y divide-dark-50">
           {items.map((item, i) => {
             const hasRate = !!HOURLY_RATE_MULTIPLIER[item.label]
+            const isModified = hasRate && Math.abs((item.hours ?? 0) - (originalHours?.[item.label] ?? 0)) > 0.001
             return (
             <div key={i} className="flex items-center gap-2 px-3 py-2">
               <input
@@ -151,7 +152,7 @@ function LineItemEditor({
               />
               {hasRate ? (
                 <div className="flex items-center gap-1 shrink-0">
-                  <span className="w-10 text-right text-xs text-dark-600 tabular-nums">{(item.hours ?? 0).toFixed(1)}h</span>
+                  <span className={`w-10 text-right text-xs tabular-nums ${isModified ? 'text-amber-500' : 'text-dark-600'}`}>{(item.hours ?? 0).toFixed(1)}h</span>
                   <div className="flex flex-col">
                     <button
                       type="button"
@@ -516,7 +517,19 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
 
           <div ref={lineItemSplitRef} className="flex items-start w-full">
             <div style={{ width: `${lineItemSplitPct}%` }} className="min-w-0 pr-2">
-              <LineItemEditor title="지급항목" items={payments} onChange={setPayments} employeeName={employee?.name} onDrill={openDrill} hourlyWage={employee?.hourly_wage} />
+              <LineItemEditor
+                title="지급항목"
+                items={payments}
+                onChange={setPayments}
+                employeeName={employee?.name}
+                onDrill={openDrill}
+                hourlyWage={employee?.hourly_wage}
+                originalHours={{
+                  '연장근로수당': autoOvertime.extendedMinutes / 60,
+                  '야간근로수당': autoOvertime.nightMinutes / 60,
+                  '휴일근로수당': autoOvertime.holidayMinutes / 60,
+                }}
+              />
             </div>
             <div
               onMouseDown={handleLineItemDividerMouseDown}
