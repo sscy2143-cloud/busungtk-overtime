@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Plus, Trash2, Save, AlertTriangle, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { calculateOvertimeBreakdown } from '../../utils/overtime-calc'
+import { calculateOvertimeBreakdown, isHolidayDate } from '../../utils/overtime-calc'
 import type { InsuranceRow } from '../../utils/insurance-csv'
 import { calculateAutoDeductions } from '../../utils/payroll-deductions'
 import { PayslipView, Watermark, type PayslipLineItem } from './PayslipView'
@@ -74,6 +74,25 @@ function monthRange(period: string) {
   const [y, m] = period.split('-').map(Number)
   const lastDay = new Date(y, m, 0).getDate()
   return { start: `${period}-01`, end: `${period}-${String(lastDay).padStart(2, '0')}` }
+}
+
+/** 기간 내 소정근로일수 (평일이면서 공휴일이 아닌 날) */
+function countBusinessDays(startStr: string, endStr: string): number {
+  const [sy, sm, sd] = startStr.split('-').map(Number)
+  const [ey, em, ed] = endStr.split('-').map(Number)
+  const cur = new Date(sy, sm - 1, sd)
+  const end = new Date(ey, em - 1, ed)
+  let count = 0
+  while (cur <= end) {
+    const dateStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`
+    if (!isHolidayDate(dateStr)) count++
+    cur.setDate(cur.getDate() + 1)
+  }
+  return count
+}
+
+function formatHours(n: number): string {
+  return Number.isInteger(n) ? String(n) : n.toFixed(1)
 }
 
 function defaultPayDate(period: string) {
@@ -270,11 +289,12 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
     async function load() {
       setLoading(true)
       const { start, end } = monthRange(period)
-      const [{ data: slip }, { data: reqs }, { data: compLeave }, payrollInfo] = await Promise.all([
+      const [{ data: slip }, { data: reqs }, { data: compLeave }, payrollInfo, { data: leaves }] = await Promise.all([
         supabase.from('payslips').select('*').eq('employee_id', empId).eq('period', period).maybeSingle<GeneratedPayslipRow>(),
         supabase.from('overtime_requests').select('*').eq('employee_id', empId).eq('status', 'approved').gte('date', start).lte('date', end).returns<OvertimeRequestRow[]>(),
         supabase.from('substitute_history').select('related_request_id').not('related_request_id', 'is', null).returns<{ related_request_id: string | null }[]>(),
         supabase.from('employee_payroll_info').select('dependents_count, base_salary').eq('employee_id', empId).maybeSingle<{ dependents_count: number; base_salary: number }>(),
+        supabase.from('leave_requests').select('days').eq('employee_id', empId).eq('status', 'approved').gte('start_date', start).lte('end_date', end).returns<{ days: number }[]>(),
       ])
       if (cancelled) return
       const empDependents = payrollInfo.data?.dependents_count ?? 1
@@ -335,10 +355,17 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
         const healthMatch = employee ? healthInsuranceDataRef.current[employee.name] : undefined
         setDeductions(healthMatch ? applyHealthInsurance(defaultDeductions, healthMatch) : defaultDeductions)
       }
-      setTotalWorkDaysText('')
-      setTotalHoursText('')
-      setBaseHoursText('')
-      setLeaveHoursText('')
+      // 근태 데이터가 없어 정확한 출퇴근 기록은 없지만, 소정근로일(평일·공휴일 제외)에서
+      // 승인된 휴가일수를 뺀 값으로 기본값을 채워줌 (필요시 직접 수정 가능)
+      const businessDays = countBusinessDays(start, end)
+      const leaveDays = (leaves ?? []).reduce((s, l) => s + (l.days || 0), 0)
+      const defaultWorkDays = Math.max(0, businessDays - leaveDays)
+      const defaultBaseHours = defaultWorkDays * 8
+      const defaultTotalHours = defaultBaseHours + (extendedMinutes + holidayMinutes) / 60
+      setTotalWorkDaysText(`${defaultWorkDays}일`)
+      setTotalHoursText(formatHours(defaultTotalHours))
+      setBaseHoursText(formatHours(defaultBaseHours))
+      setLeaveHoursText(leaveDays > 0 ? formatHours(leaveDays * 8) : '')
       setEtcHoursText('')
       setLoading(false)
     }
@@ -483,7 +510,7 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
 
           <div className="bg-white rounded-xl border border-dark-200 p-4">
             <p className="text-xs font-semibold text-dark-600 mb-3">
-              근로시간 통계 <span className="font-normal text-dark-400">(연장·야간·휴일은 승인된 야근신청에서 자동계산, 나머지는 직접 입력)</span>
+              근로시간 통계 <span className="font-normal text-dark-400">(연장·야간·휴일은 승인된 야근신청에서 자동계산 / 근무일수·근로시간은 소정근로일 기준 기본값 자동입력, 필요시 직접 수정)</span>
             </p>
             <div className="grid grid-cols-2 gap-3">
               <div>

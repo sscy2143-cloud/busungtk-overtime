@@ -108,8 +108,15 @@ export function PayslipView({
         @media print {
           body * { visibility: hidden; }
           #payslip-print-root, #payslip-print-root * { visibility: visible; }
-          #payslip-print-root { position: absolute; left: 0; top: 0; width: 100%; }
+          #payslip-print-root {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 100%;
+            margin: 0;
+          }
           .payslip-no-print { display: none !important; }
+          .payslip-avoid-break { break-inside: avoid; page-break-inside: avoid; }
           @page { size: A4; margin: 12mm; }
         }
       `}</style>
@@ -131,7 +138,7 @@ export function PayslipView({
         <div className="relative z-10">
         <p className="text-xs text-dark-500 mb-2">{companyName}</p>
 
-        <div className="border border-dark-300 rounded-lg overflow-hidden">
+        <div className="payslip-avoid-break border border-dark-300 rounded-lg overflow-hidden">
           {/* 제목 + 지급일/입사일 */}
           <div className="flex items-start justify-between px-6 py-5 border-b border-dark-200">
             <h1 className="text-xl font-bold text-dark-900">{y}년 {parseInt(m, 10)}월 급여명세서</h1>
@@ -184,7 +191,7 @@ export function PayslipView({
 
         {/* 급여 산정 근로기간 + 근로시간 통계 */}
         {workStats && (
-          <div className="border border-dark-300 rounded-lg overflow-hidden mt-4">
+          <div className="payslip-avoid-break border border-dark-300 rounded-lg overflow-hidden mt-4">
             <div className="flex items-center justify-between px-6 py-3 border-b border-dark-200 bg-dark-50">
               <span className="text-sm font-semibold text-dark-700">급여 산정 근로기간</span>
               <span className="text-sm text-dark-700">{workStart || '-'} ~ {workEnd || '-'}</span>
@@ -222,7 +229,7 @@ export function PayslipView({
 
         {/* 급여 계산 방법 */}
         {calcMethods && calcMethods.length > 0 && (
-          <div className="border border-dark-300 rounded-lg overflow-hidden mt-4">
+          <div className="payslip-avoid-break border border-dark-300 rounded-lg overflow-hidden mt-4">
             <div className="px-6 py-3 border-b border-dark-200 bg-dark-50 text-center">
               <span className="text-sm font-semibold text-dark-700">급여 계산 방법</span>
             </div>
