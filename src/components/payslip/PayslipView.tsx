@@ -61,7 +61,7 @@ export function Watermark({ text, size = 'normal' }: { text: string; size?: 'nor
   if (!text) return null
   const small = size === 'small'
   return (
-    <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none select-none">
+    <div className="payslip-watermark absolute inset-0 z-0 overflow-hidden pointer-events-none select-none">
       <div
         className={small ? 'flex flex-wrap content-start gap-x-4 gap-y-4' : 'flex flex-wrap content-start gap-x-12 gap-y-16'}
         style={{ width: '160%', marginLeft: '-30%', marginTop: '-20%', transform: 'rotate(-28deg)', transformOrigin: 'center' }}
@@ -116,6 +116,7 @@ export function PayslipView({
             margin: 0;
           }
           .payslip-no-print { display: none !important; }
+          .payslip-watermark { display: none !important; }
           .payslip-avoid-break { break-inside: avoid; page-break-inside: avoid; }
           @page { size: A4; margin: 12mm; }
         }
