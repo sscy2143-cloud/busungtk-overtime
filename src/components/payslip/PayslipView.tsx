@@ -5,6 +5,7 @@ import { exportPayslipToExcel } from '../../utils/payslip-excel'
 export interface PayslipLineItem {
   label: string
   amount: number
+  hours?: number
 }
 
 export interface PayslipCalcMethod {

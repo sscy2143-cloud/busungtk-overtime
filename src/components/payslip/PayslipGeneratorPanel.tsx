@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Trash2, Save, AlertTriangle, X } from 'lucide-react'
+import { Plus, Trash2, Save, AlertTriangle, X, ChevronUp, ChevronDown } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { calculateOvertimeBreakdown, isHolidayDate } from '../../utils/overtime-calc'
@@ -65,7 +65,7 @@ interface GeneratedPayslipRow {
   file_path: string | null
   admin_note: string | null
   유형?: string
-  지급내역?: Array<{ 항목: string; 금액: number }>
+  지급내역?: Array<{ 항목: string; 금액: number; 시간?: number }>
   공제내역?: Array<{ 항목: string; 금액: number }>
 }
 
@@ -108,10 +108,27 @@ function numOrNull(s: string): number | null {
   return s.trim() !== '' && !isNaN(n) ? n : null
 }
 
+// 시간 스테퍼로 조절 가능한 항목의 시간당 배율 (연장/휴일 150%, 야간 200% — 근로기준법 가산율 기준)
+const HOURLY_RATE_MULTIPLIER: Record<string, number> = {
+  '연장근로수당': 1.5,
+  '야간근로수당': 2.0,
+  '휴일근로수당': 1.5,
+}
+
 function LineItemEditor({
-  title, items, onChange, employeeName, onDrill,
-}: { title: string; items: PayslipLineItem[]; onChange: (items: PayslipLineItem[]) => void; employeeName?: string; onDrill?: (label: string) => void }) {
+  title, items, onChange, employeeName, onDrill, hourlyWage,
+}: { title: string; items: PayslipLineItem[]; onChange: (items: PayslipLineItem[]) => void; employeeName?: string; onDrill?: (label: string) => void; hourlyWage?: number }) {
   const total = items.reduce((s, i) => s + (i.amount || 0), 0)
+
+  function adjustHours(i: number, delta: number) {
+    const item = items[i]
+    const rate = HOURLY_RATE_MULTIPLIER[item.label]
+    if (!rate) return
+    const nextHours = Math.max(0, Math.round(((item.hours ?? 0) + delta) * 2) / 2)
+    const nextAmount = Math.round(nextHours * rate * (hourlyWage ?? 0))
+    onChange(items.map((it, idx) => idx === i ? { ...it, hours: nextHours, amount: nextAmount } : it))
+  }
+
   return (
     <div className="relative border border-dark-200 rounded-xl overflow-hidden">
       <Watermark text={employeeName ?? ''} size="small" />
@@ -121,7 +138,9 @@ function LineItemEditor({
           <span className="text-sm font-bold text-dark-800">{total.toLocaleString('ko-KR')}</span>
         </div>
         <div className="divide-y divide-dark-50">
-          {items.map((item, i) => (
+          {items.map((item, i) => {
+            const hasRate = !!HOURLY_RATE_MULTIPLIER[item.label]
+            return (
             <div key={i} className="flex items-center gap-2 px-3 py-2">
               <input
                 type="text"
@@ -130,6 +149,29 @@ function LineItemEditor({
                 placeholder="항목명"
                 className="flex-1 min-w-0 basis-0 px-2 py-1.5 text-xs border border-dark-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-400"
               />
+              {hasRate ? (
+                <div className="flex items-center gap-1 shrink-0">
+                  <span className="w-10 text-right text-xs text-dark-600 tabular-nums">{(item.hours ?? 0).toFixed(1)}h</span>
+                  <div className="flex flex-col">
+                    <button
+                      type="button"
+                      onClick={() => adjustHours(i, 0.5)}
+                      className="p-0.5 text-dark-400 hover:text-primary-600 hover:bg-primary-50 rounded-t"
+                    >
+                      <ChevronUp size={11} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => adjustHours(i, -0.5)}
+                      className="p-0.5 text-dark-400 hover:text-primary-600 hover:bg-primary-50 rounded-b"
+                    >
+                      <ChevronDown size={11} />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <span className="w-[52px] shrink-0" />
+              )}
               <input
                 type="text"
                 inputMode="numeric"
@@ -154,7 +196,8 @@ function LineItemEditor({
                 <Trash2 size={13} />
               </button>
             </div>
-          ))}
+            )
+          })}
         </div>
         <button
           onClick={() => onChange([...items, { label: '', amount: 0 }])}
@@ -333,7 +376,7 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
         setMessage(slip.message ?? '')
         const pays = slip.지급내역 ?? []
         const deds = slip.공제내역 ?? []
-        const loadedPayments = pays.length ? pays.map(p => ({ label: p.항목, amount: p.금액 })) : [{ label: '기본급', amount: 0 }]
+        const loadedPayments = pays.length ? pays.map(p => ({ label: p.항목, amount: p.금액, hours: p.시간 })) : [{ label: '기본급', amount: 0 }]
         setPayments(loadedPayments)
         const loadedTotal = loadedPayments.reduce((s, p) => s + (p.amount || 0), 0)
         const autoDed = calculateAutoDeductions(loadedTotal, empDependents)
@@ -351,9 +394,9 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
         const holidayPay = (holiday / 60) * wage * 1.5 + (holidayOT / 60) * wage * 2.0 + (holidayNight / 60) * wage * 2.0 + (holidayOTNight / 60) * wage * 2.5
         const autoPayments: PayslipLineItem[] = [
           { label: '기본급', amount: payrollInfo.data?.base_salary ?? 0 },
-          { label: '연장근로수당', amount: Math.round((extendedMinutes / 60) * wage * 1.5) },
-          { label: '야간근로수당', amount: Math.round((nightMinutes / 60) * wage * 2.0) },
-          { label: '휴일근로수당', amount: Math.round(holidayPay) },
+          { label: '연장근로수당', amount: Math.round((extendedMinutes / 60) * wage * 1.5), hours: extendedMinutes / 60 },
+          { label: '야간근로수당', amount: Math.round((nightMinutes / 60) * wage * 2.0), hours: nightMinutes / 60 },
+          { label: '휴일근로수당', amount: Math.round(holidayPay), hours: holidayMinutes / 60 },
         ]
         setPayments(autoPayments)
         const totalPayment = autoPayments.reduce((s, p) => s + (p.amount || 0), 0)
@@ -395,7 +438,7 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
     const payload = {
       employee_id: empId,
       period,
-      지급내역: payments.filter(p => p.label).map(p => ({ 항목: p.label, 금액: p.amount || 0 })),
+      지급내역: payments.filter(p => p.label).map(p => ({ 항목: p.label, 금액: p.amount || 0, 시간: p.hours })),
       공제내역: deductions.filter(d => d.label).map(d => ({ 항목: d.label, 금액: d.amount || 0 })),
       지급합계,
       공제합계,
@@ -473,7 +516,7 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
 
           <div ref={lineItemSplitRef} className="flex items-start w-full">
             <div style={{ width: `${lineItemSplitPct}%` }} className="min-w-0 pr-2">
-              <LineItemEditor title="지급항목" items={payments} onChange={setPayments} employeeName={employee?.name} onDrill={openDrill} />
+              <LineItemEditor title="지급항목" items={payments} onChange={setPayments} employeeName={employee?.name} onDrill={openDrill} hourlyWage={employee?.hourly_wage} />
             </div>
             <div
               onMouseDown={handleLineItemDividerMouseDown}
