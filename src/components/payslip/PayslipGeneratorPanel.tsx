@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Trash2, Save, AlertTriangle } from 'lucide-react'
+import { Plus, Trash2, Save, AlertTriangle, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { calculateOvertimeBreakdown } from '../../utils/overtime-calc'
@@ -32,6 +32,29 @@ interface OvertimeRequestRow {
   date: string
   planned_start: string
   planned_end: string
+  site_name?: string | null
+  reason?: string | null
+}
+
+interface DrillPopupState {
+  type: 'extended' | 'night' | 'holiday'
+  records: Array<{
+    r: OvertimeRequestRow
+    bd: ReturnType<typeof calculateOvertimeBreakdown>
+    minutes: number
+  }>
+}
+
+const DOW_KO = ['일', '월', '화', '수', '목', '금', '토']
+const DRILL_LABEL: Record<string, DrillPopupState['type']> = {
+  '연장근로수당': 'extended',
+  '야간근로수당': 'night',
+  '휴일근로수당': 'holiday',
+}
+const DRILL_TYPE_LABEL: Record<DrillPopupState['type'], string> = {
+  extended: '연장근로',
+  night: '야간근로',
+  holiday: '휴일근로',
 }
 
 interface GeneratedPayslipRow {
@@ -66,8 +89,8 @@ function numOrNull(s: string): number | null {
 }
 
 function LineItemEditor({
-  title, items, onChange, employeeName,
-}: { title: string; items: PayslipLineItem[]; onChange: (items: PayslipLineItem[]) => void; employeeName?: string }) {
+  title, items, onChange, employeeName, onDrill,
+}: { title: string; items: PayslipLineItem[]; onChange: (items: PayslipLineItem[]) => void; employeeName?: string; onDrill?: (label: string) => void }) {
   const total = items.reduce((s, i) => s + (i.amount || 0), 0)
   return (
     <div className="relative border border-dark-200 rounded-xl overflow-hidden">
@@ -98,6 +121,15 @@ function LineItemEditor({
                 placeholder="금액"
                 className="flex-1 min-w-0 basis-0 px-2 py-1.5 text-xs border border-dark-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-400 text-right"
               />
+              {onDrill && DRILL_LABEL[item.label] && (
+                <button
+                  type="button"
+                  onClick={() => onDrill(item.label)}
+                  className="px-1.5 py-1 text-[10px] font-medium text-primary-600 hover:bg-primary-50 rounded whitespace-nowrap"
+                >
+                  상세
+                </button>
+              )}
               <button onClick={() => onChange(items.filter((_, idx) => idx !== i))} className="p-1 text-dark-300 hover:text-primary-500">
                 <Trash2 size={13} />
               </button>
@@ -158,22 +190,24 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
   const [deductions, setDeductions] = useState<PayslipLineItem[]>(DEFAULT_DEDUCTION_LABELS.map(label => ({ label, amount: 0 })))
   const [autoOvertime, setAutoOvertime] = useState({ extendedMinutes: 0, nightMinutes: 0, holidayMinutes: 0 })
   const [dependents, setDependents] = useState(1)
-  const [savedBaseSalary, setSavedBaseSalary] = useState(0)
-  const [savingBaseSalary, setSavingBaseSalary] = useState(false)
+  const [rawOvertimeRecords, setRawOvertimeRecords] = useState<OvertimeRequestRow[]>([])
+  const [drillPopup, setDrillPopup] = useState<DrillPopupState | null>(null)
 
-  async function handleSaveBaseSalary() {
-    if (!empId) return
-    const current = payments.find(p => p.label === '기본급')?.amount ?? 0
-    setSavingBaseSalary(true)
-    const { error } = await supabase
-      .from('employee_payroll_info')
-      .upsert({ employee_id: empId, base_salary: current }, { onConflict: 'employee_id' })
-    setSavingBaseSalary(false)
-    if (error) {
-      alert('기본급 저장에 실패했습니다.')
-      return
-    }
-    setSavedBaseSalary(current)
+  function openDrill(label: string) {
+    const type = DRILL_LABEL[label]
+    if (!type) return
+    const records = rawOvertimeRecords
+      .map(r => {
+        const bd = calculateOvertimeBreakdown(r.date, r.planned_start, r.planned_end)
+        const minutes =
+          type === 'extended' ? bd.extendedMinutes :
+          type === 'night' ? bd.nightMinutes :
+          bd.holidayMinutes + bd.holidayOvertimeMinutes + bd.holidayNightMinutes + bd.holidayOvertimeNightMinutes
+        return { r, bd, minutes }
+      })
+      .filter(({ minutes }) => minutes > 0)
+      .sort((a, b) => a.r.date.localeCompare(b.r.date))
+    setDrillPopup({ type, records })
   }
 
   const healthInsuranceDataRef = useRef(healthInsuranceData)
@@ -245,12 +279,13 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
       if (cancelled) return
       const empDependents = payrollInfo.data?.dependents_count ?? 1
       setDependents(empDependents)
-      setSavedBaseSalary(payrollInfo.data?.base_salary ?? 0)
 
       const compLeaveIds = new Set((compLeave ?? []).map(r => r.related_request_id))
+      const filteredReqs = (reqs ?? []).filter(r => !compLeaveIds.has(r.id))
+      setRawOvertimeRecords(filteredReqs)
       let extendedMinutes = 0, nightMinutes = 0
       let holiday = 0, holidayOT = 0, holidayNight = 0, holidayOTNight = 0
-      for (const r of (reqs ?? []).filter(r => !compLeaveIds.has(r.id))) {
+      for (const r of filteredReqs) {
         const bd = calculateOvertimeBreakdown(r.date, r.planned_start, r.planned_end)
         extendedMinutes += bd.extendedMinutes
         nightMinutes += bd.nightMinutes
@@ -403,19 +438,7 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
 
           <div ref={lineItemSplitRef} className="flex items-start w-full">
             <div style={{ width: `${lineItemSplitPct}%` }} className="min-w-0 pr-2">
-              <LineItemEditor title="지급항목" items={payments} onChange={setPayments} employeeName={employee?.name} />
-              <div className="flex items-center gap-2 mt-1.5 px-1">
-                <button
-                  onClick={handleSaveBaseSalary}
-                  disabled={savingBaseSalary}
-                  className="text-xs text-primary-600 hover:underline disabled:opacity-50"
-                >
-                  {savingBaseSalary ? '저장 중...' : '기본급을 이 직원 기본값으로 저장'}
-                </button>
-                {savedBaseSalary > 0 && (
-                  <span className="text-xs text-dark-400">저장된 기본값: {savedBaseSalary.toLocaleString('ko-KR')}원</span>
-                )}
-              </div>
+              <LineItemEditor title="지급항목" items={payments} onChange={setPayments} employeeName={employee?.name} onDrill={openDrill} />
             </div>
             <div
               onMouseDown={handleLineItemDividerMouseDown}
@@ -538,6 +561,52 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
           </div>
         </>
       )}
+
+      {drillPopup && (() => {
+        const totalMinutes = drillPopup.records.reduce((s, { minutes }) => s + minutes, 0)
+        const h = Math.floor(totalMinutes / 60), m = totalMinutes % 60
+        const [py, pm] = period.split('-')
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setDrillPopup(null)}>
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-5 py-4 border-b border-dark-100">
+                <div>
+                  <p className="text-base font-bold text-dark-900">{employee?.name}</p>
+                  <p className="text-xs text-dark-400 mt-0.5">{py}년 {parseInt(pm, 10)}월 {DRILL_TYPE_LABEL[drillPopup.type]} 상세</p>
+                </div>
+                <button onClick={() => setDrillPopup(null)} className="p-1.5 rounded-lg hover:bg-dark-100"><X size={18} className="text-dark-500" /></button>
+              </div>
+              <div className="overflow-y-auto flex-1 divide-y divide-dark-50">
+                {drillPopup.records.length === 0 ? (
+                  <p className="px-5 py-8 text-center text-sm text-dark-400">해당 기간 내역이 없습니다</p>
+                ) : drillPopup.records.map(({ r, bd, minutes }) => {
+                  const dow = DOW_KO[new Date(r.date + 'T00:00:00+09:00').getDay()]
+                  const mh = Math.floor(minutes / 60), mm = minutes % 60
+                  return (
+                    <div key={r.id} className="px-5 py-3.5">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-semibold text-dark-800">{r.date.slice(5).replace('-', '/')} ({dow})</span>
+                        <span className="text-sm font-bold text-primary-600">{mm === 0 ? `${mh}시간` : `${mh}시간 ${mm}분`}</span>
+                      </div>
+                      <div className="text-xs text-dark-500 mb-0.5">
+                        {r.planned_start} ~ {r.planned_end}
+                        {bd.isHoliday && <span className="ml-2 text-primary-500 font-medium">휴일</span>}
+                      </div>
+                      {(r.site_name || r.reason) && (
+                        <p className="text-xs text-dark-400 truncate">{r.site_name ? `[${r.site_name}] ` : ''}{r.reason}</p>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="px-5 py-3 border-t border-dark-100 flex items-center justify-between bg-dark-50 rounded-b-2xl">
+                <span className="text-xs font-semibold text-dark-600">총 {drillPopup.records.length}건</span>
+                <span className="text-sm font-bold text-dark-800">{m === 0 ? `${h}시간` : `${h}시간 ${m}분`}</span>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

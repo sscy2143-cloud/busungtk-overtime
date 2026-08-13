@@ -321,7 +321,15 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
                         <td className="px-4 py-3">
                           <span className={`px-2 py-1 rounded-md text-xs font-medium ${s.cls}`}>{s.text}</span>
                         </td>
-                        <td className="px-4 py-3 font-medium text-dark-800">{r.employee.name}</td>
+                        <td className="px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={e => { e.stopPropagation(); setSelectedEmpId(r.employee.id) }}
+                            className="font-medium text-primary-600 hover:underline"
+                          >
+                            {r.employee.name}
+                          </button>
+                        </td>
                         <td className="px-4 py-3 text-xs text-dark-400">{r.employee.department}</td>
                         <td className="px-4 py-3 text-center text-xs text-dark-500">{r.employee.hire_date ?? '-'}</td>
                         <td className="px-4 py-3 text-right text-dark-700">{fmt(r.totalPayment)}</td>

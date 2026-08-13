@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Lock } from 'lucide-react'
-import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 
 interface ReauthGateProps {
@@ -11,22 +10,18 @@ interface ReauthGateProps {
 }
 
 export function ReauthGate({ onVerified, title = '민감 정보 확인', description = '이 내용을 보려면 로그인 비밀번호를 다시 확인해주세요.', compact = false }: ReauthGateProps) {
-  const { employee } = useAuth()
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!employee || !password) return
+    if (!password) return
     setError('')
     setLoading(true)
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email: employee.email,
-      password,
-    })
+    const { data, error: rpcError } = await supabase.rpc('verify_login_password', { p_password: password })
     setLoading(false)
-    if (authError) { setError('비밀번호가 올바르지 않습니다'); setPassword(''); return }
+    if (rpcError || !data) { setError('비밀번호가 올바르지 않습니다'); setPassword(''); return }
     onVerified()
   }
 
@@ -40,7 +35,7 @@ export function ReauthGate({ onVerified, title = '민감 정보 확인', descrip
       <form onSubmit={handleSubmit} className="flex gap-2 max-w-xs">
         <input
           type="password"
-          autoComplete="off"
+          autoComplete="new-password"
           value={password}
           onChange={e => { setPassword(e.target.value); setError('') }}
           placeholder="로그인 비밀번호"

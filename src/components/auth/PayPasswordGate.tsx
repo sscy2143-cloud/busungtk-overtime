@@ -27,12 +27,9 @@ export function PayPasswordGate({ children }: { children: React.ReactNode }) {
     if (!employee || !password) return
     setError('')
     setLoading(true)
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email: employee.email,
-      password,
-    })
+    const { data, error: rpcError } = await supabase.rpc('verify_login_password', { p_password: password })
     setLoading(false)
-    if (authError) {
+    if (rpcError || !data) {
       setError('비밀번호가 올바르지 않습니다')
       setPassword('')
       return
@@ -57,7 +54,7 @@ export function PayPasswordGate({ children }: { children: React.ReactNode }) {
         <form onSubmit={handleSubmit} className="space-y-3">
           <input
             type="password"
-            autoComplete="off"
+            autoComplete="new-password"
             value={password}
             onChange={e => { setPassword(e.target.value); setError('') }}
             placeholder="비밀번호 입력"
