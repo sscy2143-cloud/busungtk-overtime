@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { ChevronLeft, ChevronRight, Search, Upload, FileSpreadsheet } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Search, Upload, FileSpreadsheet, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { parseHealthInsuranceCsv, parseNationalPensionCsv, parseEmploymentInsuranceCsv, type InsuranceRow } from '../../utils/insurance-csv'
 import { PayslipGeneratorPanel, type GeneratorEmployee } from './PayslipGeneratorPanel'
@@ -30,6 +30,14 @@ interface PayslipSummaryRow {
 interface PayrollLedgerPanelProps {
   employees: LedgerEmployee[]
   onSaved?: () => void
+}
+
+interface EmployeePayrollInfo {
+  base_salary: number
+  annual_salary: number
+  dependents_count: number
+  salary_bank: string | null
+  salary_account: string | null
 }
 
 function shiftPeriod(period: string, delta: number) {
@@ -64,6 +72,22 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
   const [nameFilter, setNameFilter] = useState('')
   const [selectedEmpId, setSelectedEmpId] = useState('')
   const [exportingExcel, setExportingExcel] = useState(false)
+  const [infoPopupEmp, setInfoPopupEmp] = useState<LedgerEmployee | null>(null)
+  const [infoPopupPayroll, setInfoPopupPayroll] = useState<EmployeePayrollInfo | null>(null)
+  const [infoPopupLoading, setInfoPopupLoading] = useState(false)
+
+  async function openInfoPopup(emp: LedgerEmployee) {
+    setInfoPopupEmp(emp)
+    setInfoPopupPayroll(null)
+    setInfoPopupLoading(true)
+    const { data } = await supabase
+      .from('employee_payroll_info')
+      .select('base_salary, annual_salary, dependents_count, salary_bank, salary_account')
+      .eq('employee_id', emp.id)
+      .maybeSingle<EmployeePayrollInfo>()
+    setInfoPopupPayroll(data)
+    setInfoPopupLoading(false)
+  }
 
   function insuranceStorageKey(p: string, part: 'data' | 'names') {
     return `busungtk_insurance_${part}_${p}`
@@ -369,7 +393,7 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
                         <td className="px-4 py-3">
                           <button
                             type="button"
-                            onClick={e => { e.stopPropagation(); setSelectedEmpId(r.employee.id) }}
+                            onClick={e => { e.stopPropagation(); openInfoPopup(r.employee) }}
                             className="font-medium text-primary-600 hover:underline"
                           >
                             {r.employee.name}
@@ -414,6 +438,45 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
           )}
         </div>
       </div>
+
+      {infoPopupEmp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setInfoPopupEmp(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-dark-100">
+              <p className="text-base font-bold text-dark-900">사원 정보</p>
+              <button onClick={() => setInfoPopupEmp(null)} className="p-1.5 rounded-lg hover:bg-dark-100"><X size={18} className="text-dark-500" /></button>
+            </div>
+            <div className="px-5 py-4 space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-dark-400">이름</span><span className="font-medium text-dark-800">{infoPopupEmp.name}</span></div>
+              <div className="flex justify-between"><span className="text-dark-400">부서</span><span className="text-dark-700">{infoPopupEmp.department}</span></div>
+              <div className="flex justify-between"><span className="text-dark-400">직원구분</span><span className="text-dark-700">{infoPopupEmp.employee_type === 'office' ? '사무직' : '현장직'}</span></div>
+              <div className="flex justify-between"><span className="text-dark-400">입사일</span><span className="text-dark-700">{infoPopupEmp.hire_date ?? '-'}</span></div>
+              <div className="flex justify-between"><span className="text-dark-400">시급</span><span className="text-dark-700">{fmt(infoPopupEmp.hourly_wage ?? 0)}원</span></div>
+              <div className="border-t border-dark-100 my-2" />
+              {infoPopupLoading ? (
+                <p className="text-xs text-dark-400 text-center py-2">불러오는 중...</p>
+              ) : infoPopupPayroll ? (
+                <>
+                  <div className="flex justify-between"><span className="text-dark-400">월급</span><span className="text-dark-700">{fmt(infoPopupPayroll.base_salary)}원</span></div>
+                  <div className="flex justify-between"><span className="text-dark-400">연봉</span><span className="text-dark-700">{fmt(infoPopupPayroll.annual_salary)}원</span></div>
+                  <div className="flex justify-between"><span className="text-dark-400">급여은행</span><span className="text-dark-700">{infoPopupPayroll.salary_bank || '-'}</span></div>
+                  <div className="flex justify-between"><span className="text-dark-400">급여계좌</span><span className="text-dark-700">{infoPopupPayroll.salary_account || '-'}</span></div>
+                </>
+              ) : (
+                <p className="text-xs text-dark-400 text-center py-2">등록된 급여정보가 없습니다</p>
+              )}
+            </div>
+            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-dark-100">
+              <button
+                onClick={() => { setSelectedEmpId(infoPopupEmp.id); setInfoPopupEmp(null) }}
+                className="px-4 py-2 text-sm font-medium text-white bg-primary-500 rounded-lg hover:bg-primary-600"
+              >
+                급여명세서 보기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

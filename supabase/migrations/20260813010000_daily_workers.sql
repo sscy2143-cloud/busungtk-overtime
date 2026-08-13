@@ -11,8 +11,9 @@ create table if not exists daily_workers (
   nationality       text,   -- 국적
   visa_status       text,   -- 체류자격
   job_type          text,   -- 직종
-  work_date         date,   -- 일용직으로 일한 날
-  daily_wage        integer not null default 0, -- 일지급금
+  work_date         date,   -- 근무 시작일 (하루만 일했으면 이 날짜만)
+  work_date_end     date,   -- 근무 종료일 (연속 근무 시, 없으면 시작일과 동일한 하루로 간주)
+  daily_wage        integer not null default 0, -- 지급액 (근무기간 전체 합계)
   bank              text,
   account_number    text,
   mobile_phone      text,

@@ -11,6 +11,7 @@ interface DailyWorker {
   visa_status: string | null
   job_type: string | null
   work_date: string | null
+  work_date_end: string | null
   daily_wage: number
   bank: string | null
   account_number: string | null
@@ -27,6 +28,7 @@ interface WorkerForm {
   visa_status: string
   job_type: string
   work_date: string
+  work_date_end: string
   daily_wage: string
   bank: string
   account_number: string
@@ -37,11 +39,17 @@ interface WorkerForm {
 
 const EMPTY_FORM: WorkerForm = {
   name: '', resident_number: '', project: '', nationality: '', visa_status: '',
-  job_type: '', work_date: '', daily_wage: '', bank: '', account_number: '', mobile_phone: '', phone: '', note: '',
+  job_type: '', work_date: '', work_date_end: '', daily_wage: '', bank: '', account_number: '', mobile_phone: '', phone: '', note: '',
 }
 
 function fmt(n: number) {
   return n.toLocaleString('ko-KR')
+}
+
+function fmtWorkDate(start: string | null, end: string | null) {
+  if (!start) return '-'
+  if (!end || end === start) return start
+  return `${start} ~ ${end}`
 }
 
 export function DailyWorkerPanel() {
@@ -87,7 +95,7 @@ export function DailyWorkerPanel() {
     setForm({
       name: w.name, resident_number: w.resident_number ?? '', project: w.project ?? '',
       nationality: w.nationality ?? '', visa_status: w.visa_status ?? '', job_type: w.job_type ?? '',
-      work_date: w.work_date ?? '', daily_wage: String(w.daily_wage ?? 0), bank: w.bank ?? '',
+      work_date: w.work_date ?? '', work_date_end: w.work_date_end ?? '', daily_wage: String(w.daily_wage ?? 0), bank: w.bank ?? '',
       account_number: w.account_number ?? '', mobile_phone: w.mobile_phone ?? '', phone: w.phone ?? '',
       note: w.note ?? '',
     })
@@ -96,6 +104,10 @@ export function DailyWorkerPanel() {
 
   async function handleSave() {
     if (!form.name.trim()) { alert('사원명을 입력해주세요'); return }
+    if (form.work_date_end && form.work_date && form.work_date_end < form.work_date) {
+      alert('종료일이 시작일보다 빠를 수 없습니다')
+      return
+    }
     setSaving(true)
     const payload = {
       name: form.name.trim(),
@@ -105,6 +117,7 @@ export function DailyWorkerPanel() {
       visa_status: form.visa_status.trim() || null,
       job_type: form.job_type.trim() || null,
       work_date: form.work_date || null,
+      work_date_end: form.work_date_end || form.work_date || null,
       daily_wage: Number(form.daily_wage) || 0,
       bank: form.bank.trim() || null,
       account_number: form.account_number.trim() || null,
@@ -155,8 +168,9 @@ export function DailyWorkerPanel() {
         { header: '국적', key: 'nationality', width: 10 },
         { header: '체류자격', key: 'visa_status', width: 10 },
         { header: '직종', key: 'job_type', width: 12 },
-        { header: '근무일', key: 'work_date', width: 12 },
-        { header: '일지급금', key: 'daily_wage', width: 12 },
+        { header: '근무 시작일', key: 'work_date', width: 12 },
+        { header: '근무 종료일', key: 'work_date_end', width: 12 },
+        { header: '지급액', key: 'daily_wage', width: 12 },
         { header: '은행', key: 'bank', width: 10 },
         { header: '계좌번호', key: 'account_number', width: 18 },
         { header: '휴대전화', key: 'mobile_phone', width: 14 },
@@ -173,6 +187,7 @@ export function DailyWorkerPanel() {
           visa_status: w.visa_status ?? '',
           job_type: w.job_type ?? '',
           work_date: w.work_date ?? '',
+          work_date_end: w.work_date_end ?? '',
           daily_wage: w.daily_wage,
           bank: w.bank ?? '',
           account_number: w.account_number ?? '',
@@ -224,12 +239,13 @@ export function DailyWorkerPanel() {
           visa_status: cell(5) || null,
           job_type: cell(6) || null,
           work_date: cell(7) || null,
-          daily_wage: Number(cell(8)) || 0,
-          bank: cell(9) || null,
-          account_number: cell(10) || null,
-          mobile_phone: cell(11) || null,
-          phone: cell(12) || null,
-          note: cell(13) || null,
+          work_date_end: cell(8) || cell(7) || null,
+          daily_wage: Number(cell(9)) || 0,
+          bank: cell(10) || null,
+          account_number: cell(11) || null,
+          mobile_phone: cell(12) || null,
+          phone: cell(13) || null,
+          note: cell(14) || null,
         })
       })
       if (rows.length === 0) { alert('가져올 데이터가 없습니다.'); return }
@@ -326,7 +342,7 @@ export function DailyWorkerPanel() {
                 <th className="px-3 py-3 text-left text-xs font-semibold text-dark-400">체류자격</th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-dark-400">직종</th>
                 <th className="px-3 py-3 text-center text-xs font-semibold text-dark-400">근무일</th>
-                <th className="px-3 py-3 text-right text-xs font-semibold text-dark-500">일지급금</th>
+                <th className="px-3 py-3 text-right text-xs font-semibold text-dark-500">지급액</th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-dark-400">은행</th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-dark-400">계좌번호</th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-dark-400">휴대전화</th>
@@ -350,7 +366,7 @@ export function DailyWorkerPanel() {
                   <td className="px-3 py-2.5 text-xs text-dark-500">{w.nationality || '-'}</td>
                   <td className="px-3 py-2.5 text-xs text-dark-500">{w.visa_status || '-'}</td>
                   <td className="px-3 py-2.5 text-xs text-dark-500">{w.job_type || '-'}</td>
-                  <td className="px-3 py-2.5 text-center text-xs text-dark-500">{w.work_date || '-'}</td>
+                  <td className="px-3 py-2.5 text-center text-xs text-dark-500">{fmtWorkDate(w.work_date, w.work_date_end)}</td>
                   <td className="px-3 py-2.5 text-right text-dark-700">{fmt(w.daily_wage)}</td>
                   <td className="px-3 py-2.5 text-xs text-dark-500">{w.bank || '-'}</td>
                   <td className="px-3 py-2.5 text-xs text-dark-500">{w.account_number || '-'}</td>
@@ -397,11 +413,15 @@ export function DailyWorkerPanel() {
                 <input type="text" value={form.job_type} onChange={e => setForm(f => ({ ...f, job_type: e.target.value }))} className="w-full px-2 py-1.5 text-sm border border-dark-200 rounded-lg" />
               </div>
               <div>
-                <label className="text-xs text-dark-500 block mb-1">근무일</label>
+                <label className="text-xs text-dark-500 block mb-1">근무 시작일</label>
                 <input type="date" value={form.work_date} onChange={e => setForm(f => ({ ...f, work_date: e.target.value }))} className="w-full px-2 py-1.5 text-sm border border-dark-200 rounded-lg" />
               </div>
               <div>
-                <label className="text-xs text-dark-500 block mb-1">일지급금</label>
+                <label className="text-xs text-dark-500 block mb-1">근무 종료일 <span className="text-dark-300">(연속 근무 시만)</span></label>
+                <input type="date" value={form.work_date_end} onChange={e => setForm(f => ({ ...f, work_date_end: e.target.value }))} min={form.work_date || undefined} className="w-full px-2 py-1.5 text-sm border border-dark-200 rounded-lg" />
+              </div>
+              <div className="col-span-2">
+                <label className="text-xs text-dark-500 block mb-1">지급액 <span className="text-dark-300">(근무기간 전체 합계 금액)</span></label>
                 <input type="number" value={form.daily_wage} onChange={e => setForm(f => ({ ...f, daily_wage: e.target.value }))} className="w-full px-2 py-1.5 text-sm border border-dark-200 rounded-lg" />
               </div>
               <div>
