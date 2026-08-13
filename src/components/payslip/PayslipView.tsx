@@ -108,8 +108,9 @@ export function PayslipView({
         @media print {
           body * { visibility: hidden; }
           #payslip-print-root, #payslip-print-root * { visibility: visible; }
+          .payslip-sticky-panel { position: static !important; }
           #payslip-print-root {
-            position: fixed;
+            position: absolute;
             left: 0;
             top: 0;
             width: 100%;

@@ -351,7 +351,7 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
           title="드래그해서 비율 조정"
         />
 
-        <div style={{ width: `${100 - leftWidthPct}%` }} className="min-w-0 pl-2 sticky top-4">
+        <div style={{ width: `${100 - leftWidthPct}%` }} className="payslip-sticky-panel min-w-0 pl-2 sticky top-4">
           {selectedEmpId ? (
             <PayslipGeneratorPanel
               key={period}
