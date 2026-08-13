@@ -250,17 +250,20 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [empId, healthInsuranceData])
 
-  // 지급항목이 바뀔 때마다 4대보험·세금 공제항목을 지급총액 기준으로 자동 재계산
-  // (직전 참고 프로그램 검증 결과: 국민연금/건강보험/장기요양보험/고용보험/근로소득세/지방소득세 모두 그 달 지급총액 기준 라이브 계산)
+  // 지급항목이 바뀔 때마다 소득세만 지급총액 기준으로 자동 재계산
+  // (근로소득세는 간이세액표상 그 달 월급여액 기준이라 지급총액 변경에 실시간 반영되는 게 맞음.
+  //  반면 4대보험(국민연금/건강보험/장기요양보험/고용보험)은 이미 보수월액 기준으로 미리 고지되는
+  //  금액이라 지급항목을 바꿀 때마다 재추정해서 덮어쓰면 안 됨 — 최초 생성 시 1회 추정값만 채우고,
+  //  이후엔 직접 수정하거나 4대보험 고지내역 CSV 업로드로만 갱신되도록 둠)
   useEffect(() => {
     if (!empId) return
     const totalPayment = payments.reduce((s, p) => s + (p.amount || 0), 0)
     const auto = calculateAutoDeductions(totalPayment, dependents)
-    setDeductions(prev => {
-      const next = prev.map(d => d.label in auto ? { ...d, amount: auto[d.label as keyof typeof auto] } : d)
-      const match = employee ? healthInsuranceDataRef.current[employee.name] : undefined
-      return match ? applyHealthInsurance(next, match) : next
-    })
+    setDeductions(prev => prev.map(d =>
+      d.label === '근로소득세' ? { ...d, amount: auto.근로소득세 } :
+      d.label === '근로지방소득세' ? { ...d, amount: auto.근로지방소득세 } :
+      d
+    ))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [payments])
 
