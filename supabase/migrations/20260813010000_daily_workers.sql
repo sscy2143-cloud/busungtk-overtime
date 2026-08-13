@@ -1,21 +1,23 @@
 -- 일용직 사원 관리
 -- admin/manager(급여 담당)만 조회/수정 가능 (주민번호 등 민감정보 포함)
+-- 일용직은 재직 개념이 아니라 시공건이 있을 때만 사용하므로 재직상태는 두지 않고,
+-- 대신 실제로 일한 날짜(work_date)와 자유메모(note)를 남길 수 있게 함
 
 create table if not exists daily_workers (
   id                uuid primary key default gen_random_uuid(),
-  status            text not null default 'active', -- 'active' 재직 | 'inactive' 퇴직
   name              text not null,
   resident_number   text,   -- 주민(외국인)번호
   project           text,   -- 프로젝트/현장
   nationality       text,   -- 국적
   visa_status       text,   -- 체류자격
   job_type          text,   -- 직종
-  hire_date         date,   -- 입사일
+  work_date         date,   -- 일용직으로 일한 날
   daily_wage        integer not null default 0, -- 일지급금
   bank              text,
   account_number    text,
   mobile_phone      text,
   phone             text,
+  note              text,   -- 비고
   created_at        timestamptz not null default now(),
   updated_at        timestamptz not null default now()
 );

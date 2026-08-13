@@ -4,40 +4,40 @@ import { supabase } from '../../lib/supabase'
 
 interface DailyWorker {
   id: string
-  status: 'active' | 'inactive'
   name: string
   resident_number: string | null
   project: string | null
   nationality: string | null
   visa_status: string | null
   job_type: string | null
-  hire_date: string | null
+  work_date: string | null
   daily_wage: number
   bank: string | null
   account_number: string | null
   mobile_phone: string | null
   phone: string | null
+  note: string | null
 }
 
 interface WorkerForm {
-  status: 'active' | 'inactive'
   name: string
   resident_number: string
   project: string
   nationality: string
   visa_status: string
   job_type: string
-  hire_date: string
+  work_date: string
   daily_wage: string
   bank: string
   account_number: string
   mobile_phone: string
   phone: string
+  note: string
 }
 
 const EMPTY_FORM: WorkerForm = {
-  status: 'active', name: '', resident_number: '', project: '', nationality: '', visa_status: '',
-  job_type: '', hire_date: '', daily_wage: '', bank: '', account_number: '', mobile_phone: '', phone: '',
+  name: '', resident_number: '', project: '', nationality: '', visa_status: '',
+  job_type: '', work_date: '', daily_wage: '', bank: '', account_number: '', mobile_phone: '', phone: '', note: '',
 }
 
 function fmt(n: number) {
@@ -48,7 +48,6 @@ export function DailyWorkerPanel() {
   const [workers, setWorkers] = useState<DailyWorker[]>([])
   const [loading, setLoading] = useState(true)
   const [migrationReady, setMigrationReady] = useState<boolean | null>(null)
-  const [statusFilter, setStatusFilter] = useState('active')
   const [projectFilter, setProjectFilter] = useState('')
   const [nameFilter, setNameFilter] = useState('')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -73,12 +72,9 @@ export function DailyWorkerPanel() {
   const projects = Array.from(new Set(workers.map(w => w.project).filter((p): p is string => !!p)))
 
   const filtered = workers.filter(w =>
-    (!statusFilter || w.status === statusFilter) &&
     (!projectFilter || w.project === projectFilter) &&
     (!nameFilter || w.name.includes(nameFilter))
   )
-
-  const activeCount = workers.filter(w => w.status === 'active').length
 
   function openCreate() {
     setEditingId(null)
@@ -89,10 +85,11 @@ export function DailyWorkerPanel() {
   function openEdit(w: DailyWorker) {
     setEditingId(w.id)
     setForm({
-      status: w.status, name: w.name, resident_number: w.resident_number ?? '', project: w.project ?? '',
+      name: w.name, resident_number: w.resident_number ?? '', project: w.project ?? '',
       nationality: w.nationality ?? '', visa_status: w.visa_status ?? '', job_type: w.job_type ?? '',
-      hire_date: w.hire_date ?? '', daily_wage: String(w.daily_wage ?? 0), bank: w.bank ?? '',
+      work_date: w.work_date ?? '', daily_wage: String(w.daily_wage ?? 0), bank: w.bank ?? '',
       account_number: w.account_number ?? '', mobile_phone: w.mobile_phone ?? '', phone: w.phone ?? '',
+      note: w.note ?? '',
     })
     setShowForm(true)
   }
@@ -101,19 +98,19 @@ export function DailyWorkerPanel() {
     if (!form.name.trim()) { alert('사원명을 입력해주세요'); return }
     setSaving(true)
     const payload = {
-      status: form.status,
       name: form.name.trim(),
       resident_number: form.resident_number.trim() || null,
       project: form.project.trim() || null,
       nationality: form.nationality.trim() || null,
       visa_status: form.visa_status.trim() || null,
       job_type: form.job_type.trim() || null,
-      hire_date: form.hire_date || null,
+      work_date: form.work_date || null,
       daily_wage: Number(form.daily_wage) || 0,
       bank: form.bank.trim() || null,
       account_number: form.account_number.trim() || null,
       mobile_phone: form.mobile_phone.trim() || null,
       phone: form.phone.trim() || null,
+      note: form.note.trim() || null,
     }
     const { error } = editingId
       ? await supabase.from('daily_workers').update(payload).eq('id', editingId)
@@ -152,36 +149,36 @@ export function DailyWorkerPanel() {
       const wb = new ExcelJS.Workbook()
       const ws = wb.addWorksheet('일용직사원')
       ws.columns = [
-        { header: '재직상태', key: 'status', width: 10 },
         { header: '사원명', key: 'name', width: 12 },
         { header: '주민(외국인)번호', key: 'resident_number', width: 18 },
         { header: '프로젝트', key: 'project', width: 16 },
         { header: '국적', key: 'nationality', width: 10 },
         { header: '체류자격', key: 'visa_status', width: 10 },
         { header: '직종', key: 'job_type', width: 12 },
-        { header: '입사일', key: 'hire_date', width: 12 },
+        { header: '근무일', key: 'work_date', width: 12 },
         { header: '일지급금', key: 'daily_wage', width: 12 },
         { header: '은행', key: 'bank', width: 10 },
         { header: '계좌번호', key: 'account_number', width: 18 },
         { header: '휴대전화', key: 'mobile_phone', width: 14 },
         { header: '전화번호', key: 'phone', width: 14 },
+        { header: '비고', key: 'note', width: 20 },
       ]
       ws.getRow(1).font = { bold: true }
       for (const w of filtered) {
         ws.addRow({
-          status: w.status === 'active' ? '재직' : '퇴직',
           name: w.name,
           resident_number: w.resident_number ?? '',
           project: w.project ?? '',
           nationality: w.nationality ?? '',
           visa_status: w.visa_status ?? '',
           job_type: w.job_type ?? '',
-          hire_date: w.hire_date ?? '',
+          work_date: w.work_date ?? '',
           daily_wage: w.daily_wage,
           bank: w.bank ?? '',
           account_number: w.account_number ?? '',
           mobile_phone: w.mobile_phone ?? '',
           phone: w.phone ?? '',
+          note: w.note ?? '',
         })
       }
       const buf = await wb.xlsx.writeBuffer()
@@ -217,22 +214,22 @@ export function DailyWorkerPanel() {
           const val = row.getCell(c).value
           return val == null ? '' : String(val).trim()
         }
-        const name = cell(2)
+        const name = cell(1)
         if (!name) return
         rows.push({
-          status: cell(1) === '퇴직' ? 'inactive' : 'active',
           name,
-          resident_number: cell(3) || null,
-          project: cell(4) || null,
-          nationality: cell(5) || null,
-          visa_status: cell(6) || null,
-          job_type: cell(7) || null,
-          hire_date: cell(8) || null,
-          daily_wage: Number(cell(9)) || 0,
-          bank: cell(10) || null,
-          account_number: cell(11) || null,
-          mobile_phone: cell(12) || null,
-          phone: cell(13) || null,
+          resident_number: cell(2) || null,
+          project: cell(3) || null,
+          nationality: cell(4) || null,
+          visa_status: cell(5) || null,
+          job_type: cell(6) || null,
+          work_date: cell(7) || null,
+          daily_wage: Number(cell(8)) || 0,
+          bank: cell(9) || null,
+          account_number: cell(10) || null,
+          mobile_phone: cell(11) || null,
+          phone: cell(12) || null,
+          note: cell(13) || null,
         })
       })
       if (rows.length === 0) { alert('가져올 데이터가 없습니다.'); return }
@@ -257,16 +254,11 @@ export function DailyWorkerPanel() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-lg font-bold text-dark-900">일용직사원관리</h2>
-        <p className="text-xs text-dark-400 mt-0.5">일용직 사원 정보를 관리합니다.</p>
+        <h2 className="text-lg font-bold text-dark-900">일용직대장</h2>
+        <p className="text-xs text-dark-400 mt-0.5">시공건이 있을 때 사용한 일용직 인력 정보를 관리합니다.</p>
       </div>
 
       <div className="bg-white rounded-xl border border-dark-200 p-4 flex flex-wrap items-center gap-2">
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="px-3 py-2 text-sm border border-dark-200 rounded-lg bg-white">
-          <option value="">전체</option>
-          <option value="active">재직</option>
-          <option value="inactive">퇴직</option>
-        </select>
         <select value={projectFilter} onChange={e => setProjectFilter(e.target.value)} className="px-3 py-2 text-sm border border-dark-200 rounded-lg bg-white">
           <option value="">프로젝트명 전체</option>
           {projects.map(p => <option key={p} value={p}>{p}</option>)}
@@ -284,7 +276,7 @@ export function DailyWorkerPanel() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm text-dark-600">현재 재직자 <b className="text-dark-900">{activeCount}</b>명</span>
+        <span className="text-sm text-dark-600">총 <b className="text-dark-900">{filtered.length}</b>명</span>
         <span className="text-dark-200">|</span>
         <button
           onClick={openCreate}
@@ -327,35 +319,30 @@ export function DailyWorkerPanel() {
                 <th className="px-3 py-3 w-8">
                   <input type="checkbox" checked={filtered.length > 0 && selectedIds.size === filtered.length} onChange={toggleSelectAll} className="rounded border-dark-300" />
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-semibold text-dark-500">재직상태</th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-dark-500">사원명</th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-dark-400">주민(외국인)번호</th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-dark-400">프로젝트</th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-dark-400">국적</th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-dark-400">체류자격</th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-dark-400">직종</th>
-                <th className="px-3 py-3 text-center text-xs font-semibold text-dark-400">입사일</th>
+                <th className="px-3 py-3 text-center text-xs font-semibold text-dark-400">근무일</th>
                 <th className="px-3 py-3 text-right text-xs font-semibold text-dark-500">일지급금</th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-dark-400">은행</th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-dark-400">계좌번호</th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-dark-400">휴대전화</th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-dark-400">전화번호</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-dark-400">비고</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-dark-50">
               {loading ? (
-                <tr><td colSpan={14} className="py-16 text-center text-sm text-dark-400">불러오는 중...</td></tr>
+                <tr><td colSpan={13} className="py-16 text-center text-sm text-dark-400">불러오는 중...</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={14} className="py-16 text-center text-sm text-dark-400">검색된 결과가 없습니다.</td></tr>
+                <tr><td colSpan={13} className="py-16 text-center text-sm text-dark-400">검색된 결과가 없습니다.</td></tr>
               ) : filtered.map(w => (
                 <tr key={w.id} className="hover:bg-dark-50 transition-colors cursor-pointer" onClick={() => openEdit(w)}>
                   <td className="px-3 py-2.5" onClick={e => e.stopPropagation()}>
                     <input type="checkbox" checked={selectedIds.has(w.id)} onChange={() => toggleSelect(w.id)} className="rounded border-dark-300" />
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <span className={`px-2 py-0.5 rounded-md text-xs font-medium ${w.status === 'active' ? 'bg-primary-100 text-primary-700' : 'bg-dark-100 text-dark-500'}`}>
-                      {w.status === 'active' ? '재직' : '퇴직'}
-                    </span>
                   </td>
                   <td className="px-3 py-2.5 font-medium text-dark-800">{w.name}</td>
                   <td className="px-3 py-2.5 text-xs text-dark-500">{w.resident_number || '-'}</td>
@@ -363,12 +350,13 @@ export function DailyWorkerPanel() {
                   <td className="px-3 py-2.5 text-xs text-dark-500">{w.nationality || '-'}</td>
                   <td className="px-3 py-2.5 text-xs text-dark-500">{w.visa_status || '-'}</td>
                   <td className="px-3 py-2.5 text-xs text-dark-500">{w.job_type || '-'}</td>
-                  <td className="px-3 py-2.5 text-center text-xs text-dark-500">{w.hire_date || '-'}</td>
+                  <td className="px-3 py-2.5 text-center text-xs text-dark-500">{w.work_date || '-'}</td>
                   <td className="px-3 py-2.5 text-right text-dark-700">{fmt(w.daily_wage)}</td>
                   <td className="px-3 py-2.5 text-xs text-dark-500">{w.bank || '-'}</td>
                   <td className="px-3 py-2.5 text-xs text-dark-500">{w.account_number || '-'}</td>
                   <td className="px-3 py-2.5 text-xs text-dark-500">{w.mobile_phone || '-'}</td>
                   <td className="px-3 py-2.5 text-xs text-dark-500">{w.phone || '-'}</td>
+                  <td className="px-3 py-2.5 text-xs text-dark-500 max-w-[160px] truncate">{w.note || '-'}</td>
                 </tr>
               ))}
             </tbody>
@@ -384,13 +372,6 @@ export function DailyWorkerPanel() {
               <button onClick={() => setShowForm(false)} className="p-1.5 rounded-lg hover:bg-dark-100"><X size={18} className="text-dark-500" /></button>
             </div>
             <div className="overflow-y-auto flex-1 px-5 py-4 grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-dark-500 block mb-1">재직상태</label>
-                <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as 'active' | 'inactive' }))} className="w-full px-2 py-1.5 text-sm border border-dark-200 rounded-lg bg-white">
-                  <option value="active">재직</option>
-                  <option value="inactive">퇴직</option>
-                </select>
-              </div>
               <div>
                 <label className="text-xs text-dark-500 block mb-1">사원명 *</label>
                 <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="w-full px-2 py-1.5 text-sm border border-dark-200 rounded-lg" />
@@ -416,8 +397,8 @@ export function DailyWorkerPanel() {
                 <input type="text" value={form.job_type} onChange={e => setForm(f => ({ ...f, job_type: e.target.value }))} className="w-full px-2 py-1.5 text-sm border border-dark-200 rounded-lg" />
               </div>
               <div>
-                <label className="text-xs text-dark-500 block mb-1">입사일</label>
-                <input type="date" value={form.hire_date} onChange={e => setForm(f => ({ ...f, hire_date: e.target.value }))} className="w-full px-2 py-1.5 text-sm border border-dark-200 rounded-lg" />
+                <label className="text-xs text-dark-500 block mb-1">근무일</label>
+                <input type="date" value={form.work_date} onChange={e => setForm(f => ({ ...f, work_date: e.target.value }))} className="w-full px-2 py-1.5 text-sm border border-dark-200 rounded-lg" />
               </div>
               <div>
                 <label className="text-xs text-dark-500 block mb-1">일지급금</label>
@@ -438,6 +419,10 @@ export function DailyWorkerPanel() {
               <div>
                 <label className="text-xs text-dark-500 block mb-1">전화번호</label>
                 <input type="text" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} className="w-full px-2 py-1.5 text-sm border border-dark-200 rounded-lg" />
+              </div>
+              <div className="col-span-2">
+                <label className="text-xs text-dark-500 block mb-1">비고</label>
+                <textarea value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} rows={3} className="w-full px-2 py-1.5 text-sm border border-dark-200 rounded-lg resize-none" />
               </div>
             </div>
             <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-dark-100">
