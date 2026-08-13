@@ -44,6 +44,7 @@ export function PayslipListPage() {
         .from('payslips')
         .select('id, period, file_path, file_name, message, work_start, work_end')
         .eq('employee_id', employee!.id)
+        .not('file_path', 'is', null)
         .order('period', { ascending: false })
       if (data) setPayslips(data)
       setLoading(false)

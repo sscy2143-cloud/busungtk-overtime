@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './contexts/AuthContext'
 import { AppLayout } from './components/layout/AppLayout'
+import { SecondAuthGate } from './components/auth/SecondAuthGate'
 import { PayPasswordGate } from './components/auth/PayPasswordGate'
 import { LoginPage } from './pages/LoginPage'
 import { PendingApprovalPage } from './pages/PendingApprovalPage'
@@ -86,17 +87,17 @@ export default function App() {
           <Route path="admin/overtime" element={<AdminRoute><AdminOvertimeDashboardPage /></AdminRoute>} />
           <Route path="admin/employee-management" element={<AdminRoute><AdminEmployeeManagementPage /></AdminRoute>} />
           <Route path="admin/overtime/employees" element={<AdminRoute><AdminOvertimeEmployeesPage /></AdminRoute>} />
-          <Route path="admin/overtime/pay" element={<AdminRoute><PayPasswordGate><AdminOvertimePayPage /></PayPasswordGate></AdminRoute>} />
-          <Route path="admin/overtime/leave-pay" element={<AdminRoute><PayPasswordGate><AdminLeavePayPage /></PayPasswordGate></AdminRoute>} />
+          <Route path="admin/overtime/pay" element={<AdminRoute><SecondAuthGate><PayPasswordGate><AdminOvertimePayPage /></PayPasswordGate></SecondAuthGate></AdminRoute>} />
+          <Route path="admin/overtime/leave-pay" element={<AdminRoute><SecondAuthGate><PayPasswordGate><AdminLeavePayPage /></PayPasswordGate></SecondAuthGate></AdminRoute>} />
           <Route path="admin/leave" element={<AdminRoute><AdminLeavePage /></AdminRoute>} />
           <Route path="admin/leave/balance" element={<AdminRoute><AdminLeaveBalancePage /></AdminRoute>} />
           <Route path="admin/leave/comp" element={<AdminRoute><AdminCompLeavePage /></AdminRoute>} />
           <Route path="admin/leave-types" element={<AdminRoute><AdminLeaveTypesPage /></AdminRoute>} />
 
-          <Route path="admin/expenses" element={<AdminRoute><AdminExpensePage /></AdminRoute>} />
-          <Route path="admin/payroll" element={<AdminRoute><PayPasswordGate><AdminPayrollPage /></PayPasswordGate></AdminRoute>} />
+          <Route path="admin/expenses" element={<AdminRoute><SecondAuthGate><PayPasswordGate><AdminExpensePage /></PayPasswordGate></SecondAuthGate></AdminRoute>} />
+          <Route path="admin/payroll" element={<AdminRoute><SecondAuthGate><PayPasswordGate><AdminPayrollPage /></PayPasswordGate></SecondAuthGate></AdminRoute>} />
           <Route path="admin/documents" element={<AdminRoute><AdminDocumentsPage /></AdminRoute>} />
-          <Route path="admin/payslips" element={<AdminRoute><PayPasswordGate><AdminPayslipPage /></PayPasswordGate></AdminRoute>} />
+          <Route path="admin/payslips" element={<AdminRoute><SecondAuthGate><PayPasswordGate><AdminPayslipPage /></PayPasswordGate></SecondAuthGate></AdminRoute>} />
           <Route path="admin/notices" element={<AdminRoute><AdminNoticePage /></AdminRoute>} />
         </Route>
       </Routes>

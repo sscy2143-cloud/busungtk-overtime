@@ -1,0 +1,10 @@
+-- 급여명세서 생성기: 구조화 급여 데이터 컬럼 추가 + 파일 없는 생성형 허용
+ALTER TABLE payslips ADD COLUMN IF NOT EXISTS 지급내역 JSONB;
+ALTER TABLE payslips ADD COLUMN IF NOT EXISTS 공제내역 JSONB;
+ALTER TABLE payslips ADD COLUMN IF NOT EXISTS 지급합계 INTEGER;
+ALTER TABLE payslips ADD COLUMN IF NOT EXISTS 공제합계 INTEGER;
+ALTER TABLE payslips ADD COLUMN IF NOT EXISTS 실지급액 INTEGER;
+ALTER TABLE payslips ADD COLUMN IF NOT EXISTS 유형 TEXT DEFAULT 'file';
+ALTER TABLE payslips ALTER COLUMN file_path DROP NOT NULL;
+-- file_name도 생성형에선 없을 수 있음
+ALTER TABLE payslips ALTER COLUMN file_name DROP NOT NULL;

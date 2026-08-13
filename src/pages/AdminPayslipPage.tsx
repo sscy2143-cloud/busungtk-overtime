@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Upload, Trash2, Download, FileText, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { PayrollLedgerPanel } from '../components/payslip/PayrollLedgerPanel'
 
 interface Payslip {
   id: string
@@ -21,6 +22,10 @@ interface Employee {
   id: string
   name: string
   department: string
+  hourly_wage: number
+  hire_date: string | null
+  employee_type: 'office' | 'field'
+  is_active: boolean
 }
 
 interface RowForm {
@@ -39,7 +44,7 @@ export function AdminPayslipPage() {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(true)
   const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7))
-  const [tab, setTab] = useState<'register' | 'list'>('register')
+  const [tab, setTab] = useState<'register' | 'list' | 'ledger'>('register')
   const [filterEmpId, setFilterEmpId] = useState('')
 
   // 사원별 폼 상태
@@ -74,7 +79,7 @@ export function AdminPayslipPage() {
         .order('period', { ascending: false }),
       supabase
         .from('employees')
-        .select('id, name, department, is_active')
+        .select('id, name, department, hourly_wage, hire_date, employee_type, is_active')
         .order('name'),
     ])
     if (slips) setPayslips(slips as any)
@@ -192,9 +197,21 @@ export function AdminPayslipPage() {
         >
           등록 현황
         </button>
+        <button
+          onClick={() => setTab('ledger')}
+          className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+            tab === 'ledger' ? 'bg-white text-dark-900 shadow-[0_1px_3px_rgba(0,0,0,0.04)]' : 'text-dark-500 hover:text-dark-700'
+          }`}
+        >
+          급여대장
+        </button>
       </div>
 
-      {tab === 'register' ? (
+      {tab === 'ledger' ? (
+        <div className="mx-[calc(50%-50vw)] px-2">
+          <PayrollLedgerPanel employees={employees} onSaved={fetchAll} />
+        </div>
+      ) : tab === 'register' ? (
         <>
           {/* 기간 선택 */}
           <div className="bg-white rounded-xl border border-dark-200 p-4 flex items-center gap-3">

@@ -7,6 +7,7 @@ const SESSION_KEY = 'busungtk_2fa_verified'
 
 export function SecondAuthGate({ children }: { children: React.ReactNode }) {
   const { employee, signOut } = useAuth()
+  // manager는 마이그레이션(20260812010000) 적용 후 이 게이트로 전환 예정 — 그 전까진 PayPasswordGate가 대신 막음
   const needsGate = employee?.role === 'admin'
 
   const [verified, setVerified] = useState(() => {
@@ -41,7 +42,7 @@ export function SecondAuthGate({ children }: { children: React.ReactNode }) {
   async function handleSetup(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    if (password.length < 4) { setError('비밀번호는 4자 이상이어야 합니다'); return }
+    if (!/^\d{4}$/.test(password)) { setError('숫자 4자리를 입력하세요'); return }
     if (password !== confirmPassword) { setError('비밀번호가 일치하지 않습니다'); return }
     setLoading(true)
     const { error: rpcError } = await supabase.rpc('set_second_auth_password', { p_password: password })
@@ -77,12 +78,12 @@ export function SecondAuthGate({ children }: { children: React.ReactNode }) {
             }
           </div>
           <h2 className="text-lg font-bold text-dark-900">
-            {isSetup ? '2차 인증 비밀번호 설정' : '2차 인증'}
+            {isSetup ? '2차 인증 PIN 설정' : '2차 인증'}
           </h2>
           <p className="text-sm text-dark-500 mt-1">
             {isSetup
-              ? '로그인 시 사용할 2차 인증 비밀번호를 설정하세요'
-              : '2차 인증 비밀번호를 입력하세요'
+              ? '로그인 시 사용할 숫자 4자리 PIN을 설정하세요'
+              : '숫자 4자리 PIN을 입력하세요'
             }
           </p>
         </div>
@@ -90,27 +91,35 @@ export function SecondAuthGate({ children }: { children: React.ReactNode }) {
         <form onSubmit={isSetup ? handleSetup : handleVerify} className="space-y-3">
           <div>
             <label className="block text-xs font-medium text-dark-600 mb-1">
-              {isSetup ? '새 비밀번호' : '비밀번호'}
+              {isSetup ? '새 PIN' : 'PIN'}
             </label>
             <input
               type="password"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={4}
+              autoComplete="off"
               value={password}
-              onChange={e => { setPassword(e.target.value); setError('') }}
-              placeholder={isSetup ? '4자 이상 입력' : '비밀번호 입력'}
+              onChange={e => { setPassword(e.target.value.replace(/\D/g, '').slice(0, 4)); setError('') }}
+              placeholder="4자리 숫자"
               autoFocus
-              className="w-full px-4 py-3 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+              className="w-full px-4 py-3 text-xl tracking-[0.5em] text-center border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
             />
           </div>
 
           {isSetup && (
             <div>
-              <label className="block text-xs font-medium text-dark-600 mb-1">비밀번호 확인</label>
+              <label className="block text-xs font-medium text-dark-600 mb-1">PIN 확인</label>
               <input
                 type="password"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={4}
+                autoComplete="off"
                 value={confirmPassword}
-                onChange={e => { setConfirmPassword(e.target.value); setError('') }}
-                placeholder="비밀번호 재입력"
-                className="w-full px-4 py-3 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                onChange={e => { setConfirmPassword(e.target.value.replace(/\D/g, '').slice(0, 4)); setError('') }}
+                placeholder="4자리 숫자 재입력"
+                className="w-full px-4 py-3 text-xl tracking-[0.5em] text-center border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
               />
             </div>
           )}
@@ -121,7 +130,7 @@ export function SecondAuthGate({ children }: { children: React.ReactNode }) {
 
           <button
             type="submit"
-            disabled={loading || !password || (isSetup && !confirmPassword)}
+            disabled={loading || password.length !== 4 || (isSetup && confirmPassword.length !== 4)}
             className="w-full py-3 bg-primary-500 text-white font-semibold rounded-xl hover:bg-primary-600 transition-colors disabled:opacity-50"
           >
             {loading ? '처리 중...' : isSetup ? '비밀번호 설정' : '확인'}

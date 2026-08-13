@@ -20,6 +20,8 @@ import {
   Banknote,
   Contact,
   RefreshCw,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useUnseenCounts } from '../../hooks/useUnseenCounts'
@@ -30,7 +32,12 @@ interface NavItem {
   icon: React.ReactNode
 }
 
-export function Sidebar() {
+interface SidebarProps {
+  collapsed: boolean
+  onToggle: () => void
+}
+
+export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const { employee, signOut } = useAuth()
   const isAdmin = employee?.role === 'manager' || employee?.role === 'admin'
   const isSuperAdmin = employee?.role === 'admin'
@@ -85,10 +92,23 @@ export function Sidebar() {
 const superAdminNav: NavItem[] = []
 
   return (
-    <aside className="hidden md:flex flex-col w-64 h-screen fixed left-0 top-0 bg-white border-r border-dark-100 z-30">
+    <>
+    <aside
+      className={`hidden md:flex flex-col h-screen fixed left-0 top-0 bg-white border-r border-dark-100 z-30 overflow-hidden transition-[width] duration-200 ${
+        collapsed ? 'w-0 border-r-0' : 'w-64'
+      }`}
+    >
+      <div className="w-64 h-full flex flex-col flex-shrink-0">
       {/* 로고 */}
-      <div className="px-5 py-5 border-b border-dark-100">
-        <span className="text-lg font-bold text-dark-900">부성TK <span className="text-primary-500">근태관리</span></span>
+      <div className="px-5 py-5 border-b border-dark-100 flex items-center justify-between gap-2">
+        <span className="text-lg font-bold text-dark-900 whitespace-nowrap">부성TK <span className="text-primary-500">근태관리</span></span>
+        <button
+          onClick={onToggle}
+          className="p-1.5 rounded-lg text-dark-400 hover:bg-dark-50 hover:text-dark-700 flex-shrink-0 transition-colors"
+          title="사이드바 접기"
+        >
+          <PanelLeftClose size={18} />
+        </button>
       </div>
 
       {/* 메뉴 */}
@@ -387,6 +407,17 @@ const superAdminNav: NavItem[] = []
           로그아웃
         </button>
       </div>
+      </div>
     </aside>
+    {collapsed && (
+      <button
+        onClick={onToggle}
+        className="hidden md:flex fixed left-3 top-5 z-40 p-2 rounded-lg bg-white border border-dark-200 text-dark-500 hover:bg-dark-50 hover:text-dark-700 shadow-sm transition-colors"
+        title="사이드바 펼치기"
+      >
+        <PanelLeftOpen size={18} />
+      </button>
+    )}
+    </>
   )
 }

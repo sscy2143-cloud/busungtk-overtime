@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Clock, AlertTriangle, CalendarOff, ChevronRight, ChevronLeft, X, Banknote, Download } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { TeamGaugeList } from '../components/admin/TeamGaugeList'
+import { ReauthGate } from '../components/auth/ReauthGate'
 import { supabase } from '../lib/supabase'
 import type { WarningLevel, OvertimeRequest, Expense, OvertimeType } from '../types'
 import { OVERTIME_TYPE_LABEL, EXPENSE_CATEGORY_LABEL } from '../types'
@@ -92,6 +93,7 @@ export function AdminDashboardPage() {
   const [payrollMonth, setPayrollMonth] = useState(now.getMonth() + 1)
   const [payrollRows, setPayrollRows] = useState<PayrollRow[]>([])
   const [payrollLoading, setPayrollLoading] = useState(false)
+  const [payrollSummaryUnlocked, setPayrollSummaryUnlocked] = useState(false)
   const [drillTarget, setDrillTarget] = useState<DrillTarget | null>(null)
   const [detailTarget, setDetailTarget] = useState<DetailTarget | null>(null)
 
@@ -533,7 +535,7 @@ export function AdminDashboardPage() {
             <Banknote className="w-4 h-4 text-primary-500" />
             <h2 className="text-sm font-semibold text-dark-900">월 정산 요약</h2>
           </div>
-          {payrollRows.length > 0 && (
+          {payrollSummaryUnlocked && payrollRows.length > 0 && (
             <button
               onClick={exportPayrollExcel}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
@@ -544,6 +546,17 @@ export function AdminDashboardPage() {
           )}
         </div>
 
+        {!payrollSummaryUnlocked && (
+          <ReauthGate
+            compact
+            title="월 정산 요약 확인"
+            description="수당·경비·총지급액 등 금액 정보를 보려면 로그인 비밀번호를 다시 확인해주세요."
+            onVerified={() => setPayrollSummaryUnlocked(true)}
+          />
+        )}
+
+        {payrollSummaryUnlocked && (
+        <>
         {/* 월 선택 네비게이션 */}
         <div className="flex items-center justify-center gap-4 px-4 py-2 bg-dark-50 border-b border-dark-100">
           <button
@@ -682,6 +695,8 @@ export function AdminDashboardPage() {
               </tfoot>
             </table>
           </div>
+        )}
+        </>
         )}
       </div>
 

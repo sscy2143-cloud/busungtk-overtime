@@ -8,8 +8,7 @@ const PAY_VERIFIED_KEY = 'busungtk_pay_verified'
 export function PayPasswordGate({ children }: { children: React.ReactNode }) {
   const { employee } = useAuth()
 
-  // 대표(admin)는 OtpGate로 이미 인증됨 → 통과
-  // 인사담당(manager)만 비밀번호 확인
+  // manager(인사담당)만 비밀번호 재확인. admin은 SecondAuthGate로 별도 인증(마이그레이션 적용 후 라우트에 복구 예정)
   const needsGate = employee?.role === 'manager'
 
   const [verified, setVerified] = useState(() => {
@@ -58,6 +57,7 @@ export function PayPasswordGate({ children }: { children: React.ReactNode }) {
         <form onSubmit={handleSubmit} className="space-y-3">
           <input
             type="password"
+            autoComplete="off"
             value={password}
             onChange={e => { setPassword(e.target.value); setError('') }}
             placeholder="비밀번호 입력"

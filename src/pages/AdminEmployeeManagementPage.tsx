@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Users, UserCheck, UserX, X, Plus, Pencil, Trash2 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
+import { ReauthGate } from '../components/auth/ReauthGate'
 import type { Employee, UserRole, EmployeeType } from '../types'
 
 const ROLE_LABEL: Record<UserRole, string> = {
@@ -70,6 +71,121 @@ interface CreateModal {
 interface UnsavedGuard {
   open: boolean
   nextAction: (() => void) | null
+}
+
+interface PayrollFormState {
+  baseSalary: string
+  annualSalary: string
+  fixedAllowanceEnabled: boolean
+  fixedAllowanceType: string
+  isExecutive: boolean
+  dependentsCount: string
+  childrenUnder20Count: string
+  studentLoanEnabled: boolean
+  studentLoanStart: string
+  studentLoanEnd: string
+  studentLoanAmount: string
+  smeTaxReductionEnabled: boolean
+  smeTaxReductionStart: string
+  smeTaxReductionEnd: string
+  smeReductionApplicable: string
+  smeIncomeReductionRate: string
+  doorunuriApplicable: boolean
+  doorunuriPensionReductionRate: string
+  doorunuriEmploymentReductionRate: string
+  salaryBank: string
+  salaryAccount: string
+  pensionBank: string
+  pensionAccount: string
+}
+
+const BANK_OPTIONS = ['하나은행', '신한은행', '국민은행', '우리은행', '기업은행', '농협은행', '카카오뱅크', '토스뱅크', '새마을금고', '기타']
+
+function makeEmptyPayrollForm(): PayrollFormState {
+  return {
+    baseSalary: '',
+    annualSalary: '',
+    fixedAllowanceEnabled: false,
+    fixedAllowanceType: '',
+    isExecutive: false,
+    dependentsCount: '1',
+    childrenUnder20Count: '0',
+    studentLoanEnabled: false,
+    studentLoanStart: '',
+    studentLoanEnd: '',
+    studentLoanAmount: '',
+    smeTaxReductionEnabled: false,
+    smeTaxReductionStart: '',
+    smeTaxReductionEnd: '',
+    smeReductionApplicable: '',
+    smeIncomeReductionRate: '',
+    doorunuriApplicable: false,
+    doorunuriPensionReductionRate: '',
+    doorunuriEmploymentReductionRate: '',
+    salaryBank: '',
+    salaryAccount: '',
+    pensionBank: '',
+    pensionAccount: '',
+  }
+}
+
+interface PayrollInfoRow {
+  base_salary: number
+  annual_salary: number
+  fixed_allowance_enabled: boolean
+  fixed_allowance_type: string | null
+  is_executive: boolean
+  dependents_count: number
+  children_under20_count: number
+  student_loan_status: string | null
+  student_loan_start: string | null
+  student_loan_end: string | null
+  student_loan_amount: number
+  sme_tax_reduction_enabled: boolean
+  sme_tax_reduction_start: string | null
+  sme_tax_reduction_end: string | null
+  sme_reduction_applicable: string | null
+  sme_income_reduction_rate: number | null
+  doorunuri_applicable: boolean
+  doorunuri_pension_reduction_rate: number | null
+  doorunuri_employment_reduction_rate: number | null
+  salary_bank: string | null
+  salary_account: string | null
+  pension_bank: string | null
+  pension_account: string | null
+}
+
+function payrollRowToForm(row: PayrollInfoRow | null): PayrollFormState {
+  if (!row) return makeEmptyPayrollForm()
+  return {
+    baseSalary: row.base_salary ? String(row.base_salary) : '',
+    annualSalary: row.annual_salary ? String(row.annual_salary) : '',
+    fixedAllowanceEnabled: row.fixed_allowance_enabled,
+    fixedAllowanceType: row.fixed_allowance_type ?? '',
+    isExecutive: row.is_executive,
+    dependentsCount: String(row.dependents_count ?? 1),
+    childrenUnder20Count: String(row.children_under20_count ?? 0),
+    studentLoanEnabled: !!(row.student_loan_status && row.student_loan_status !== '아니오'),
+    studentLoanStart: row.student_loan_start ?? '',
+    studentLoanEnd: row.student_loan_end ?? '',
+    studentLoanAmount: row.student_loan_amount ? String(row.student_loan_amount) : '',
+    smeTaxReductionEnabled: row.sme_tax_reduction_enabled,
+    smeTaxReductionStart: row.sme_tax_reduction_start ?? '',
+    smeTaxReductionEnd: row.sme_tax_reduction_end ?? '',
+    smeReductionApplicable: row.sme_reduction_applicable ?? '',
+    smeIncomeReductionRate: row.sme_income_reduction_rate != null ? String(row.sme_income_reduction_rate) : '',
+    doorunuriApplicable: row.doorunuri_applicable,
+    doorunuriPensionReductionRate: row.doorunuri_pension_reduction_rate != null ? String(row.doorunuri_pension_reduction_rate) : '',
+    doorunuriEmploymentReductionRate: row.doorunuri_employment_reduction_rate != null ? String(row.doorunuri_employment_reduction_rate) : '',
+    salaryBank: row.salary_bank ?? '',
+    salaryAccount: row.salary_account ?? '',
+    pensionBank: row.pension_bank ?? '',
+    pensionAccount: row.pension_account ?? '',
+  }
+}
+
+function payrollFormsEqual(a: PayrollFormState, b: PayrollFormState): boolean {
+  return JSON.stringify(a) === JSON.stringify(b)
 }
 
 function makeEmptyForm(emp: Employee): FormState {
@@ -150,7 +266,14 @@ export function AdminEmployeeManagementPage() {
 
   const [saveLoading, setSaveLoading] = useState(false)
   const [saveError, setSaveError] = useState('')
-  const [editTab, setEditTab] = useState<'basic' | 'account' | 'resign'>('basic')
+  const [editTab, setEditTab] = useState<'basic' | 'payroll' | 'account' | 'resign'>('basic')
+  const [payrollTabUnlocked, setPayrollTabUnlocked] = useState(false)
+
+  const [payrollForm, setPayrollForm] = useState<PayrollFormState>(makeEmptyPayrollForm())
+  const [payrollOriginalForm, setPayrollOriginalForm] = useState<PayrollFormState>(makeEmptyPayrollForm())
+  const [payrollLoading, setPayrollLoading] = useState(false)
+  const [payrollSaveLoading, setPayrollSaveLoading] = useState(false)
+  const [payrollSaveError, setPayrollSaveError] = useState('')
 
   const [unsavedGuard, setUnsavedGuard] = useState<UnsavedGuard>({ open: false, nextAction: null })
 
@@ -180,6 +303,67 @@ export function AdminEmployeeManagementPage() {
       accountLoading: false,
     })
     setEditTab('basic')
+    setPayrollTabUnlocked(false)
+    setPayrollSaveError('')
+    setPayrollLoading(true)
+    supabase
+      .from('employee_payroll_info')
+      .select('*')
+      .eq('employee_id', emp.id)
+      .maybeSingle<PayrollInfoRow>()
+      .then(({ data }) => {
+        const loaded = payrollRowToForm(data)
+        setPayrollForm(loaded)
+        setPayrollOriginalForm(loaded)
+        setPayrollLoading(false)
+      })
+  }
+
+  function isPayrollDirty(): boolean {
+    return !payrollFormsEqual(payrollForm, payrollOriginalForm)
+  }
+
+  async function savePayrollInfo() {
+    if (!editPanel.employee) return
+    setPayrollSaveError('')
+    if (!payrollForm.baseSalary.trim() || !payrollForm.annualSalary.trim() || !payrollForm.salaryBank.trim() || !payrollForm.salaryAccount.trim()) {
+      setPayrollSaveError('월급, 연봉, 급여은행, 급여계좌는 필수 입력 항목입니다')
+      return
+    }
+    setPayrollSaveLoading(true)
+    const p = payrollForm
+    const { error } = await supabase.from('employee_payroll_info').upsert({
+      employee_id: editPanel.employee.id,
+      base_salary: parseInt(p.baseSalary.replace(/,/g, ''), 10) || 0,
+      annual_salary: parseInt(p.annualSalary.replace(/,/g, ''), 10) || 0,
+      fixed_allowance_enabled: p.fixedAllowanceEnabled,
+      fixed_allowance_type: p.fixedAllowanceEnabled ? (p.fixedAllowanceType || null) : null,
+      is_executive: p.isExecutive,
+      dependents_count: parseInt(p.dependentsCount, 10) || 1,
+      children_under20_count: parseInt(p.childrenUnder20Count, 10) || 0,
+      student_loan_status: p.studentLoanEnabled ? '상환중' : '아니오',
+      student_loan_start: p.studentLoanEnabled ? (p.studentLoanStart || null) : null,
+      student_loan_end: p.studentLoanEnabled ? (p.studentLoanEnd || null) : null,
+      student_loan_amount: p.studentLoanEnabled ? (parseInt(p.studentLoanAmount.replace(/,/g, ''), 10) || 0) : 0,
+      sme_tax_reduction_enabled: p.smeTaxReductionEnabled,
+      sme_tax_reduction_start: p.smeTaxReductionEnabled ? (p.smeTaxReductionStart || null) : null,
+      sme_tax_reduction_end: p.smeTaxReductionEnabled ? (p.smeTaxReductionEnd || null) : null,
+      sme_reduction_applicable: p.smeTaxReductionEnabled ? (p.smeReductionApplicable || null) : null,
+      sme_income_reduction_rate: p.smeTaxReductionEnabled && p.smeIncomeReductionRate ? Number(p.smeIncomeReductionRate) : null,
+      doorunuri_applicable: p.doorunuriApplicable,
+      doorunuri_pension_reduction_rate: p.doorunuriApplicable && p.doorunuriPensionReductionRate ? Number(p.doorunuriPensionReductionRate) : null,
+      doorunuri_employment_reduction_rate: p.doorunuriApplicable && p.doorunuriEmploymentReductionRate ? Number(p.doorunuriEmploymentReductionRate) : null,
+      salary_bank: p.salaryBank,
+      salary_account: p.salaryAccount,
+      pension_bank: p.pensionBank || null,
+      pension_account: p.pensionAccount || null,
+    }, { onConflict: 'employee_id' })
+    setPayrollSaveLoading(false)
+    if (error) {
+      setPayrollSaveError('저장 실패: ' + error.message)
+      return
+    }
+    setPayrollOriginalForm(payrollForm)
   }
 
   function closePanel() {
@@ -191,7 +375,7 @@ export function AdminEmployeeManagementPage() {
   }
 
   function requestClose() {
-    if (isDirty()) {
+    if (isDirty() || isPayrollDirty()) {
       setUnsavedGuard({
         open: true,
         nextAction: () => closePanel(),
@@ -430,7 +614,8 @@ export function AdminEmployeeManagementPage() {
   // --- Unsaved guard actions ---
 
   async function guardSave() {
-    await saveBasicInfo()
+    if (isDirty()) await saveBasicInfo()
+    if (isPayrollDirty()) await savePayrollInfo()
     if (unsavedGuard.nextAction) unsavedGuard.nextAction()
     setUnsavedGuard({ open: false, nextAction: null })
   }
@@ -544,10 +729,7 @@ export function AdminEmployeeManagementPage() {
                       </span>
                     </td>
                     <td className="px-3 py-3 text-right text-xs">
-                      {emp.hourly_wage > 0
-                        ? <span className="text-dark-700">{emp.hourly_wage.toLocaleString()}원</span>
-                        : <span className="text-dark-400">미설정</span>
-                      }
+                      <span className="text-dark-300 tracking-widest" title="편집 화면의 급여정보 탭에서 확인">●●●●●●</span>
                     </td>
                     <td className="px-3 py-3 text-center text-xs text-dark-500">
                       {emp.hire_date ? new Date(emp.hire_date + 'T00:00:00').toLocaleDateString('ko-KR') : <span className="text-dark-400">미설정</span>}
@@ -733,6 +915,334 @@ export function AdminEmployeeManagementPage() {
                 </>
               )}
 
+              {/* === 급여정보 === */}
+              {editTab === 'payroll' && !payrollTabUnlocked && (
+                <ReauthGate
+                  compact
+                  title="급여정보 확인"
+                  description="시급·월급·계좌 등 급여 정보를 보려면 로그인 비밀번호를 다시 확인해주세요."
+                  onVerified={() => setPayrollTabUnlocked(true)}
+                />
+              )}
+              {editTab === 'payroll' && payrollTabUnlocked && (
+                payrollLoading ? (
+                  <p className="text-sm text-dark-400 text-center py-8">불러오는 중...</p>
+                ) : (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-dark-600 mb-1">월급 <span className="text-danger-500">*</span></label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={payrollForm.baseSalary}
+                      onChange={e => setPayrollForm(p => ({ ...p, baseSalary: e.target.value.replace(/[^0-9]/g, '') }))}
+                      placeholder="예: 3000000"
+                      className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-dark-600 mb-1">연봉 <span className="text-danger-500">*</span></label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={payrollForm.annualSalary}
+                      onChange={e => setPayrollForm(p => ({ ...p, annualSalary: e.target.value.replace(/[^0-9]/g, '') }))}
+                      placeholder="예: 36000000"
+                      className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-dark-600 mb-1">임원구분</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {([{ v: false, label: '직원' }, { v: true, label: '임원' }]).map(opt => (
+                        <button
+                          key={String(opt.v)}
+                          type="button"
+                          onClick={() => setPayrollForm(p => ({ ...p, isExecutive: opt.v }))}
+                          className={`py-2 text-xs font-medium rounded-xl border transition-colors ${
+                            payrollForm.isExecutive === opt.v
+                              ? 'bg-primary-500 text-white border-primary-600'
+                              : 'bg-white text-dark-600 border-dark-200 hover:border-primary-300'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-dark-600 mb-1">고정수당</label>
+                    <div className="grid grid-cols-2 gap-2 mb-2">
+                      {([{ v: false, label: '아니오' }, { v: true, label: '예' }]).map(opt => (
+                        <button
+                          key={String(opt.v)}
+                          type="button"
+                          onClick={() => setPayrollForm(p => ({ ...p, fixedAllowanceEnabled: opt.v }))}
+                          className={`py-2 text-xs font-medium rounded-xl border transition-colors ${
+                            payrollForm.fixedAllowanceEnabled === opt.v
+                              ? 'bg-primary-500 text-white border-primary-600'
+                              : 'bg-white text-dark-600 border-dark-200 hover:border-primary-300'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    {payrollForm.fixedAllowanceEnabled && (
+                      <input
+                        type="text"
+                        value={payrollForm.fixedAllowanceType}
+                        onChange={e => setPayrollForm(p => ({ ...p, fixedAllowanceType: e.target.value }))}
+                        placeholder="고정수당 종류 (예: 식대, 직책수당)"
+                        className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                      />
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-dark-600 mb-1">소득공제부양자(명)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={payrollForm.dependentsCount}
+                        onChange={e => setPayrollForm(p => ({ ...p, dependentsCount: e.target.value }))}
+                        className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-dark-600 mb-1">8~20세 이하 자녀수(명)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={payrollForm.childrenUnder20Count}
+                        onChange={e => setPayrollForm(p => ({ ...p, childrenUnder20Count: e.target.value }))}
+                        className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-dark-600 mb-1">학자금 상환여부</label>
+                    <div className="grid grid-cols-2 gap-2 mb-2">
+                      {([{ v: false, label: '아니오' }, { v: true, label: '예' }]).map(opt => (
+                        <button
+                          key={String(opt.v)}
+                          type="button"
+                          onClick={() => setPayrollForm(p => ({ ...p, studentLoanEnabled: opt.v }))}
+                          className={`py-2 text-xs font-medium rounded-xl border transition-colors ${
+                            payrollForm.studentLoanEnabled === opt.v
+                              ? 'bg-primary-500 text-white border-primary-600'
+                              : 'bg-white text-dark-600 border-dark-200 hover:border-primary-300'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    {payrollForm.studentLoanEnabled && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="date"
+                            value={payrollForm.studentLoanStart}
+                            onChange={e => setPayrollForm(p => ({ ...p, studentLoanStart: e.target.value }))}
+                            className="flex-1 px-2 py-1.5 text-xs border border-dark-200 rounded-lg"
+                          />
+                          <span className="text-xs text-dark-400">~</span>
+                          <input
+                            type="date"
+                            value={payrollForm.studentLoanEnd}
+                            onChange={e => setPayrollForm(p => ({ ...p, studentLoanEnd: e.target.value }))}
+                            className="flex-1 px-2 py-1.5 text-xs border border-dark-200 rounded-lg"
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={payrollForm.studentLoanAmount}
+                          onChange={e => setPayrollForm(p => ({ ...p, studentLoanAmount: e.target.value.replace(/[^0-9]/g, '') }))}
+                          placeholder="학자금 상환금액"
+                          className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-dark-600 mb-1">중소기업취업소득세감면</label>
+                    <div className="grid grid-cols-2 gap-2 mb-2">
+                      {([{ v: false, label: '아니오' }, { v: true, label: '예' }]).map(opt => (
+                        <button
+                          key={String(opt.v)}
+                          type="button"
+                          onClick={() => setPayrollForm(p => ({ ...p, smeTaxReductionEnabled: opt.v }))}
+                          className={`py-2 text-xs font-medium rounded-xl border transition-colors ${
+                            payrollForm.smeTaxReductionEnabled === opt.v
+                              ? 'bg-primary-500 text-white border-primary-600'
+                              : 'bg-white text-dark-600 border-dark-200 hover:border-primary-300'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    {payrollForm.smeTaxReductionEnabled && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="date"
+                            value={payrollForm.smeTaxReductionStart}
+                            onChange={e => setPayrollForm(p => ({ ...p, smeTaxReductionStart: e.target.value }))}
+                            className="flex-1 px-2 py-1.5 text-xs border border-dark-200 rounded-lg"
+                          />
+                          <span className="text-xs text-dark-400">~</span>
+                          <input
+                            type="date"
+                            value={payrollForm.smeTaxReductionEnd}
+                            onChange={e => setPayrollForm(p => ({ ...p, smeTaxReductionEnd: e.target.value }))}
+                            className="flex-1 px-2 py-1.5 text-xs border border-dark-200 rounded-lg"
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          value={payrollForm.smeReductionApplicable}
+                          onChange={e => setPayrollForm(p => ({ ...p, smeReductionApplicable: e.target.value }))}
+                          placeholder="중소기업감면적용 대상"
+                          className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                        />
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            value={payrollForm.smeIncomeReductionRate}
+                            onChange={e => setPayrollForm(p => ({ ...p, smeIncomeReductionRate: e.target.value }))}
+                            placeholder="중소기업소득감면율"
+                            className="flex-1 px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                          />
+                          <span className="text-xs text-dark-400">%</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-dark-600 mb-1">두루누리 적용여부</label>
+                    <div className="grid grid-cols-2 gap-2 mb-2">
+                      {([{ v: false, label: '아니오' }, { v: true, label: '예' }]).map(opt => (
+                        <button
+                          key={String(opt.v)}
+                          type="button"
+                          onClick={() => setPayrollForm(p => ({ ...p, doorunuriApplicable: opt.v }))}
+                          className={`py-2 text-xs font-medium rounded-xl border transition-colors ${
+                            payrollForm.doorunuriApplicable === opt.v
+                              ? 'bg-primary-500 text-white border-primary-600'
+                              : 'bg-white text-dark-600 border-dark-200 hover:border-primary-300'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    {payrollForm.doorunuriApplicable && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            value={payrollForm.doorunuriPensionReductionRate}
+                            onChange={e => setPayrollForm(p => ({ ...p, doorunuriPensionReductionRate: e.target.value }))}
+                            placeholder="국민연금감면율"
+                            className="flex-1 px-2 py-1.5 text-xs border border-dark-200 rounded-lg"
+                          />
+                          <span className="text-xs text-dark-400">%</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            value={payrollForm.doorunuriEmploymentReductionRate}
+                            onChange={e => setPayrollForm(p => ({ ...p, doorunuriEmploymentReductionRate: e.target.value }))}
+                            placeholder="고용보험감면율"
+                            className="flex-1 px-2 py-1.5 text-xs border border-dark-200 rounded-lg"
+                          />
+                          <span className="text-xs text-dark-400">%</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-dark-600 mb-1">급여은행 <span className="text-danger-500">*</span></label>
+                      <select
+                        value={payrollForm.salaryBank}
+                        onChange={e => setPayrollForm(p => ({ ...p, salaryBank: e.target.value }))}
+                        className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
+                      >
+                        <option value="">선택하세요</option>
+                        {BANK_OPTIONS.map(b => <option key={b} value={b}>{b}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-dark-600 mb-1">급여계좌 <span className="text-danger-500">*</span></label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={payrollForm.salaryAccount}
+                        onChange={e => setPayrollForm(p => ({ ...p, salaryAccount: e.target.value.replace(/[^0-9]/g, '') }))}
+                        placeholder="계좌번호"
+                        className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-dark-600 mb-1">퇴직연금은행</label>
+                      <select
+                        value={payrollForm.pensionBank}
+                        onChange={e => setPayrollForm(p => ({ ...p, pensionBank: e.target.value }))}
+                        className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
+                      >
+                        <option value="">선택하세요</option>
+                        {BANK_OPTIONS.map(b => <option key={b} value={b}>{b}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-dark-600 mb-1">퇴직연금계좌</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={payrollForm.pensionAccount}
+                        onChange={e => setPayrollForm(p => ({ ...p, pensionAccount: e.target.value.replace(/[^0-9]/g, '') }))}
+                        placeholder="계좌번호"
+                        className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                      />
+                    </div>
+                  </div>
+
+                  {payrollSaveError && (
+                    <p className="text-xs text-red-500 text-center -mb-1">{payrollSaveError}</p>
+                  )}
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      onClick={requestClose}
+                      className="flex-1 py-2.5 text-sm font-medium text-dark-600 border border-dark-200 rounded-xl hover:bg-dark-50"
+                    >
+                      취소
+                    </button>
+                    <button
+                      onClick={savePayrollInfo}
+                      disabled={payrollSaveLoading || !isPayrollDirty()}
+                      className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-600 transition-colors disabled:opacity-50"
+                    >
+                      {payrollSaveLoading ? '저장 중...' : '저장'}
+                    </button>
+                  </div>
+                </>
+                )
+              )}
+
               {/* === 시트2: 계정관리 === */}
               {editTab === 'account' && (
                 <>
@@ -852,6 +1362,7 @@ export function AdminEmployeeManagementPage() {
             <div className="flex items-stretch border-t border-dark-100 bg-dark-50 rounded-b-2xl overflow-hidden">
               {([
                 { key: 'basic' as const, label: '기본정보' },
+                { key: 'payroll' as const, label: '급여정보' },
                 { key: 'account' as const, label: '계정관리' },
                 { key: 'resign' as const, label: '퇴직관리' },
               ]).map(tab => (
