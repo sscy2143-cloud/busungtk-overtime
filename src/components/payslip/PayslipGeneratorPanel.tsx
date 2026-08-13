@@ -63,6 +63,7 @@ interface GeneratedPayslipRow {
   work_end: string | null
   message: string | null
   file_path: string | null
+  admin_note: string | null
   유형?: string
   지급내역?: Array<{ 항목: string; 금액: number }>
   공제내역?: Array<{ 항목: string; 금액: number }>
@@ -205,6 +206,7 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
   const [workStart, setWorkStart] = useState(monthRange(period).start)
   const [workEnd, setWorkEnd] = useState(monthRange(period).end)
   const [message, setMessage] = useState('')
+  const [adminNote, setAdminNote] = useState('')
   const [payments, setPayments] = useState<PayslipLineItem[]>([{ label: '기본급', amount: 0 }])
   const [deductions, setDeductions] = useState<PayslipLineItem[]>(DEFAULT_DEDUCTION_LABELS.map(label => ({ label, amount: 0 })))
   const [autoOvertime, setAutoOvertime] = useState({ extendedMinutes: 0, nightMinutes: 0, holidayMinutes: 0 })
@@ -320,6 +322,8 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
       const holidayMinutes = holiday + holidayOT + holidayNight + holidayOTNight
       setAutoOvertime({ extendedMinutes, nightMinutes, holidayMinutes })
 
+      setAdminNote(slip?.admin_note ?? '')
+
       const generated = slip?.유형 === 'generated'
       if (generated && slip) {
         setExistingId(slip.id)
@@ -402,6 +406,7 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
       work_start: workStart || null,
       work_end: workEnd || null,
       message: message.trim() || null,
+      admin_note: adminNote.trim() || null,
       uploaded_by: currentUser?.id,
     }
     const { error } = existingId
@@ -548,6 +553,16 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
                 <label className="text-xs text-dark-500 block mb-1">기타(h)</label>
                 <input type="number" value={etcHoursText} onChange={e => setEtcHoursText(e.target.value)} className="w-full px-2 py-1.5 text-xs border border-dark-200 rounded-lg" />
               </div>
+            </div>
+            <div className="mt-3">
+              <label className="text-xs text-dark-500 block mb-1">비고 <span className="text-dark-300">(관리자만 확인 — 직원에게 안 보임)</span></label>
+              <textarea
+                value={adminNote}
+                onChange={e => setAdminNote(e.target.value)}
+                rows={2}
+                placeholder="나만 볼 메모"
+                className="w-full px-2 py-1.5 text-xs border border-dark-200 rounded-lg resize-none focus:outline-none focus:ring-1 focus:ring-amber-400 bg-primary-50/30"
+              />
             </div>
           </div>
 
