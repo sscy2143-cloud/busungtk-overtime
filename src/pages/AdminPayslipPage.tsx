@@ -3,6 +3,7 @@ import { Upload, Trash2, Download, FileText, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { PayrollLedgerPanel } from '../components/payslip/PayrollLedgerPanel'
+import { DailyWorkerPanel } from '../components/payslip/DailyWorkerPanel'
 
 interface Payslip {
   id: string
@@ -44,7 +45,7 @@ export function AdminPayslipPage() {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(true)
   const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7))
-  const [tab, setTab] = useState<'register' | 'list' | 'ledger'>('register')
+  const [tab, setTab] = useState<'register' | 'list' | 'ledger' | 'daily'>('register')
   const [filterEmpId, setFilterEmpId] = useState('')
 
   // 사원별 폼 상태
@@ -205,9 +206,19 @@ export function AdminPayslipPage() {
         >
           급여대장
         </button>
+        <button
+          onClick={() => setTab('daily')}
+          className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+            tab === 'daily' ? 'bg-white text-dark-900 shadow-[0_1px_3px_rgba(0,0,0,0.04)]' : 'text-dark-500 hover:text-dark-700'
+          }`}
+        >
+          일용직대장
+        </button>
       </div>
 
-      {tab === 'ledger' ? (
+      {tab === 'daily' ? (
+        <DailyWorkerPanel />
+      ) : tab === 'ledger' ? (
         <div className="mx-[calc(50%-50vw)] px-2">
           <PayrollLedgerPanel employees={employees} onSaved={fetchAll} />
         </div>
