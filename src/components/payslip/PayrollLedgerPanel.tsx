@@ -73,6 +73,8 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
   const [selectedEmpId, setSelectedEmpId] = useState('')
   const [exportingExcel, setExportingExcel] = useState(false)
   const [infoPopupEmp, setInfoPopupEmp] = useState<LedgerEmployee | null>(null)
+  const [showInsurancePopup, setShowInsurancePopup] = useState(false)
+  const [insuranceSearch, setInsuranceSearch] = useState('')
   const [infoPopupPayroll, setInfoPopupPayroll] = useState<EmployeePayrollInfo | null>(null)
   const [infoPopupLoading, setInfoPopupLoading] = useState(false)
 
@@ -268,7 +270,13 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
       </div>
 
       <div className="bg-white rounded-xl border border-dark-200 p-4">
-        <p className="text-xs font-semibold text-dark-600 mb-2">4대보험 고지내역 업로드 (직원명으로 매칭돼 전 직원 공제항목에 자동입력)</p>
+        <button
+          type="button"
+          onClick={() => setShowInsurancePopup(true)}
+          className="text-xs font-semibold text-dark-600 mb-2 hover:text-primary-600 hover:underline transition-colors text-left"
+        >
+          4대보험 고지내역 업로드 (직원명으로 매칭돼 전 직원 공제항목에 자동입력) — 클릭해서 인식 내역 확인
+        </button>
         <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-dark-600 border border-dark-200 rounded-lg cursor-pointer hover:bg-dark-50 transition-colors">
             <Upload size={13} /> 국민연금
@@ -477,6 +485,129 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
           </div>
         </div>
       )}
+
+      {showInsurancePopup && (() => {
+        const activeEmployees = employees.filter(e => e.is_active)
+        const rows = activeEmployees
+          .map(emp => {
+            const ins = healthInsuranceData[emp.name]
+            const nationalPension = ins?.nationalPension ?? 0
+            const health = ins?.health ?? 0
+            const longTermCare = ins?.longTermCare ?? 0
+            const employment = ins?.employment ?? 0
+            return {
+              emp,
+              matched: !!ins,
+              nationalPension, health, longTermCare, employment,
+              sum: nationalPension + health + longTermCare + employment,
+            }
+          })
+          .filter(r => !insuranceSearch || r.emp.name.includes(insuranceSearch))
+          .sort((a, b) => {
+            if (a.matched !== b.matched) return a.matched ? 1 : -1
+            return a.emp.name.localeCompare(b.emp.name, 'ko')
+          })
+        const unmatchedCount = rows.filter(r => !r.matched).length
+        const sumOf = (key: 'nationalPension' | 'health' | 'longTermCare' | 'employment' | 'sum') => rows.reduce((s, r) => s + r[key], 0)
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowInsurancePopup(false)}>
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-5 py-4 border-b border-dark-100">
+                <div>
+                  <p className="text-base font-bold text-dark-900">4대보험 고지내역 확인</p>
+                  <p className="text-xs text-dark-400 mt-0.5">{period} · 업로드한 CSV에서 인식된 금액을 사원명 기준으로 대조해보세요</p>
+                </div>
+                <button onClick={() => setShowInsurancePopup(false)} className="p-1.5 rounded-lg hover:bg-dark-100"><X size={18} className="text-dark-500" /></button>
+              </div>
+
+              <div className="px-5 py-3 border-b border-dark-100 flex flex-wrap items-center gap-2">
+                <div className="relative">
+                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dark-300" />
+                  <input
+                    type="text"
+                    value={insuranceSearch}
+                    onChange={e => setInsuranceSearch(e.target.value)}
+                    placeholder="사원명 검색"
+                    className="pl-7 pr-3 py-1.5 text-xs border border-dark-200 rounded-lg"
+                  />
+                </div>
+                <span className="text-xs text-dark-500">
+                  전체 {activeEmployees.length}명 중 <b className="text-dark-800">{activeEmployees.length - unmatchedCount}명 인식</b>
+                  {unmatchedCount > 0 && <span className="text-warning-600 font-medium"> · {unmatchedCount}명 미매칭</span>}
+                </span>
+                {(insuranceCsvNames.health || insuranceCsvNames.nationalPension || insuranceCsvNames.employment) && (
+                  <span className="text-xs text-dark-400 w-full">
+                    {insuranceCsvNames.nationalPension && `국민연금: ${insuranceCsvNames.nationalPension}`}
+                    {insuranceCsvNames.nationalPension && (insuranceCsvNames.health || insuranceCsvNames.employment) && ' · '}
+                    {insuranceCsvNames.health && `건강보험·장기요양보험: ${insuranceCsvNames.health}`}
+                    {insuranceCsvNames.health && insuranceCsvNames.employment && ' · '}
+                    {insuranceCsvNames.employment && `고용보험: ${insuranceCsvNames.employment}`}
+                  </span>
+                )}
+              </div>
+
+              <div className="overflow-y-auto flex-1">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-white">
+                    <tr className="border-b border-dark-100 bg-dark-50">
+                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-dark-500">사원명</th>
+                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-dark-400">부서</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-dark-500">국민연금</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-dark-500">건강보험</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-dark-500">장기요양보험</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-dark-500">고용보험</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-dark-700">합계</th>
+                      <th className="px-4 py-2.5 text-center text-xs font-semibold text-dark-400">상태</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-dark-50">
+                    {rows.length === 0 ? (
+                      <tr><td colSpan={8} className="py-12 text-center text-sm text-dark-400">대상 직원이 없습니다</td></tr>
+                    ) : rows.map(r => (
+                      <tr key={r.emp.id} className={!r.matched ? 'bg-warning-50/60' : undefined}>
+                        <td className="px-4 py-2.5 font-medium text-dark-800">{r.emp.name}</td>
+                        <td className="px-4 py-2.5 text-xs text-dark-400">{r.emp.department}</td>
+                        <td className="px-4 py-2.5 text-right text-dark-700">{fmt(r.nationalPension)}</td>
+                        <td className="px-4 py-2.5 text-right text-dark-700">{fmt(r.health)}</td>
+                        <td className="px-4 py-2.5 text-right text-dark-700">{fmt(r.longTermCare)}</td>
+                        <td className="px-4 py-2.5 text-right text-dark-700">{fmt(r.employment)}</td>
+                        <td className="px-4 py-2.5 text-right font-semibold text-dark-900">{fmt(r.sum)}</td>
+                        <td className="px-4 py-2.5 text-center">
+                          {r.matched ? (
+                            <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-primary-100 text-primary-700">매칭</span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-warning-100 text-warning-700">미매칭</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  {rows.length > 0 && (
+                    <tfoot>
+                      <tr className="border-t border-dark-200 bg-dark-50 font-semibold">
+                        <td className="px-4 py-2.5 text-dark-700" colSpan={2}>합계</td>
+                        <td className="px-4 py-2.5 text-right text-dark-800">{fmt(sumOf('nationalPension'))}</td>
+                        <td className="px-4 py-2.5 text-right text-dark-800">{fmt(sumOf('health'))}</td>
+                        <td className="px-4 py-2.5 text-right text-dark-800">{fmt(sumOf('longTermCare'))}</td>
+                        <td className="px-4 py-2.5 text-right text-dark-800">{fmt(sumOf('employment'))}</td>
+                        <td className="px-4 py-2.5 text-right text-dark-900">{fmt(sumOf('sum'))}</td>
+                        <td />
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+
+              {unmatchedCount > 0 && (
+                <div className="px-5 py-3 border-t border-dark-100 bg-warning-50 text-xs text-warning-700">
+                  미매칭 직원은 CSV 안의 이름 표기가 시스템 사원명과 다르거나(공백·오탈자 등), 해당 보험 파일에 이 달 내역이 없는 경우예요. 공제항목에서 직접 확인·수정해주세요.
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
