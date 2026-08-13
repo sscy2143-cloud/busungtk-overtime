@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { ChevronLeft, ChevronRight, Search, Upload } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Search, Upload, FileSpreadsheet } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { parseHealthInsuranceCsv, parseNationalPensionCsv, parseEmploymentInsuranceCsv, type InsuranceRow } from '../../utils/insurance-csv'
 import { PayslipGeneratorPanel, type GeneratorEmployee } from './PayslipGeneratorPanel'
+import { exportPayrollLedgerToExcel } from '../../utils/payroll-ledger-excel'
 
 export interface LedgerEmployee extends GeneratorEmployee {
   employee_type: 'office' | 'field'
@@ -62,6 +63,7 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
   const [deptFilter, setDeptFilter] = useState('')
   const [nameFilter, setNameFilter] = useState('')
   const [selectedEmpId, setSelectedEmpId] = useState('')
+  const [exportingExcel, setExportingExcel] = useState(false)
 
   function insuranceStorageKey(p: string, part: 'data' | 'names') {
     return `busungtk_insurance_${part}_${p}`
@@ -194,6 +196,40 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
   const totalDeduction = filtered.reduce((s, r) => s + r.totalDeduction, 0)
   const netPay = totalPayment - totalDeduction
 
+  async function handleExportExcel() {
+    if (filtered.length === 0) return
+    setExportingExcel(true)
+    try {
+      const generatedIds = filtered.filter(r => r.status === 'generated').map(r => r.employee.id)
+      interface DetailRow { employee_id: string; 지급내역?: Array<{ 항목: string; 금액: number }>; 공제내역?: Array<{ 항목: string; 금액: number }> }
+      const detailMap = new Map<string, DetailRow>()
+      if (generatedIds.length > 0) {
+        const { data } = await supabase
+          .from('payslips')
+          .select('employee_id, 지급내역, 공제내역')
+          .eq('period', period)
+          .in('employee_id', generatedIds)
+          .returns<DetailRow[]>()
+        for (const row of data ?? []) detailMap.set(row.employee_id, row)
+      }
+      await exportPayrollLedgerToExcel({
+        period,
+        payDate: defaultPayDate(period),
+        rows: filtered.map(r => {
+          const detail = detailMap.get(r.employee.id)
+          return {
+            department: r.employee.department,
+            name: r.employee.name,
+            payments: (detail?.지급내역 ?? []).map(p => ({ label: p.항목, amount: p.금액 })),
+            deductions: (detail?.공제내역 ?? []).map(d => ({ label: d.항목, amount: d.금액 })),
+          }
+        }),
+      })
+    } finally {
+      setExportingExcel(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-xl border border-dark-200 p-4 flex flex-wrap items-center gap-3">
@@ -277,6 +313,15 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
             className="pl-7 pr-3 py-2 text-sm border border-dark-200 rounded-lg"
           />
         </div>
+        <button
+          type="button"
+          onClick={handleExportExcel}
+          disabled={exportingExcel || filtered.length === 0}
+          className="ml-auto flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-dark-700 bg-white border border-dark-200 rounded-lg hover:bg-dark-50 transition-colors disabled:opacity-50"
+        >
+          <FileSpreadsheet size={14} />
+          {exportingExcel ? '생성 중...' : '급여대장 엑셀 다운로드'}
+        </button>
       </div>
 
       <div ref={splitRef} className="flex items-start w-full">

@@ -1,4 +1,6 @@
-import { Printer } from 'lucide-react'
+import { useState } from 'react'
+import { Printer, FileSpreadsheet } from 'lucide-react'
+import { exportPayslipToExcel } from '../../utils/payslip-excel'
 
 export interface PayslipLineItem {
   label: string
@@ -101,6 +103,19 @@ export function PayslipView({
   const totalPayment = payments.reduce((s, p) => s + p.amount, 0)
   const totalDeduction = deductions.reduce((s, d) => s + d.amount, 0)
   const netPay = totalPayment - totalDeduction
+  const [excelLoading, setExcelLoading] = useState(false)
+
+  async function handleExcelDownload() {
+    setExcelLoading(true)
+    try {
+      await exportPayslipToExcel({
+        companyName, period, payDate, employeeName, department, position, hireDate,
+        workStart, workEnd, payments, deductions, workStats, calcMethods, message,
+      })
+    } finally {
+      setExcelLoading(false)
+    }
+  }
 
   return (
     <div>
@@ -124,7 +139,15 @@ export function PayslipView({
       `}</style>
 
       {showPrintButton && (
-        <div className="payslip-no-print flex justify-end mb-3">
+        <div className="payslip-no-print flex justify-end gap-2 mb-3">
+          <button
+            onClick={handleExcelDownload}
+            disabled={excelLoading}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-dark-700 bg-white border border-dark-200 rounded-lg hover:bg-dark-50 transition-colors disabled:opacity-50"
+          >
+            <FileSpreadsheet size={13} />
+            {excelLoading ? '생성 중...' : '엑셀 다운로드'}
+          </button>
           <button
             onClick={() => window.print()}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-primary-500 rounded-lg hover:bg-primary-600 transition-colors"
