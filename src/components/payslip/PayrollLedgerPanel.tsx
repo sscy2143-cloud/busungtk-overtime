@@ -5,6 +5,7 @@ import { parseHealthInsuranceCsv, parseNationalPensionCsv, parseEmploymentInsura
 import { PayslipGeneratorPanel, type GeneratorEmployee } from './PayslipGeneratorPanel'
 import { exportPayrollLedgerToExcel } from '../../utils/payroll-ledger-excel'
 import { exportPayslipToExcel } from '../../utils/payslip-excel'
+import { exportPayslipToPdf, exportPayslipToImage } from '../../utils/payslip-image'
 import { DEFAULT_CALC_FORMULAS } from './payslip-constants'
 
 export interface LedgerEmployee extends GeneratorEmployee {
@@ -76,6 +77,7 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
   const [generatorDirty, setGeneratorDirty] = useState(false)
   const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(new Set())
   const [downloadingPayslips, setDownloadingPayslips] = useState(false)
+  const [showFormatPicker, setShowFormatPicker] = useState(false)
   const [exportingExcel, setExportingExcel] = useState(false)
 
   function trySelectEmployee(id: string) {
@@ -340,8 +342,9 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
     )
   }
 
-  async function handleBulkDownloadPayslips() {
+  async function handleBulkDownloadPayslips(format: 'excel' | 'pdf' | 'image') {
     if (bulkSelectedIds.size === 0) return
+    setShowFormatPicker(false)
     setDownloadingPayslips(true)
     try {
       interface SlipRow {
@@ -363,6 +366,7 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
       const slipByEmpId = new Map((slips ?? []).map(s => [s.employee_id, s]))
       const empById = new Map(employees.map(e => [e.id, e]))
       const payDate = defaultPayDate(period)
+      const exportFn = format === 'excel' ? exportPayslipToExcel : format === 'pdf' ? exportPayslipToPdf : exportPayslipToImage
 
       let downloaded = 0
       const skipped: string[] = []
@@ -375,7 +379,7 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
         const calcMethods = payments
           .filter(p => DEFAULT_CALC_FORMULAS[p.label])
           .map(p => ({ label: p.label, formula: DEFAULT_CALC_FORMULAS[p.label] }))
-        await exportPayslipToExcel({
+        await exportFn({
           period,
           payDate,
           employeeName: emp.name,
@@ -605,17 +609,29 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
           </div>
           )}
 
-          <div className="mt-3 flex items-center justify-between">
+          <div className="mt-3 flex items-center justify-between relative">
             <span className="text-xs text-dark-400">{bulkSelectedIds.size}명 선택됨</span>
-            <button
-              type="button"
-              onClick={handleBulkDownloadPayslips}
-              disabled={bulkSelectedIds.size === 0 || downloadingPayslips}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-dark-700 bg-white border border-dark-200 rounded-lg hover:bg-dark-50 transition-colors disabled:opacity-50"
-            >
-              <FileSpreadsheet size={14} />
-              {downloadingPayslips ? '다운로드 중...' : '선택 급여명세서 일괄 다운로드'}
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowFormatPicker(v => !v)}
+                disabled={bulkSelectedIds.size === 0 || downloadingPayslips}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-dark-700 bg-white border border-dark-200 rounded-lg hover:bg-dark-50 transition-colors disabled:opacity-50"
+              >
+                <FileSpreadsheet size={14} />
+                {downloadingPayslips ? '다운로드 중...' : '선택 급여명세서 일괄 다운로드'}
+              </button>
+              {showFormatPicker && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowFormatPicker(false)} />
+                  <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-dark-200 rounded-lg shadow-lg py-1 w-36">
+                    <button type="button" onClick={() => handleBulkDownloadPayslips('excel')} className="w-full text-left px-3 py-2 text-sm text-dark-700 hover:bg-dark-50">엑셀 (.xlsx)</button>
+                    <button type="button" onClick={() => handleBulkDownloadPayslips('pdf')} className="w-full text-left px-3 py-2 text-sm text-dark-700 hover:bg-dark-50">PDF</button>
+                    <button type="button" onClick={() => handleBulkDownloadPayslips('image')} className="w-full text-left px-3 py-2 text-sm text-dark-700 hover:bg-dark-50">이미지 (.png)</button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
