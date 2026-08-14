@@ -285,6 +285,8 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
           d.항목 === '장기요양보험' && match.longTermCare != null ? { ...d, 금액: match.longTermCare } :
           d.항목 === '국민연금' && match.nationalPension != null ? { ...d, 금액: match.nationalPension } :
           d.항목 === '고용보험' && match.employment != null ? { ...d, 금액: match.employment } :
+          // 고용보험 파일은 대상자만 명단에 오르므로, 그 파일을 올렸는데 이름이 없으면 비대상자로 보고 0원 처리
+          d.항목 === '고용보험' && insuranceCsvNames.employment && match.employment == null ? { ...d, 금액: 0 } :
           d
         )
         const 공제합계 = deductions.reduce((s, d) => s + (d.금액 || 0), 0)
@@ -517,6 +519,7 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
               onEmpIdChange={setSelectedEmpId}
               onSaved={handleSaved}
               healthInsuranceData={healthInsuranceData}
+              employmentCsvUploaded={!!insuranceCsvNames.employment}
             />
           ) : (
             <div className="bg-white rounded-2xl border border-dark-100 py-16 text-center text-sm text-dark-400">

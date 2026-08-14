@@ -25,6 +25,8 @@ interface PayslipGeneratorPanelProps {
   onEmpIdChange?: (id: string) => void
   /** 외부(급여대장 상단)에서 한 번 업로드한 4대보험 고지내역 — 직원명으로 매칭돼 공제항목에 자동입력 */
   healthInsuranceData?: Record<string, InsuranceRow>
+  /** 고용보험 고지내역 CSV가 업로드됐는지 — 업로드됐는데 그 직원이 명단에 없으면 비대상으로 간주해 0원 처리 */
+  employmentCsvUploaded?: boolean
 }
 
 interface OvertimeRequestRow {
@@ -211,7 +213,7 @@ function LineItemEditor({
   )
 }
 
-export function PayslipGeneratorPanel({ employees, period, onSaved, empId: controlledEmpId, onEmpIdChange, healthInsuranceData = {} }: PayslipGeneratorPanelProps) {
+export function PayslipGeneratorPanel({ employees, period, onSaved, empId: controlledEmpId, onEmpIdChange, healthInsuranceData = {}, employmentCsvUploaded = false }: PayslipGeneratorPanelProps) {
   const { employee: currentUser } = useAuth()
   const isControlled = controlledEmpId !== undefined
   const [internalEmpId, setInternalEmpId] = useState('')
@@ -284,6 +286,8 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
       d.label === '장기요양보험' && match.longTermCare != null ? { ...d, amount: match.longTermCare } :
       d.label === '국민연금' && match.nationalPension != null ? { ...d, amount: match.nationalPension } :
       d.label === '고용보험' && match.employment != null ? { ...d, amount: match.employment } :
+      // 고용보험 파일은 대상자만 명단에 오르므로, 그 파일을 올렸는데 이름이 없으면 비대상자로 보고 0원 처리
+      d.label === '고용보험' && employmentCsvUploaded && match.employment == null ? { ...d, amount: 0 } :
       d
     )
   }
