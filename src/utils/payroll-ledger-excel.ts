@@ -14,6 +14,22 @@ export interface LedgerExcelInput {
   rows: LedgerExcelRow[]
 }
 
+// 같은 날 여러 번 다운로드하면 파일명 뒤에 _v2, _v3 ... 를 붙여서 구분
+function getDownloadFilenameSuffix(): string {
+  const now = new Date()
+  const dateStr = `${String(now.getFullYear()).slice(2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
+  const key = `busungtk_ledger_download_count_${dateStr}`
+  let count = 1
+  try {
+    const raw = localStorage.getItem(key)
+    count = raw ? Number(raw) + 1 : 1
+    localStorage.setItem(key, String(count))
+  } catch {
+    // localStorage 접근 불가(프라이빗 모드 등) 시 날짜만 사용
+  }
+  return count > 1 ? `${dateStr}_v${count}` : dateStr
+}
+
 // 데스크탑 급여대장 양식(No/부서/사원명/직위/기본급/연장·야간·휴일근로수당/연차수당/
 // 기타수당[1][2]/상여금/성과금/연말정산/지급합계/근로소득세/근로지방소득세/4대보험/
 // 기타공제[1][2]/공제합계/실지급액)과 동일한 컬럼 순서 · 서식으로 생성
@@ -181,7 +197,7 @@ export async function exportPayrollLedgerToExcel({ period, payDate, rows }: Ledg
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `부성티케이_${y}년_${m}월_급여대장.xlsx`
+  a.download = `부성티케이_${y}년_${m}월_급여대장_${getDownloadFilenameSuffix()}.xlsx`
   document.body.appendChild(a)
   a.click()
   a.remove()
