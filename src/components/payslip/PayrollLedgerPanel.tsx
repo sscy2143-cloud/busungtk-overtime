@@ -75,6 +75,7 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
   const [infoPopupEmp, setInfoPopupEmp] = useState<LedgerEmployee | null>(null)
   const [showInsurancePopup, setShowInsurancePopup] = useState(false)
   const [insuranceSearch, setInsuranceSearch] = useState('')
+  const [bulkApplying, setBulkApplying] = useState(false)
   const [infoPopupPayroll, setInfoPopupPayroll] = useState<EmployeePayrollInfo | null>(null)
   const [infoPopupLoading, setInfoPopupLoading] = useState(false)
 
@@ -256,6 +257,51 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
     }
   }
 
+  async function handleBulkApplyInsurance() {
+    if (Object.keys(healthInsuranceData).length === 0) return
+    if (!confirm('이번 달에 작성완료된 명세서의 4대보험 항목을 업로드한 파일 값으로 일괄 갱신할까요?')) return
+    setBulkApplying(true)
+    try {
+      interface SlipRow { id: string; employee_id: string; 지급합계: number | null; 공제내역: Array<{ 항목: string; 금액: number }> | null }
+      const { data: slips } = await supabase
+        .from('payslips')
+        .select('id, employee_id, 지급합계, 공제내역')
+        .eq('period', period)
+        .eq('유형', 'generated')
+        .returns<SlipRow[]>()
+      if (!slips || slips.length === 0) {
+        alert('이번 달에 작성완료된 명세서가 없습니다.')
+        return
+      }
+      const nameById = new Map(employees.map(e => [e.id, e.name]))
+      let updated = 0
+      let unmatched = 0
+      for (const slip of slips) {
+        const name = nameById.get(slip.employee_id)
+        const match = name ? healthInsuranceData[name] : undefined
+        if (!match) { unmatched++; continue }
+        const deductions = (slip.공제내역 ?? []).map(d =>
+          d.항목 === '건강보험' && match.health != null ? { ...d, 금액: match.health } :
+          d.항목 === '장기요양보험' && match.longTermCare != null ? { ...d, 금액: match.longTermCare } :
+          d.항목 === '국민연금' && match.nationalPension != null ? { ...d, 금액: match.nationalPension } :
+          d.항목 === '고용보험' && match.employment != null ? { ...d, 금액: match.employment } :
+          d
+        )
+        const 공제합계 = deductions.reduce((s, d) => s + (d.금액 || 0), 0)
+        const 지급합계 = slip.지급합계 ?? 0
+        const { error } = await supabase
+          .from('payslips')
+          .update({ 공제내역: deductions, 공제합계, 실지급액: 지급합계 - 공제합계 })
+          .eq('id', slip.id)
+        if (!error) updated++
+      }
+      alert(`${updated}명 갱신 완료${unmatched > 0 ? ` · ${unmatched}명은 파일에서 이름이 매칭되지 않아 건너뜀` : ''}`)
+      loadSummaries()
+    } finally {
+      setBulkApplying(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-xl border border-dark-200 p-4 flex flex-wrap items-center gap-3">
@@ -299,6 +345,16 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
               {insuranceCsvNames.employment && `고용보험: ${insuranceCsvNames.employment}`}
               {' '}({Object.keys(healthInsuranceData).length}명 인식)
             </span>
+          )}
+          {Object.keys(healthInsuranceData).length > 0 && (
+            <button
+              type="button"
+              onClick={handleBulkApplyInsurance}
+              disabled={bulkApplying}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-primary-700 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100 transition-colors disabled:opacity-50"
+            >
+              {bulkApplying ? '반영 중...' : '작성완료된 명세서에 일괄 반영'}
+            </button>
           )}
         </div>
       </div>
