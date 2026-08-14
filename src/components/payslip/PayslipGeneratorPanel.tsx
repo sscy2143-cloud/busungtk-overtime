@@ -428,6 +428,10 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
     .filter(p => DEFAULT_CALC_FORMULAS[p.label])
     .map(p => ({ label: p.label, formula: DEFAULT_CALC_FORMULAS[p.label] }))
 
+  const totalPaymentSummary = payments.reduce((s, p) => s + (p.amount || 0), 0)
+  const totalDeductionSummary = deductions.reduce((s, d) => s + (d.amount || 0), 0)
+  const netPaySummary = totalPaymentSummary - totalDeductionSummary
+
   async function handleSave() {
     if (!empId) return
     setSaving(true)
@@ -514,6 +518,11 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
               <span>이 직원·기간에 이미 업로드된 파일 명세서가 있습니다. 저장하면 <b>파일이 삭제되고 생성형으로 대체</b>됩니다.</span>
             </div>
           )}
+
+          <div className="bg-white rounded-xl border border-dark-200 px-4 py-3 flex items-center justify-between">
+            <span className="text-sm font-semibold text-dark-700">실지급액</span>
+            <span className="text-lg font-bold text-dark-900">{netPaySummary.toLocaleString('ko-KR')}원</span>
+          </div>
 
           <div ref={lineItemSplitRef} className="flex items-start w-full">
             <div style={{ width: `${lineItemSplitPct}%` }} className="min-w-0 pr-2">
