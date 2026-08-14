@@ -551,10 +551,13 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
             const health = ins?.health ?? 0
             const longTermCare = ins?.longTermCare ?? 0
             const employment = ins?.employment ?? 0
+            // 고용보험은 대상자만 고지파일 명단에 오르므로, 다른 보험은 매칭됐는데
+            // 고용보험만 파일에 없는 경우는 "미매칭"이 아니라 "고용보험 비대상자"임
+            const employmentNotApplicable = !!ins && ins.employment == null
             return {
               emp,
               matched: !!ins,
-              nationalPension, health, longTermCare, employment,
+              nationalPension, health, longTermCare, employment, employmentNotApplicable,
               sum: nationalPension + health + longTermCare + employment,
             }
           })
@@ -627,7 +630,9 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
                         <td className="px-4 py-2.5 text-right text-dark-700">{fmt(r.nationalPension)}</td>
                         <td className="px-4 py-2.5 text-right text-dark-700">{fmt(r.health)}</td>
                         <td className="px-4 py-2.5 text-right text-dark-700">{fmt(r.longTermCare)}</td>
-                        <td className="px-4 py-2.5 text-right text-dark-700">{fmt(r.employment)}</td>
+                        <td className="px-4 py-2.5 text-right text-dark-700">
+                          {r.employmentNotApplicable ? <span className="text-dark-300">비대상</span> : fmt(r.employment)}
+                        </td>
                         <td className="px-4 py-2.5 text-right font-semibold text-dark-900">{fmt(r.sum)}</td>
                         <td className="px-4 py-2.5 text-center">
                           {r.matched ? (
