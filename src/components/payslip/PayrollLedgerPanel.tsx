@@ -302,6 +302,17 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
     }
   }
 
+  async function handleResetToDraft(employeeId: string, employeeName: string) {
+    if (!confirm(`${employeeName}님의 작성완료된 명세서를 지우고 미작성 상태로 되돌릴까요?\n입력된 지급·공제 항목이 모두 삭제됩니다.`)) return
+    const { error } = await supabase.from('payslips').delete().eq('employee_id', employeeId).eq('period', period)
+    if (error) {
+      alert('되돌리기에 실패했습니다. 잠시 후 다시 시도해주세요.')
+      return
+    }
+    if (selectedEmpId === employeeId) setSelectedEmpId('')
+    loadSummaries()
+  }
+
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-xl border border-dark-200 p-4 flex flex-wrap items-center justify-center gap-3">
@@ -452,7 +463,19 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
                           />
                         </td>
                         <td className="px-4 py-3">
-                          <span className={`px-2 py-1 rounded-md text-xs font-medium ${s.cls}`}>{s.text}</span>
+                          <div className="flex items-center gap-1">
+                            <span className={`px-2 py-1 rounded-md text-xs font-medium ${s.cls}`}>{s.text}</span>
+                            {r.status === 'generated' && (
+                              <button
+                                type="button"
+                                onClick={e => { e.stopPropagation(); handleResetToDraft(r.employee.id, r.employee.name) }}
+                                title="미작성으로 되돌리기"
+                                className="p-0.5 text-dark-300 hover:text-warning-600 rounded"
+                              >
+                                <X size={12} />
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3">
                           <button
