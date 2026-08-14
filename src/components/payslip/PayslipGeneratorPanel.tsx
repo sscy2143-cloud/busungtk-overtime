@@ -327,7 +327,6 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
 
   // 근로시간 통계 (수동입력 — 근태 데이터 미연동 항목)
   const [totalWorkDaysText, setTotalWorkDaysText] = useState('')
-  const [totalHoursText, setTotalHoursText] = useState('')
   const [baseHoursText, setBaseHoursText] = useState('')
   const [leaveHoursText, setLeaveHoursText] = useState('')
   const [etcHoursText, setEtcHoursText] = useState('')
@@ -446,9 +445,7 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
       const leaveDays = (leaves ?? []).reduce((s, l) => s + (l.days || 0), 0)
       const defaultWorkDays = Math.max(0, businessDays - leaveDays)
       const defaultBaseHours = defaultWorkDays * 8
-      const defaultTotalHours = defaultBaseHours + (extendedMinutes + holidayMinutes) / 60
       setTotalWorkDaysText(`${defaultWorkDays}일`)
-      setTotalHoursText(formatHours(defaultTotalHours))
       setBaseHoursText(formatHours(defaultBaseHours))
       setLeaveHoursText(leaveDays > 0 ? formatHours(leaveDays * 8) : '')
       setEtcHoursText('')
@@ -465,6 +462,13 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
   const totalPaymentSummary = payments.reduce((s, p) => s + (p.amount || 0), 0)
   const totalDeductionSummary = deductions.reduce((s, d) => s + (d.amount || 0), 0)
   const netPaySummary = totalPaymentSummary - totalDeductionSummary
+
+  // 근로시간 통계: 연장/야간/휴일은 지급항목의 시간 스테퍼 값을 그대로 따라가고,
+  // 총 근로시간은 기본근로시간 + 연장 + 휴일로 자동 합산됨(시간 스테퍼 조정 시 실시간 반영)
+  const liveExtendedHours = payments.find(p => p.label === '연장근로수당')?.hours ?? 0
+  const liveNightHours = payments.find(p => p.label === '야간근로수당')?.hours ?? 0
+  const liveHolidayHours = payments.find(p => p.label === '휴일근로수당')?.hours ?? 0
+  const liveTotalHours = (Number(baseHoursText) || 0) + liveExtendedHours + liveHolidayHours
 
   async function handleSave() {
     if (!empId) return
@@ -637,7 +641,7 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
               </div>
               <div>
                 <label className="text-xs text-dark-500 block mb-1">총 근로시간(h)</label>
-                <input type="number" value={totalHoursText} onChange={e => setTotalHoursText(e.target.value)} className="w-full px-2 py-1.5 text-xs border border-dark-200 rounded-lg" />
+                <div className="px-2 py-1.5 text-xs bg-dark-50 border border-dark-100 rounded-lg text-dark-500">{formatHours(liveTotalHours)}h (자동)</div>
               </div>
               <div>
                 <label className="text-xs text-dark-500 block mb-1">기본근로시간(h)</label>
@@ -645,15 +649,15 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
               </div>
               <div>
                 <label className="text-xs text-dark-500 block mb-1">연장근로시간</label>
-                <div className="px-2 py-1.5 text-xs bg-dark-50 border border-dark-100 rounded-lg text-dark-500">{(autoOvertime.extendedMinutes / 60).toFixed(1)}h (자동)</div>
+                <div className="px-2 py-1.5 text-xs bg-dark-50 border border-dark-100 rounded-lg text-dark-500">{liveExtendedHours.toFixed(1)}h (자동)</div>
               </div>
               <div>
                 <label className="text-xs text-dark-500 block mb-1">야간근로시간</label>
-                <div className="px-2 py-1.5 text-xs bg-dark-50 border border-dark-100 rounded-lg text-dark-500">{(autoOvertime.nightMinutes / 60).toFixed(1)}h (자동)</div>
+                <div className="px-2 py-1.5 text-xs bg-dark-50 border border-dark-100 rounded-lg text-dark-500">{liveNightHours.toFixed(1)}h (자동)</div>
               </div>
               <div>
                 <label className="text-xs text-dark-500 block mb-1">휴일근로시간</label>
-                <div className="px-2 py-1.5 text-xs bg-dark-50 border border-dark-100 rounded-lg text-dark-500">{(autoOvertime.holidayMinutes / 60).toFixed(1)}h (자동)</div>
+                <div className="px-2 py-1.5 text-xs bg-dark-50 border border-dark-100 rounded-lg text-dark-500">{liveHolidayHours.toFixed(1)}h (자동)</div>
               </div>
               <div>
                 <label className="text-xs text-dark-500 block mb-1">휴가(h)</label>
@@ -702,11 +706,11 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
               deductions={deductions.filter(d => d.label)}
               workStats={{
                 totalWorkDays: totalWorkDaysText || null,
-                totalMinutes: numOrNull(totalHoursText) != null ? numOrNull(totalHoursText)! * 60 : null,
+                totalMinutes: Math.round(liveTotalHours * 60),
                 baseMinutes: numOrNull(baseHoursText) != null ? numOrNull(baseHoursText)! * 60 : null,
-                extendedMinutes: autoOvertime.extendedMinutes,
-                nightMinutes: autoOvertime.nightMinutes,
-                holidayMinutes: autoOvertime.holidayMinutes,
+                extendedMinutes: Math.round(liveExtendedHours * 60),
+                nightMinutes: Math.round(liveNightHours * 60),
+                holidayMinutes: Math.round(liveHolidayHours * 60),
                 leaveMinutes: numOrNull(leaveHoursText) != null ? numOrNull(leaveHoursText)! * 60 : null,
                 etcMinutes: numOrNull(etcHoursText) != null ? numOrNull(etcHoursText)! * 60 : null,
               }}
