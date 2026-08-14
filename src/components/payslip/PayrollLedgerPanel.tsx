@@ -304,7 +304,7 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-xl border border-dark-200 p-4 flex flex-wrap items-center gap-3">
+      <div className="bg-white rounded-xl border border-dark-200 p-4 flex flex-wrap items-center justify-center gap-3">
         <button onClick={() => setPeriod(p => shiftPeriod(p, -1))} className="p-1.5 rounded-lg hover:bg-dark-50 text-dark-500">
           <ChevronLeft size={16} />
         </button>
