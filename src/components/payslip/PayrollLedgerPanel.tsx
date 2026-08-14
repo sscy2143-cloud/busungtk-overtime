@@ -97,7 +97,7 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
   }
   function loadInsuranceFromStorage<T>(p: string, part: 'data' | 'names'): T | null {
     try {
-      const raw = sessionStorage.getItem(insuranceStorageKey(p, part))
+      const raw = localStorage.getItem(insuranceStorageKey(p, part))
       return raw ? JSON.parse(raw) : null
     } catch {
       return null
@@ -172,13 +172,13 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period])
 
-  // 업로드 데이터를 세션 동안 유지(다른 화면 갔다 와도 다시 안 올려도 되게)
+  // 업로드 데이터를 기기에 계속 보관(앱을 껐다 켜도, 다른 화면 갔다 와도 다시 안 올려도 되게)
   useEffect(() => {
     try {
-      sessionStorage.setItem(insuranceStorageKey(period, 'data'), JSON.stringify(healthInsuranceData))
-      sessionStorage.setItem(insuranceStorageKey(period, 'names'), JSON.stringify(insuranceCsvNames))
+      localStorage.setItem(insuranceStorageKey(period, 'data'), JSON.stringify(healthInsuranceData))
+      localStorage.setItem(insuranceStorageKey(period, 'names'), JSON.stringify(insuranceCsvNames))
     } catch {
-      // sessionStorage 접근 불가(프라이빗 모드 등) 시 무시
+      // localStorage 접근 불가(프라이빗 모드 등) 시 무시
     }
   }, [period, healthInsuranceData, insuranceCsvNames])
 
