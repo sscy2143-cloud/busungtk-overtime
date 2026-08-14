@@ -25,8 +25,9 @@ interface PayslipGeneratorPanelProps {
   onEmpIdChange?: (id: string) => void
   /** 외부(급여대장 상단)에서 한 번 업로드한 4대보험 고지내역 — 직원명으로 매칭돼 공제항목에 자동입력 */
   healthInsuranceData?: Record<string, InsuranceRow>
-  /** 고용보험 고지내역 CSV가 업로드됐는지 — 업로드됐는데 그 직원이 명단에 없으면 비대상으로 간주해 0원 처리 */
-  employmentCsvUploaded?: boolean
+  /** 어떤 4대보험 고지내역 CSV가 업로드됐는지 — 업로드 안 된 항목은 추정하지 않고 "자료 없음"으로 표시,
+   *  고용보험은 업로드됐는데 그 직원이 명단에 없으면 비대상으로 간주해 0원 처리 */
+  insuranceCsvStatus?: { nationalPension: boolean; health: boolean; employment: boolean }
 }
 
 interface OvertimeRequestRow {
@@ -118,8 +119,8 @@ const HOURLY_RATE_MULTIPLIER: Record<string, number> = {
 }
 
 function LineItemEditor({
-  title, items, onChange, employeeName, onDrill, hourlyWage, originalHours,
-}: { title: string; items: PayslipLineItem[]; onChange: (items: PayslipLineItem[]) => void; employeeName?: string; onDrill?: (label: string) => void; hourlyWage?: number; originalHours?: Record<string, number> }) {
+  title, items, onChange, employeeName, onDrill, hourlyWage, originalHours, noDataLabels,
+}: { title: string; items: PayslipLineItem[]; onChange: (items: PayslipLineItem[]) => void; employeeName?: string; onDrill?: (label: string) => void; hourlyWage?: number; originalHours?: Record<string, number>; noDataLabels?: Record<string, boolean> }) {
   const total = items.reduce((s, i) => s + (i.amount || 0), 0)
 
   function adjustHours(i: number, delta: number) {
@@ -186,6 +187,11 @@ function LineItemEditor({
                 placeholder="금액"
                 className="flex-1 min-w-0 basis-0 px-2 py-1.5 text-xs border border-dark-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-400 text-right"
               />
+              {noDataLabels?.[item.label] && (
+                <span className="px-1.5 py-0.5 text-[10px] font-medium text-dark-400 bg-dark-100 rounded whitespace-nowrap" title="고지내역 파일을 아직 업로드하지 않았어요">
+                  자료 없음
+                </span>
+              )}
               {onDrill && DRILL_LABEL[item.label] && (
                 <button
                   type="button"
@@ -213,7 +219,9 @@ function LineItemEditor({
   )
 }
 
-export function PayslipGeneratorPanel({ employees, period, onSaved, empId: controlledEmpId, onEmpIdChange, healthInsuranceData = {}, employmentCsvUploaded = false }: PayslipGeneratorPanelProps) {
+const NO_INSURANCE_CSV_STATUS = { nationalPension: false, health: false, employment: false }
+
+export function PayslipGeneratorPanel({ employees, period, onSaved, empId: controlledEmpId, onEmpIdChange, healthInsuranceData = {}, insuranceCsvStatus = NO_INSURANCE_CSV_STATUS }: PayslipGeneratorPanelProps) {
   const { employee: currentUser } = useAuth()
   const isControlled = controlledEmpId !== undefined
   const [internalEmpId, setInternalEmpId] = useState('')
@@ -287,7 +295,7 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
       d.label === '국민연금' && match.nationalPension != null ? { ...d, amount: match.nationalPension } :
       d.label === '고용보험' && match.employment != null ? { ...d, amount: match.employment } :
       // 고용보험 파일은 대상자만 명단에 오르므로, 그 파일을 올렸는데 이름이 없으면 비대상자로 보고 0원 처리
-      d.label === '고용보험' && employmentCsvUploaded && match.employment == null ? { ...d, amount: 0 } :
+      d.label === '고용보험' && insuranceCsvStatus.employment && match.employment == null ? { ...d, amount: 0 } :
       d
     )
   }
@@ -397,7 +405,13 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
         const loadedTotal = loadedPayments.reduce((s, p) => s + (p.amount || 0), 0)
         const autoDed = calculateAutoDeductions(loadedTotal, empDependents)
         const baseDeductions = deds.length ? deds.map(d => ({ label: d.항목, amount: d.금액 })) : DEFAULT_DEDUCTION_LABELS.map(label => ({ label, amount: 0 }))
-        const liveDeductions = baseDeductions.map(d => d.label in autoDed ? { ...d, amount: autoDed[d.label as keyof typeof autoDed] } : d)
+        // 소득세만 그 달 지급총액 기준으로 다시 계산하고, 4대보험은 저장된 값을 그대로 유지
+        // (CSV 고지내역 매칭은 아래 applyHealthInsurance에서 별도 처리)
+        const liveDeductions = baseDeductions.map(d =>
+          d.label === '근로소득세' ? { ...d, amount: autoDed.근로소득세 } :
+          d.label === '근로지방소득세' ? { ...d, amount: autoDed.근로지방소득세 } :
+          d
+        )
         const savedHealthMatch = employee ? healthInsuranceDataRef.current[employee.name] : undefined
         setDeductions(savedHealthMatch ? applyHealthInsurance(liveDeductions, savedHealthMatch) : liveDeductions)
       } else {
@@ -417,7 +431,12 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
         setPayments(autoPayments)
         const totalPayment = autoPayments.reduce((s, p) => s + (p.amount || 0), 0)
         const auto = calculateAutoDeductions(totalPayment, empDependents)
-        const defaultDeductions = DEFAULT_DEDUCTION_LABELS.map(label => ({ label, amount: auto[label as keyof typeof auto] ?? 0 }))
+        // 소득세는 라이브 추정치를 기본값으로 채우되, 4대보험은 실제 고지내역(CSV) 없이는
+        // 추정하지 않고 0으로 시작 — 아래 applyHealthInsurance에서 CSV 매칭 시에만 채워짐
+        const defaultDeductions = DEFAULT_DEDUCTION_LABELS.map(label => ({
+          label,
+          amount: label === '근로소득세' ? auto.근로소득세 : label === '근로지방소득세' ? auto.근로지방소득세 : 0,
+        }))
         const healthMatch = employee ? healthInsuranceDataRef.current[employee.name] : undefined
         setDeductions(healthMatch ? applyHealthInsurance(defaultDeductions, healthMatch) : defaultDeductions)
       }
@@ -561,7 +580,18 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
               title="드래그해서 비율 조정"
             />
             <div style={{ width: `${100 - lineItemSplitPct}%` }} className="min-w-0 pl-2">
-              <LineItemEditor title="공제항목" items={deductions} onChange={setDeductions} employeeName={employee?.name} />
+              <LineItemEditor
+                title="공제항목"
+                items={deductions}
+                onChange={setDeductions}
+                employeeName={employee?.name}
+                noDataLabels={{
+                  '국민연금': !insuranceCsvStatus.nationalPension,
+                  '건강보험': !insuranceCsvStatus.health,
+                  '장기요양보험': !insuranceCsvStatus.health,
+                  '고용보험': !insuranceCsvStatus.employment,
+                }}
+              />
             </div>
           </div>
 

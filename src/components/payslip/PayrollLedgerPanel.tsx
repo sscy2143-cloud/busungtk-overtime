@@ -337,15 +337,15 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
           4대보험 고지내역 업로드 (직원명으로 매칭돼 전 직원 공제항목에 자동입력) — 클릭해서 인식 내역 확인
         </button>
         <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-dark-600 border border-dark-200 rounded-lg cursor-pointer hover:bg-dark-50 transition-colors">
+          <label className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg cursor-pointer transition-colors ${insuranceCsvNames.nationalPension ? 'text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100' : 'text-dark-600 border border-dark-200 hover:bg-dark-50'}`}>
             <Upload size={13} /> 국민연금
             <input type="file" accept=".csv" onChange={handleNationalPensionCsvUpload} className="hidden" />
           </label>
-          <label className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-dark-600 border border-dark-200 rounded-lg cursor-pointer hover:bg-dark-50 transition-colors">
+          <label className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg cursor-pointer transition-colors ${insuranceCsvNames.health ? 'text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100' : 'text-dark-600 border border-dark-200 hover:bg-dark-50'}`}>
             <Upload size={13} /> 건강보험·장기요양보험
             <input type="file" accept=".csv" onChange={handleHealthCsvUpload} className="hidden" />
           </label>
-          <label className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-dark-600 border border-dark-200 rounded-lg cursor-pointer hover:bg-dark-50 transition-colors">
+          <label className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg cursor-pointer transition-colors ${insuranceCsvNames.employment ? 'text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100' : 'text-dark-600 border border-dark-200 hover:bg-dark-50'}`}>
             <Upload size={13} /> 고용보험
             <input type="file" accept=".csv" onChange={handleEmploymentCsvUpload} className="hidden" />
           </label>
@@ -519,7 +519,11 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
               onEmpIdChange={setSelectedEmpId}
               onSaved={handleSaved}
               healthInsuranceData={healthInsuranceData}
-              employmentCsvUploaded={!!insuranceCsvNames.employment}
+              insuranceCsvStatus={{
+                nationalPension: !!insuranceCsvNames.nationalPension,
+                health: !!insuranceCsvNames.health,
+                employment: !!insuranceCsvNames.employment,
+              }}
             />
           ) : (
             <div className="bg-white rounded-2xl border border-dark-100 py-16 text-center text-sm text-dark-400">
