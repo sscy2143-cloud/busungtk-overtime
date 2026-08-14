@@ -28,6 +28,8 @@ interface PayslipGeneratorPanelProps {
   /** 어떤 4대보험 고지내역 CSV가 업로드됐는지 — 업로드 안 된 항목은 추정하지 않고 "자료 없음"으로 표시,
    *  고용보험은 업로드됐는데 그 직원이 명단에 없으면 비대상으로 간주해 0원 처리 */
   insuranceCsvStatus?: { nationalPension: boolean; health: boolean; employment: boolean }
+  /** 저장 안 된 변경사항 여부가 바뀔 때마다 알려줌 — 외부에서 직원 전환 시 확인창 띄우는 용도 */
+  onDirtyChange?: (dirty: boolean) => void
 }
 
 interface OvertimeRequestRow {
@@ -221,7 +223,7 @@ function LineItemEditor({
 
 const NO_INSURANCE_CSV_STATUS = { nationalPension: false, health: false, employment: false }
 
-export function PayslipGeneratorPanel({ employees, period, onSaved, empId: controlledEmpId, onEmpIdChange, healthInsuranceData = {}, insuranceCsvStatus = NO_INSURANCE_CSV_STATUS }: PayslipGeneratorPanelProps) {
+export function PayslipGeneratorPanel({ employees, period, onSaved, empId: controlledEmpId, onEmpIdChange, healthInsuranceData = {}, insuranceCsvStatus = NO_INSURANCE_CSV_STATUS, onDirtyChange }: PayslipGeneratorPanelProps) {
   const { employee: currentUser } = useAuth()
   const isControlled = controlledEmpId !== undefined
   const [internalEmpId, setInternalEmpId] = useState('')
@@ -288,6 +290,11 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
   const healthInsuranceDataRef = useRef(healthInsuranceData)
   useEffect(() => { healthInsuranceDataRef.current = healthInsuranceData }, [healthInsuranceData])
 
+  // 저장 안 된 변경사항 추적: load()가 값을 채우는 최초 1회는 무시하고,
+  // 그 이후 사용자가 실제로 값을 바꿀 때만 변경사항 있음으로 표시
+  const [isDirty, setIsDirty] = useState(false)
+  const justLoadedRef = useRef(true)
+
   function applyHealthInsurance(items: PayslipLineItem[], match: InsuranceRow): PayslipLineItem[] {
     return items.map(d =>
       d.label === '건강보험' && match.health != null ? { ...d, amount: match.health } :
@@ -331,6 +338,24 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
   const [leaveHoursText, setLeaveHoursText] = useState('')
   const [etcHoursText, setEtcHoursText] = useState('')
 
+  useEffect(() => {
+    if (justLoadedRef.current) { justLoadedRef.current = false; return }
+    setIsDirty(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payments, deductions, workStart, workEnd, message, adminNote, totalWorkDaysText, baseHoursText, leaveHoursText, etcHoursText])
+
+  useEffect(() => {
+    if (!isDirty) return
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [isDirty])
+
+  useEffect(() => { onDirtyChange?.(isDirty) }, [isDirty, onDirtyChange])
+
   const employee = employees.find(e => e.id === empId)
 
   useEffect(() => {
@@ -357,6 +382,7 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
         supabase.from('leave_requests').select('days').eq('employee_id', empId).eq('status', 'approved').gte('start_date', start).lte('end_date', end).returns<{ days: number }[]>(),
       ])
       if (cancelled) return
+      justLoadedRef.current = true
       const empDependents = payrollInfo.data?.dependents_count ?? 1
       setDependents(empDependents)
 
@@ -449,6 +475,7 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
       setBaseHoursText(formatHours(defaultBaseHours))
       setLeaveHoursText(leaveDays > 0 ? formatHours(leaveDays * 8) : '')
       setEtcHoursText('')
+      setIsDirty(false)
       setLoading(false)
     }
     load()
@@ -505,6 +532,7 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
       return
     }
     setExistingFilePath(null)
+    setIsDirty(false)
     alert('저장되었습니다.')
     onSaved?.()
   }
@@ -680,7 +708,13 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
             </div>
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex items-center justify-end gap-3">
+            {isDirty && (
+              <span className="flex items-center gap-1.5 text-xs font-medium text-amber-600">
+                <AlertTriangle size={13} />
+                저장하지 않은 변경사항이 있습니다
+              </span>
+            )}
             <button
               onClick={handleSave}
               disabled={saving}

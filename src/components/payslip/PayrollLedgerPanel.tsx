@@ -71,7 +71,14 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
   const [deptFilter, setDeptFilter] = useState('')
   const [nameFilter, setNameFilter] = useState('')
   const [selectedEmpId, setSelectedEmpId] = useState('')
+  const [generatorDirty, setGeneratorDirty] = useState(false)
   const [exportingExcel, setExportingExcel] = useState(false)
+
+  function trySelectEmployee(id: string) {
+    if (id === selectedEmpId) return
+    if (generatorDirty && !confirm('저장하지 않은 변경사항이 있습니다. 저장하지 않고 다른 직원으로 이동할까요?')) return
+    setSelectedEmpId(id)
+  }
   const [infoPopupEmp, setInfoPopupEmp] = useState<LedgerEmployee | null>(null)
   const [showInsurancePopup, setShowInsurancePopup] = useState(false)
   const [insuranceSearch, setInsuranceSearch] = useState('')
@@ -452,14 +459,14 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
                     return (
                       <tr
                         key={r.employee.id}
-                        onClick={() => setSelectedEmpId(r.employee.id)}
+                        onClick={() => trySelectEmployee(r.employee.id)}
                         className={`cursor-pointer transition-colors ${selected ? 'bg-primary-50' : 'hover:bg-dark-50'}`}
                       >
                         <td className="px-4 py-3">
                           <input
                             type="checkbox"
                             checked={selected}
-                            onChange={() => setSelectedEmpId(r.employee.id)}
+                            onChange={() => trySelectEmployee(r.employee.id)}
                             onClick={e => e.stopPropagation()}
                             className="rounded border-dark-300"
                           />
@@ -524,6 +531,7 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
                 health: !!insuranceCsvNames.health,
                 employment: !!insuranceCsvNames.employment,
               }}
+              onDirtyChange={setGeneratorDirty}
             />
           ) : (
             <div className="bg-white rounded-2xl border border-dark-100 py-16 text-center text-sm text-dark-400">
@@ -562,7 +570,7 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
             </div>
             <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-dark-100">
               <button
-                onClick={() => { setSelectedEmpId(infoPopupEmp.id); setInfoPopupEmp(null) }}
+                onClick={() => { trySelectEmployee(infoPopupEmp.id); setInfoPopupEmp(null) }}
                 className="px-4 py-2 text-sm font-medium text-white bg-primary-500 rounded-lg hover:bg-primary-600"
               >
                 급여명세서 보기
