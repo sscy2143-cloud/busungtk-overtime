@@ -303,8 +303,8 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
   }
 
   async function handleResetToDraft(employeeId: string, employeeName: string) {
-    if (!confirm(`${employeeName}님의 작성완료된 명세서를 지우고 미작성 상태로 되돌릴까요?\n입력된 지급·공제 항목이 모두 삭제됩니다.`)) return
-    const { error } = await supabase.from('payslips').delete().eq('employee_id', employeeId).eq('period', period)
+    if (!confirm(`${employeeName}님의 상태를 미작성으로 되돌릴까요?\n입력해둔 지급·공제 항목 내용은 그대로 남아있고, 다시 열어서 저장하면 작성완료로 돌아갑니다.`)) return
+    const { error } = await supabase.from('payslips').update({ 유형: null }).eq('employee_id', employeeId).eq('period', period)
     if (error) {
       alert('되돌리기에 실패했습니다. 잠시 후 다시 시도해주세요.')
       return

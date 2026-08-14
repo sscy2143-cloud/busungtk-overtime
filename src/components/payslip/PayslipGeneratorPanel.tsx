@@ -368,8 +368,10 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
 
       setAdminNote(slip?.admin_note ?? '')
 
-      const generated = slip?.유형 === 'generated'
-      if (generated && slip) {
+      // '미작성으로 되돌리기'는 유형만 비우고 지급/공제 내역은 남겨두므로,
+      // 유형이 아니라 실제 저장된 지급내역이 있는지로 복원 여부를 판단함
+      const hasSavedContent = !!(slip?.지급내역 && slip.지급내역.length > 0)
+      if (hasSavedContent && slip) {
         setExistingId(slip.id)
         setExistingFilePath(null)
         setWorkStart(slip.work_start ?? start)
