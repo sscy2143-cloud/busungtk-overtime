@@ -257,6 +257,7 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
 
   const [payDate, setPayDate] = useState(defaultPayDate(period))
   const [hireDate, setHireDate] = useState('')
+  const [birthDate, setBirthDate] = useState('')
   const [department, setDepartment] = useState('')
   const [position, setPosition] = useState('')
   const [workStart, setWorkStart] = useState(monthRange(period).start)
@@ -409,13 +410,14 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
         supabase.from('payslips').select('*').eq('employee_id', empId).eq('period', period).maybeSingle<GeneratedPayslipRow>(),
         supabase.from('overtime_requests').select('*').eq('employee_id', empId).eq('status', 'approved').gte('date', start).lte('date', end).returns<OvertimeRequestRow[]>(),
         supabase.from('substitute_history').select('related_request_id').not('related_request_id', 'is', null).returns<{ related_request_id: string | null }[]>(),
-        supabase.from('employee_payroll_info').select('dependents_count, base_salary').eq('employee_id', empId).maybeSingle<{ dependents_count: number; base_salary: number }>(),
+        supabase.from('employee_payroll_info').select('dependents_count, base_salary, birth_date').eq('employee_id', empId).maybeSingle<{ dependents_count: number; base_salary: number; birth_date: string | null }>(),
         supabase.from('leave_requests').select('days').eq('employee_id', empId).eq('status', 'approved').gte('start_date', start).lte('end_date', end).returns<{ days: number }[]>(),
       ])
       if (cancelled) return
       justLoadedRef.current = true
       const empDependents = payrollInfo.data?.dependents_count ?? 1
       setDependents(empDependents)
+      setBirthDate(payrollInfo.data?.birth_date ?? '')
 
       const compLeaveIds = new Set((compLeave ?? []).map(r => r.related_request_id))
       const filteredReqs = (reqs ?? []).filter(r => !compLeaveIds.has(r.id))
@@ -769,6 +771,7 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
               period={period}
               payDate={payDate}
               employeeName={employee?.name ?? ''}
+              birthDate={birthDate}
               department={department}
               position={position}
               hireDate={hireDate}

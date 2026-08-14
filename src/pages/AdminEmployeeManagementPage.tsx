@@ -74,6 +74,7 @@ interface UnsavedGuard {
 }
 
 interface PayrollFormState {
+  birthDate: string
   baseSalary: string
   annualSalary: string
   fixedAllowanceEnabled: boolean
@@ -103,6 +104,7 @@ const BANK_OPTIONS = ['하나은행', '신한은행', '국민은행', '우리은
 
 function makeEmptyPayrollForm(): PayrollFormState {
   return {
+    birthDate: '',
     baseSalary: '',
     annualSalary: '',
     fixedAllowanceEnabled: false,
@@ -130,6 +132,7 @@ function makeEmptyPayrollForm(): PayrollFormState {
 }
 
 interface PayrollInfoRow {
+  birth_date: string | null
   base_salary: number
   annual_salary: number
   fixed_allowance_enabled: boolean
@@ -158,6 +161,7 @@ interface PayrollInfoRow {
 function payrollRowToForm(row: PayrollInfoRow | null): PayrollFormState {
   if (!row) return makeEmptyPayrollForm()
   return {
+    birthDate: row.birth_date ?? '',
     baseSalary: row.base_salary ? String(row.base_salary) : '',
     annualSalary: row.annual_salary ? String(row.annual_salary) : '',
     fixedAllowanceEnabled: row.fixed_allowance_enabled,
@@ -334,6 +338,7 @@ export function AdminEmployeeManagementPage() {
     const p = payrollForm
     const { error } = await supabase.from('employee_payroll_info').upsert({
       employee_id: editPanel.employee.id,
+      birth_date: p.birthDate || null,
       base_salary: parseInt(p.baseSalary.replace(/,/g, ''), 10) || 0,
       annual_salary: parseInt(p.annualSalary.replace(/,/g, ''), 10) || 0,
       fixed_allowance_enabled: p.fixedAllowanceEnabled,
@@ -929,6 +934,15 @@ export function AdminEmployeeManagementPage() {
                   <p className="text-sm text-dark-400 text-center py-8">불러오는 중...</p>
                 ) : (
                 <>
+                  <div>
+                    <label className="block text-xs font-medium text-dark-600 mb-1">생년월일 <span className="text-dark-300">(급여명세서 표기용)</span></label>
+                    <input
+                      type="date"
+                      value={payrollForm.birthDate}
+                      onChange={e => setPayrollForm(p => ({ ...p, birthDate: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400"
+                    />
+                  </div>
                   <div>
                     <label className="block text-xs font-medium text-dark-600 mb-1">월급 <span className="text-danger-500">*</span></label>
                     <input

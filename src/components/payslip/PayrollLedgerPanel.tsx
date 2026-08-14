@@ -356,14 +356,22 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
         공제내역: Array<{ 항목: string; 금액: number }> | null
       }
       const ids = Array.from(bulkSelectedIds)
-      const { data: slips } = await supabase
-        .from('payslips')
-        .select('employee_id, work_start, work_end, message, 지급내역, 공제내역')
-        .eq('period', period)
-        .eq('유형', 'generated')
-        .in('employee_id', ids)
-        .returns<SlipRow[]>()
+      const [{ data: slips }, { data: payrollInfos }] = await Promise.all([
+        supabase
+          .from('payslips')
+          .select('employee_id, work_start, work_end, message, 지급내역, 공제내역')
+          .eq('period', period)
+          .eq('유형', 'generated')
+          .in('employee_id', ids)
+          .returns<SlipRow[]>(),
+        supabase
+          .from('employee_payroll_info')
+          .select('employee_id, birth_date')
+          .in('employee_id', ids)
+          .returns<{ employee_id: string; birth_date: string | null }[]>(),
+      ])
       const slipByEmpId = new Map((slips ?? []).map(s => [s.employee_id, s]))
+      const birthDateByEmpId = new Map((payrollInfos ?? []).map(p => [p.employee_id, p.birth_date]))
       const empById = new Map(employees.map(e => [e.id, e]))
       const payDate = defaultPayDate(period)
       const exportFn = format === 'excel' ? exportPayslipToExcel : format === 'pdf' ? exportPayslipToPdf : exportPayslipToImage
@@ -383,6 +391,7 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
           period,
           payDate,
           employeeName: emp.name,
+          birthDate: birthDateByEmpId.get(id) ?? null,
           department: emp.department,
           hireDate: emp.hire_date,
           workStart: slip.work_start,

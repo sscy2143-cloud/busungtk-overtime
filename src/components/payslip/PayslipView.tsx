@@ -29,6 +29,7 @@ export interface PayslipViewProps {
   period: string // 'YYYY-MM'
   payDate?: string | null
   employeeName: string
+  birthDate?: string | null
   department?: string | null
   position?: string | null
   hireDate?: string | null
@@ -60,6 +61,14 @@ function fmtHMS(minutes?: number | null) {
   return `${String(h).padStart(2, '0')}h${String(m).padStart(2, '0')}m00s`
 }
 
+/** 'YYYY-MM-DD' → 'YYMMDD' (임금명세서 법정 기재사항용 생년월일 표기) */
+export function formatBirthDateYYMMDD(dateStr?: string | null): string {
+  if (!dateStr) return ''
+  const [y, m, d] = dateStr.split('-')
+  if (!y || !m || !d) return ''
+  return `${y.slice(2)}${m}${d}`
+}
+
 export function Watermark({ text, size = 'normal' }: { text: string; size?: 'normal' | 'small' }) {
   if (!text) return null
   const small = size === 'small'
@@ -88,6 +97,7 @@ export function PayslipView({
   period,
   payDate,
   employeeName,
+  birthDate,
   department,
   position,
   hireDate,
@@ -110,7 +120,7 @@ export function PayslipView({
     setExcelLoading(true)
     try {
       await exportPayslipToExcel({
-        companyName, period, payDate, employeeName, department, position, hireDate,
+        companyName, period, payDate, employeeName, birthDate, department, position, hireDate,
         workStart, workEnd, payments, deductions, workStats, calcMethods, message,
       })
     } finally {
@@ -176,7 +186,7 @@ export function PayslipView({
 
           {/* 이름/부서/직위 */}
           <div className="px-6 py-4 border-b border-dark-200 text-sm space-y-1">
-            <p><span className="inline-block w-14 text-dark-500">이름</span>{employeeName}</p>
+            <p><span className="inline-block w-14 text-dark-500">이름</span>{employeeName}{formatBirthDateYYMMDD(birthDate) && ` (${formatBirthDateYYMMDD(birthDate)})`}</p>
             <p><span className="inline-block w-14 text-dark-500">부서</span>{department || ''}<span className="inline-block w-14 text-dark-500 ml-6">직위</span>{position || ''}</p>
           </div>
 

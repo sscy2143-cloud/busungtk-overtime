@@ -1,11 +1,12 @@
 import type ExcelJS from 'exceljs'
-import type { PayslipLineItem, PayslipWorkStats, PayslipCalcMethod } from '../components/payslip/PayslipView'
+import { formatBirthDateYYMMDD, type PayslipLineItem, type PayslipWorkStats, type PayslipCalcMethod } from '../components/payslip/PayslipView'
 
 export interface PayslipExcelInput {
   companyName?: string
   period: string // 'YYYY-MM'
   payDate?: string | null
   employeeName: string
+  birthDate?: string | null
   department?: string | null
   position?: string | null
   hireDate?: string | null
@@ -38,7 +39,7 @@ const BOX = { top: THIN, bottom: THIN, left: THIN, right: THIN }
 export async function exportPayslipToExcel(input: PayslipExcelInput) {
   const {
     companyName = '부성티케이',
-    period, payDate, employeeName, department, position, hireDate,
+    period, payDate, employeeName, birthDate, department, position, hireDate,
     workStart, workEnd, payments, deductions, workStats, calcMethods, message,
   } = input
   const [y, m] = period.split('-')
@@ -67,7 +68,8 @@ export async function exportPayslipToExcel(input: PayslipExcelInput) {
   r += 2
 
   setCell(r, 1, '이름', { font: { bold: true } })
-  setCell(r, 2, employeeName)
+  const birthSuffix = formatBirthDateYYMMDD(birthDate)
+  setCell(r, 2, birthSuffix ? `${employeeName} (${birthSuffix})` : employeeName)
   setCell(r, 3, '부서', { font: { bold: true } })
   setCell(r, 4, department || '')
   r += 1
