@@ -83,6 +83,10 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
   const [showInsurancePopup, setShowInsurancePopup] = useState(false)
   const [insuranceSearch, setInsuranceSearch] = useState('')
   const [bulkApplying, setBulkApplying] = useState(false)
+  const [bulkApplyResult, setBulkApplyResult] = useState<{
+    updatedRows: Array<{ name: string; changes: Array<{ label: string; from: number; to: number }> }>
+    unmatchedNames: string[]
+  } | null>(null)
   const [infoPopupPayroll, setInfoPopupPayroll] = useState<EmployeePayrollInfo | null>(null)
   const [infoPopupLoading, setInfoPopupLoading] = useState(false)
 
@@ -281,30 +285,36 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
         return
       }
       const nameById = new Map(employees.map(e => [e.id, e.name]))
-      let updated = 0
-      let unmatched = 0
+      const updatedRows: Array<{ name: string; changes: Array<{ label: string; from: number; to: number }> }> = []
+      const unmatchedNames: string[] = []
       for (const slip of slips) {
-        const name = nameById.get(slip.employee_id)
-        const match = name ? healthInsuranceData[name] : undefined
-        if (!match) { unmatched++; continue }
-        const deductions = (slip.공제내역 ?? []).map(d =>
-          d.항목 === '건강보험' && match.health != null ? { ...d, 금액: match.health } :
-          d.항목 === '장기요양보험' && match.longTermCare != null ? { ...d, 금액: match.longTermCare } :
-          d.항목 === '국민연금' && match.nationalPension != null ? { ...d, 금액: match.nationalPension } :
-          d.항목 === '고용보험' && match.employment != null ? { ...d, 금액: match.employment } :
-          // 고용보험 파일은 대상자만 명단에 오르므로, 그 파일을 올렸는데 이름이 없으면 비대상자로 보고 0원 처리
-          d.항목 === '고용보험' && insuranceCsvNames.employment && match.employment == null ? { ...d, 금액: 0 } :
-          d
-        )
+        const name = nameById.get(slip.employee_id) ?? '(알 수 없음)'
+        const match = nameById.has(slip.employee_id) ? healthInsuranceData[name] : undefined
+        if (!match) { unmatchedNames.push(name); continue }
+        const changes: Array<{ label: string; from: number; to: number }> = []
+        const deductions = (slip.공제내역 ?? []).map(d => {
+          const newAmount =
+            d.항목 === '건강보험' && match.health != null ? match.health :
+            d.항목 === '장기요양보험' && match.longTermCare != null ? match.longTermCare :
+            d.항목 === '국민연금' && match.nationalPension != null ? match.nationalPension :
+            d.항목 === '고용보험' && match.employment != null ? match.employment :
+            // 고용보험 파일은 대상자만 명단에 오르므로, 그 파일을 올렸는데 이름이 없으면 비대상자로 보고 0원 처리
+            d.항목 === '고용보험' && insuranceCsvNames.employment && match.employment == null ? 0 :
+            null
+          if (newAmount == null || newAmount === d.금액) return d
+          changes.push({ label: d.항목, from: d.금액 || 0, to: newAmount })
+          return { ...d, 금액: newAmount }
+        })
+        if (changes.length === 0) continue
         const 공제합계 = deductions.reduce((s, d) => s + (d.금액 || 0), 0)
         const 지급합계 = slip.지급합계 ?? 0
         const { error } = await supabase
           .from('payslips')
           .update({ 공제내역: deductions, 공제합계, 실지급액: 지급합계 - 공제합계 })
           .eq('id', slip.id)
-        if (!error) updated++
+        if (!error) updatedRows.push({ name, changes })
       }
-      alert(`${updated}명 갱신 완료${unmatched > 0 ? ` · ${unmatched}명은 파일에서 이름이 매칭되지 않아 건너뜀` : ''}`)
+      setBulkApplyResult({ updatedRows, unmatchedNames })
       loadSummaries()
     } finally {
       setBulkApplying(false)
@@ -707,6 +717,48 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
           </div>
         )
       })()}
+
+      {bulkApplyResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setBulkApplyResult(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-dark-100">
+              <div>
+                <p className="text-base font-bold text-dark-900">일괄 반영 결과</p>
+                <p className="text-xs text-dark-400 mt-0.5">
+                  {bulkApplyResult.updatedRows.length}명 갱신
+                  {bulkApplyResult.unmatchedNames.length > 0 && ` · ${bulkApplyResult.unmatchedNames.length}명 미매칭`}
+                </p>
+              </div>
+              <button onClick={() => setBulkApplyResult(null)} className="p-1.5 rounded-lg hover:bg-dark-100"><X size={18} className="text-dark-500" /></button>
+            </div>
+            <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
+              {bulkApplyResult.updatedRows.length === 0 ? (
+                <p className="text-sm text-dark-400 text-center py-4">갱신된 항목이 없습니다.</p>
+              ) : bulkApplyResult.updatedRows.map((row, i) => (
+                <div key={i} className="border border-dark-100 rounded-lg px-3 py-2.5">
+                  <p className="text-sm font-semibold text-dark-800 mb-1.5">{row.name}</p>
+                  <div className="space-y-1">
+                    {row.changes.map((c, j) => (
+                      <div key={j} className="flex items-center justify-between text-xs">
+                        <span className="text-dark-500">{c.label}</span>
+                        <span className="text-dark-700">
+                          {fmt(c.from)} <span className="text-primary-500">→</span> <span className="font-semibold text-primary-600">{fmt(c.to)}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {bulkApplyResult.unmatchedNames.length > 0 && (
+                <div className="border-t border-dark-100 pt-3">
+                  <p className="text-xs font-semibold text-warning-600 mb-1">파일에서 이름이 매칭되지 않아 건너뜀</p>
+                  <p className="text-xs text-dark-500">{bulkApplyResult.unmatchedNames.join(', ')}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

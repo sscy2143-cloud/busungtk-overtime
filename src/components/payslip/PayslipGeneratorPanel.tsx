@@ -293,7 +293,20 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
   // 저장 안 된 변경사항 추적: load()가 값을 채우는 최초 1회는 무시하고,
   // 그 이후 사용자가 실제로 값을 바꿀 때만 변경사항 있음으로 표시
   const [isDirty, setIsDirty] = useState(false)
+  const [changedFieldLabels, setChangedFieldLabels] = useState<string[]>([])
   const justLoadedRef = useRef(true)
+  const baselineRef = useRef<{
+    payments: PayslipLineItem[]
+    deductions: PayslipLineItem[]
+    workStart: string
+    workEnd: string
+    message: string
+    adminNote: string
+    totalWorkDaysText: string
+    baseHoursText: string
+    leaveHoursText: string
+    etcHoursText: string
+  } | null>(null)
 
   function applyHealthInsurance(items: PayslipLineItem[], match: InsuranceRow): PayslipLineItem[] {
     return items.map(d =>
@@ -339,8 +352,26 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
   const [etcHoursText, setEtcHoursText] = useState('')
 
   useEffect(() => {
-    if (justLoadedRef.current) { justLoadedRef.current = false; return }
-    setIsDirty(true)
+    if (justLoadedRef.current) {
+      justLoadedRef.current = false
+      baselineRef.current = { payments, deductions, workStart, workEnd, message, adminNote, totalWorkDaysText, baseHoursText, leaveHoursText, etcHoursText }
+      setChangedFieldLabels([])
+      return
+    }
+    const b = baselineRef.current
+    if (!b) return
+    const labels: string[] = []
+    if (JSON.stringify(payments) !== JSON.stringify(b.payments)) labels.push('지급항목')
+    if (JSON.stringify(deductions) !== JSON.stringify(b.deductions)) labels.push('공제항목')
+    if (workStart !== b.workStart || workEnd !== b.workEnd) labels.push('근무기간')
+    if (message !== b.message) labels.push('전달 문구')
+    if (adminNote !== b.adminNote) labels.push('비고')
+    if (
+      totalWorkDaysText !== b.totalWorkDaysText || baseHoursText !== b.baseHoursText ||
+      leaveHoursText !== b.leaveHoursText || etcHoursText !== b.etcHoursText
+    ) labels.push('근로시간 통계')
+    setChangedFieldLabels(labels)
+    setIsDirty(labels.length > 0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [payments, deductions, workStart, workEnd, message, adminNote, totalWorkDaysText, baseHoursText, leaveHoursText, etcHoursText])
 
@@ -533,6 +564,8 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
     }
     setExistingFilePath(null)
     setIsDirty(false)
+    setChangedFieldLabels([])
+    baselineRef.current = { payments, deductions, workStart, workEnd, message, adminNote, totalWorkDaysText, baseHoursText, leaveHoursText, etcHoursText }
     alert('저장되었습니다.')
     onSaved?.()
   }
@@ -710,10 +743,15 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
 
           <div className="flex items-center justify-end gap-3">
             {isDirty && (
-              <span className="flex items-center gap-1.5 text-xs font-medium text-amber-600">
-                <AlertTriangle size={13} />
-                저장하지 않은 변경사항이 있습니다
-              </span>
+              <div className="text-right">
+                <span className="flex items-center gap-1.5 text-xs font-medium text-amber-600">
+                  <AlertTriangle size={13} />
+                  저장하지 않은 변경사항이 있습니다
+                </span>
+                {changedFieldLabels.length > 0 && (
+                  <p className="text-[11px] text-dark-400 mt-0.5">수정됨: {changedFieldLabels.join(', ')}</p>
+                )}
+              </div>
             )}
             <button
               onClick={handleSave}
