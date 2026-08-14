@@ -177,7 +177,7 @@ export async function exportPayslipToExcel(input: PayslipExcelInput) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `${employeeName}_${y}년_${parseInt(m, 10)}월_급여명세서.xlsx`
+  a.download = `${employeeName}_${y.slice(2)}년_${parseInt(m, 10)}월분 급여명세서.xlsx`
   document.body.appendChild(a)
   a.click()
   a.remove()

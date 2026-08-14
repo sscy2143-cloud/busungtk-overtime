@@ -4,6 +4,8 @@ import { supabase } from '../../lib/supabase'
 import { parseHealthInsuranceCsv, parseNationalPensionCsv, parseEmploymentInsuranceCsv, type InsuranceRow } from '../../utils/insurance-csv'
 import { PayslipGeneratorPanel, type GeneratorEmployee } from './PayslipGeneratorPanel'
 import { exportPayrollLedgerToExcel } from '../../utils/payroll-ledger-excel'
+import { exportPayslipToExcel } from '../../utils/payslip-excel'
+import { DEFAULT_CALC_FORMULAS } from './payslip-constants'
 
 export interface LedgerEmployee extends GeneratorEmployee {
   employee_type: 'office' | 'field'
@@ -72,6 +74,8 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
   const [nameFilter, setNameFilter] = useState('')
   const [selectedEmpId, setSelectedEmpId] = useState('')
   const [generatorDirty, setGeneratorDirty] = useState(false)
+  const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(new Set())
+  const [downloadingPayslips, setDownloadingPayslips] = useState(false)
   const [exportingExcel, setExportingExcel] = useState(false)
 
   function trySelectEmployee(id: string) {
@@ -321,6 +325,81 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
     }
   }
 
+  function toggleBulkSelect(id: string) {
+    setBulkSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleBulkSelectAll() {
+    setBulkSelectedIds(prev =>
+      prev.size === filtered.length ? new Set() : new Set(filtered.map(r => r.employee.id))
+    )
+  }
+
+  async function handleBulkDownloadPayslips() {
+    if (bulkSelectedIds.size === 0) return
+    setDownloadingPayslips(true)
+    try {
+      interface SlipRow {
+        employee_id: string
+        work_start: string | null
+        work_end: string | null
+        message: string | null
+        지급내역: Array<{ 항목: string; 금액: number }> | null
+        공제내역: Array<{ 항목: string; 금액: number }> | null
+      }
+      const ids = Array.from(bulkSelectedIds)
+      const { data: slips } = await supabase
+        .from('payslips')
+        .select('employee_id, work_start, work_end, message, 지급내역, 공제내역')
+        .eq('period', period)
+        .eq('유형', 'generated')
+        .in('employee_id', ids)
+        .returns<SlipRow[]>()
+      const slipByEmpId = new Map((slips ?? []).map(s => [s.employee_id, s]))
+      const empById = new Map(employees.map(e => [e.id, e]))
+      const payDate = defaultPayDate(period)
+
+      let downloaded = 0
+      const skipped: string[] = []
+      for (const id of ids) {
+        const emp = empById.get(id)
+        const slip = slipByEmpId.get(id)
+        if (!emp || !slip) { if (emp) skipped.push(emp.name); continue }
+        const payments = (slip.지급내역 ?? []).map(p => ({ label: p.항목, amount: p.금액 }))
+        const deductions = (slip.공제내역 ?? []).map(d => ({ label: d.항목, amount: d.금액 }))
+        const calcMethods = payments
+          .filter(p => DEFAULT_CALC_FORMULAS[p.label])
+          .map(p => ({ label: p.label, formula: DEFAULT_CALC_FORMULAS[p.label] }))
+        await exportPayslipToExcel({
+          period,
+          payDate,
+          employeeName: emp.name,
+          department: emp.department,
+          hireDate: emp.hire_date,
+          workStart: slip.work_start,
+          workEnd: slip.work_end,
+          payments,
+          deductions,
+          calcMethods,
+          message: slip.message,
+        })
+        downloaded++
+        // 브라우저가 다운로드를 여러 개 연속으로 막지 않도록 살짝 간격을 둠
+        await new Promise(resolve => setTimeout(resolve, 300))
+      }
+      if (skipped.length > 0) {
+        alert(`${downloaded}건 다운로드 완료 · 작성완료 상태가 아니어서 건너뜀: ${skipped.join(', ')}`)
+      }
+    } finally {
+      setDownloadingPayslips(false)
+    }
+  }
+
   async function handleResetToDraft(employeeId: string, employeeName: string) {
     if (!confirm(`${employeeName}님의 상태를 미작성으로 되돌릴까요?\n입력해둔 지급·공제 항목 내용은 그대로 남아있고, 다시 열어서 저장하면 작성완료로 돌아갑니다.`)) return
     const { error } = await supabase.from('payslips').update({ 유형: null }).eq('employee_id', employeeId).eq('period', period)
@@ -452,7 +531,14 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-dark-100 bg-dark-50">
-                    <th className="px-4 py-3 w-8"></th>
+                    <th className="px-4 py-3 w-8">
+                      <input
+                        type="checkbox"
+                        checked={filtered.length > 0 && bulkSelectedIds.size === filtered.length}
+                        onChange={toggleBulkSelectAll}
+                        className="rounded border-dark-300"
+                      />
+                    </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-dark-500">상태</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-dark-500">사원명</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-dark-400">부서</th>
@@ -475,8 +561,8 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
                         <td className="px-4 py-3">
                           <input
                             type="checkbox"
-                            checked={selected}
-                            onChange={() => trySelectEmployee(r.employee.id)}
+                            checked={bulkSelectedIds.has(r.employee.id)}
+                            onChange={() => toggleBulkSelect(r.employee.id)}
                             onClick={e => e.stopPropagation()}
                             className="rounded border-dark-300"
                           />
@@ -518,6 +604,19 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
             </div>
           </div>
           )}
+
+          <div className="mt-3 flex items-center justify-between">
+            <span className="text-xs text-dark-400">{bulkSelectedIds.size}명 선택됨</span>
+            <button
+              type="button"
+              onClick={handleBulkDownloadPayslips}
+              disabled={bulkSelectedIds.size === 0 || downloadingPayslips}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-dark-700 bg-white border border-dark-200 rounded-lg hover:bg-dark-50 transition-colors disabled:opacity-50"
+            >
+              <FileSpreadsheet size={14} />
+              {downloadingPayslips ? '다운로드 중...' : '선택 급여명세서 일괄 다운로드'}
+            </button>
+          </div>
         </div>
 
         <div
