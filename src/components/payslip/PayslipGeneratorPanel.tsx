@@ -377,7 +377,16 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
         setMessage(slip.message ?? '')
         const pays = slip.지급내역 ?? []
         const deds = slip.공제내역 ?? []
-        const loadedPayments = pays.length ? pays.map(p => ({ label: p.항목, amount: p.금액, hours: p.시간 })) : [{ label: '기본급', amount: 0 }]
+        // 시간 스테퍼 기능 이전에 저장된 명세서는 지급내역에 시간이 없으므로,
+        // 그 경우엔 승인된 야근신청 기준 자동집계 시간으로 대신 채워줌
+        const autoHoursByLabel: Record<string, number> = {
+          '연장근로수당': extendedMinutes / 60,
+          '야간근로수당': nightMinutes / 60,
+          '휴일근로수당': holidayMinutes / 60,
+        }
+        const loadedPayments = pays.length
+          ? pays.map(p => ({ label: p.항목, amount: p.금액, hours: p.시간 ?? autoHoursByLabel[p.항목] }))
+          : [{ label: '기본급', amount: 0 }]
         setPayments(loadedPayments)
         const loadedTotal = loadedPayments.reduce((s, p) => s + (p.amount || 0), 0)
         const autoDed = calculateAutoDeductions(loadedTotal, empDependents)
