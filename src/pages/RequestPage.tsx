@@ -206,7 +206,9 @@ export function RequestPage() {
           date,
           startTime,
           endTime,
-          reason: reason.trim(),
+          reason: [workCategory, siteName.trim(), workDetails.trim(), reason.trim()]
+            .filter(Boolean)
+            .join(' · '),
         }),
       })
     } catch { /* 알림 실패해도 신청은 완료 */ }
