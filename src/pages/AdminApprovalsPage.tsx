@@ -65,6 +65,8 @@ export function AdminApprovalsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [listFilter, setListFilter] = useState<'all' | 'pending' | 'approved' | 'rejected' | 'cancelled'>('pending')
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'danger' } | null>(null)
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   function showToast(message: string, type: 'success' | 'danger') {
     setToast({ message, type })
@@ -438,7 +440,38 @@ export function AdminApprovalsPage() {
     new Map(overtimes.map(r => [r.employee_id, (r.employee as any)?.name ?? r.employee_id])).entries()
   ).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, 'ko'))
 
-  const filteredOvertimes = selectedEmployee ? overtimes.filter(r => r.employee_id === selectedEmployee) : overtimes
+  const filteredOvertimes = overtimes.filter(r => {
+    if (selectedEmployee && r.employee_id !== selectedEmployee) return false
+    if (dateFrom && r.date < dateFrom) return false
+    if (dateTo && r.date > dateTo) return false
+    return true
+  })
+
+  function applyDatePreset(preset: 'today' | 'week' | 'month' | 'all') {
+    if (preset === 'all') { setDateFrom(''); setDateTo(''); return }
+    const now = new Date()
+    if (preset === 'today') {
+      const today = now.toISOString().slice(0, 10)
+      setDateFrom(today)
+      setDateTo(today)
+      return
+    }
+    if (preset === 'week') {
+      const day = now.getDay()
+      const monday = new Date(now)
+      monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1))
+      const sunday = new Date(monday)
+      sunday.setDate(monday.getDate() + 6)
+      setDateFrom(monday.toISOString().slice(0, 10))
+      setDateTo(sunday.toISOString().slice(0, 10))
+      return
+    }
+    // month
+    const first = new Date(now.getFullYear(), now.getMonth(), 1)
+    const last = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    setDateFrom(first.toISOString().slice(0, 10))
+    setDateTo(last.toISOString().slice(0, 10))
+  }
 
   const STATUS_COLOR: Record<string, string> = {
     pending: 'text-warning-600',
@@ -529,6 +562,48 @@ export function AdminApprovalsPage() {
           ))}
         </div>
       )}
+
+      {/* 날짜 필터 */}
+      <div className="flex flex-wrap items-center gap-2 shrink-0">
+        {(
+          [
+            { key: 'today', label: '오늘' },
+            { key: 'week', label: '이번주' },
+            { key: 'month', label: '이번달' },
+            { key: 'all', label: '전체' },
+          ] as const
+        ).map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => applyDatePreset(key)}
+            className="shrink-0 px-3 py-1.5 text-xs font-medium rounded-full border bg-white text-dark-500 border-dark-200 hover:border-dark-300 transition-colors"
+          >
+            {label}
+          </button>
+        ))}
+        <span className="text-dark-200">|</span>
+        <input
+          type="date"
+          value={dateFrom}
+          onChange={(e) => setDateFrom(e.target.value)}
+          className="px-2.5 py-1.5 text-xs border border-dark-200 rounded-lg text-dark-700 focus:outline-none focus:ring-2 focus:ring-primary-400"
+        />
+        <span className="text-xs text-dark-400">~</span>
+        <input
+          type="date"
+          value={dateTo}
+          onChange={(e) => setDateTo(e.target.value)}
+          className="px-2.5 py-1.5 text-xs border border-dark-200 rounded-lg text-dark-700 focus:outline-none focus:ring-2 focus:ring-primary-400"
+        />
+        {(dateFrom || dateTo) && (
+          <button
+            onClick={() => { setDateFrom(''); setDateTo('') }}
+            className="text-xs text-dark-400 hover:text-dark-600 underline"
+          >
+            초기화
+          </button>
+        )}
+      </div>
 
       {/* KakaoWork-style split panel */}
       <div className="flex flex-col lg:flex-row gap-0 bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden flex-1 min-h-0" style={{ minHeight: '520px' }}>
