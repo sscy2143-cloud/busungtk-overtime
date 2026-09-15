@@ -653,11 +653,15 @@ export function AdminApprovalsPage() {
                 if (mins < 0) mins += 24 * 60
                 const hours = (mins / 60).toFixed(1)
                 const isSelected = selectedId === req.id
+                const isPending = req.status === 'pending' || req.status === 'manager_approved'
                 return (
-                  <button
+                  <div
                     key={req.id}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setSelectedId(req.id)}
-                    className={`w-full text-left px-4 py-3 transition-colors relative ${
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedId(req.id) }}
+                    className={`w-full text-left px-4 py-3 transition-colors relative cursor-pointer ${
                       isSelected
                         ? 'bg-primary-50 border-l-2 border-primary-500'
                         : 'hover:bg-dark-50/60 border-l-2 border-transparent'
@@ -671,18 +675,35 @@ export function AdminApprovalsPage() {
                         <p className="text-xs text-dark-500 mt-0.5 truncate">
                           {req.date} · {hours}h · {OVERTIME_TYPE_LABEL[req.type as OvertimeType] ?? req.type}
                         </p>
-                        {(req as any).manager_approved_at && (
-                          <span className="inline-block mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-success-50 text-success-700 border border-success-200">인사확인완료</span>
+                        {isPending && (
+                          <span className="inline-flex gap-1 mt-1">
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${
+                              req.approved_at
+                                ? 'bg-success-50 text-success-700 border-success-200'
+                                : 'bg-dark-50 text-dark-500 border-dark-200'
+                            }`}>
+                              {req.approved_at ? '대표 승인완료' : '대표 미승인'}
+                            </span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${
+                              (req as any).manager_approved_at
+                                ? 'bg-success-50 text-success-700 border-success-200'
+                                : 'bg-dark-50 text-dark-500 border-dark-200'
+                            }`}>
+                              {(req as any).manager_approved_at ? '인사담당 승인완료' : '인사담당 미승인'}
+                            </span>
+                          </span>
                         )}
                         {(req as any).adjusted_by && !(req as any).adjustment_confirmed_by && (
                           <span className="inline-block mt-1 text-[10px] font-bold text-primary-600 bg-primary-50 px-1.5 py-0.5 rounded">조정대기</span>
                         )}
                       </div>
-                      <span className={`text-[11px] font-semibold shrink-0 mt-0.5 ${STATUS_COLOR[req.status] ?? 'text-dark-500'}`}>
-                        {REQUEST_STATUS_LABEL[req.status] ?? req.status}
-                      </span>
+                      <div className="flex flex-col items-end gap-1.5 shrink-0">
+                        <span className={`text-[11px] font-semibold mt-0.5 ${STATUS_COLOR[req.status] ?? 'text-dark-500'}`}>
+                          {REQUEST_STATUS_LABEL[req.status] ?? req.status}
+                        </span>
+                      </div>
                     </div>
-                  </button>
+                  </div>
                 )
               })
             )}
@@ -701,7 +722,7 @@ export function AdminApprovalsPage() {
             const hours = (totalMins / 60).toFixed(1)
 
             return (
-              <div className="flex flex-col h-full">
+              <div className="flex flex-col max-h-full overflow-y-auto">
                 {/* Detail header */}
                 <div className="px-5 py-4 border-b border-dark-100 flex items-start justify-between gap-3 shrink-0">
                   <div className="flex items-center gap-3 min-w-0">
@@ -733,7 +754,7 @@ export function AdminApprovalsPage() {
                 </div>
 
                 {/* Detail fields */}
-                <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+                <div className="px-5 py-4 space-y-3">
                   <div className="grid grid-cols-[100px_1fr] gap-x-3 gap-y-2.5 text-sm">
                     <span className="text-dark-500 font-medium pt-0.5">날짜</span>
                     <span className="text-dark-900 font-semibold">{req.date}</span>
@@ -859,7 +880,7 @@ export function AdminApprovalsPage() {
 
                 {/* Action buttons */}
                 {(isAdminRole || employee?.role === 'manager') && (
-                  <div className="sticky bottom-0 z-10 px-5 py-4 border-t border-dark-100 bg-white flex flex-col gap-2 shrink-0 shadow-[0_-2px_8px_rgba(0,0,0,0.04)]">
+                  <div className="px-5 py-4 border-t border-dark-100 bg-white flex flex-col gap-2 shrink-0">
                     {(req.status === 'pending' || req.status === 'manager_approved') && (
                       <>
                         <button
