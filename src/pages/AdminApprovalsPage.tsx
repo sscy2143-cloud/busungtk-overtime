@@ -63,7 +63,7 @@ export function AdminApprovalsPage() {
   const [detailModal, setDetailModal] = useState<string | null>(null)
   const [managerApproveConfirm, setManagerApproveConfirm] = useState<{ open: boolean; id: string }>({ open: false, id: '' })
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [listFilter, setListFilter] = useState<'all' | 'pending' | 'approved' | 'rejected' | 'cancelled'>('pending')
+  const [listFilter, setListFilter] = useState<'all' | 'pending' | 'ceo_pending' | 'manager_pending' | 'approved' | 'rejected' | 'cancelled'>('pending')
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'danger' } | null>(null)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -482,7 +482,10 @@ export function AdminApprovalsPage() {
 
   // list filter counts
   const listFilteredOvertimes = filteredOvertimes.filter((r) => {
-    if (listFilter === 'pending') return r.status === 'pending' || r.status === 'manager_approved'
+    const isPendingStatus = r.status === 'pending' || r.status === 'manager_approved'
+    if (listFilter === 'pending') return isPendingStatus
+    if (listFilter === 'ceo_pending') return isPendingStatus && !r.approved_at
+    if (listFilter === 'manager_pending') return isPendingStatus && !(r as any).manager_approved_at
     if (listFilter === 'approved') return r.status === 'approved'
     if (listFilter === 'rejected') return r.status === 'rejected'
     if (listFilter === 'cancelled') return r.status === 'cancelled'
@@ -491,6 +494,8 @@ export function AdminApprovalsPage() {
 
   const countAll = filteredOvertimes.length
   const countPending = filteredOvertimes.filter(r => r.status === 'pending' || r.status === 'manager_approved').length
+  const countCeoPending = filteredOvertimes.filter(r => (r.status === 'pending' || r.status === 'manager_approved') && !r.approved_at).length
+  const countManagerPending = filteredOvertimes.filter(r => (r.status === 'pending' || r.status === 'manager_approved') && !(r as any).manager_approved_at).length
   const countApproved = filteredOvertimes.filter(r => r.status === 'approved').length
   const countRejected = filteredOvertimes.filter(r => r.status === 'rejected').length
   const countCancelled = filteredOvertimes.filter(r => r.status === 'cancelled').length
@@ -613,11 +618,13 @@ export function AdminApprovalsPage() {
 
           {/* Tab filter */}
           <div className="px-3 pt-3 pb-2 border-b border-dark-100 shrink-0">
-            <div className="flex gap-1.5">
+            <div className="flex flex-wrap gap-1.5">
               {(
                 [
                   { key: 'all', label: '전체', count: countAll },
                   { key: 'pending', label: '대기중', count: countPending },
+                  { key: 'ceo_pending', label: '대표미승인', count: countCeoPending },
+                  { key: 'manager_pending', label: '인사미승인', count: countManagerPending },
                   { key: 'approved', label: '승인', count: countApproved },
                   { key: 'rejected', label: '반려', count: countRejected },
                   { key: 'cancelled', label: '취소', count: countCancelled },
