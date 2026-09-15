@@ -859,7 +859,7 @@ export function AdminApprovalsPage() {
 
                 {/* Action buttons */}
                 {(isAdminRole || employee?.role === 'manager') && (
-                  <div className="px-5 py-4 border-t border-dark-100 flex flex-col gap-2 shrink-0">
+                  <div className="sticky bottom-0 z-10 px-5 py-4 border-t border-dark-100 bg-white flex flex-col gap-2 shrink-0 shadow-[0_-2px_8px_rgba(0,0,0,0.04)]">
                     {(req.status === 'pending' || req.status === 'manager_approved') && (
                       <>
                         <button
