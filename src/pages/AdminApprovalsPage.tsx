@@ -766,6 +766,11 @@ export function AdminApprovalsPage() {
                     <span className="text-dark-500 font-medium pt-0.5">날짜</span>
                     <span className="text-dark-900 font-semibold">{req.date}</span>
 
+                    <span className="text-dark-500 font-medium pt-0.5">신청일</span>
+                    <span className="text-dark-800">
+                      {new Date(req.created_at).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+
                     <span className="text-dark-500 font-medium pt-0.5">유형</span>
                     <span>
                       <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-primary-50 text-primary-700">
