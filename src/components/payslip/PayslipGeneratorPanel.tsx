@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { Plus, Trash2, Save, AlertTriangle, X, ChevronUp, ChevronDown } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { calculateOvertimeBreakdown, isHolidayDate } from '../../utils/overtime-calc'
+import { calculateOvertimeBreakdown } from '../../utils/overtime-calc'
+import { monthRange, countBusinessDays, formatHours } from './payslip-constants'
 import type { InsuranceRow } from '../../utils/insurance-csv'
 import { calculateAutoDeductions } from '../../utils/payroll-deductions'
 import { PayslipView, Watermark, type PayslipLineItem } from './PayslipView'
@@ -75,31 +76,6 @@ interface GeneratedPayslipRow {
 }
 
 const DEFAULT_DEDUCTION_LABELS = ['근로소득세', '근로지방소득세', '국민연금', '건강보험', '장기요양보험', '고용보험']
-
-function monthRange(period: string) {
-  const [y, m] = period.split('-').map(Number)
-  const lastDay = new Date(y, m, 0).getDate()
-  return { start: `${period}-01`, end: `${period}-${String(lastDay).padStart(2, '0')}` }
-}
-
-/** 기간 내 소정근로일수 (평일이면서 공휴일이 아닌 날) */
-function countBusinessDays(startStr: string, endStr: string): number {
-  const [sy, sm, sd] = startStr.split('-').map(Number)
-  const [ey, em, ed] = endStr.split('-').map(Number)
-  const cur = new Date(sy, sm - 1, sd)
-  const end = new Date(ey, em - 1, ed)
-  let count = 0
-  while (cur <= end) {
-    const dateStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`
-    if (!isHolidayDate(dateStr)) count++
-    cur.setDate(cur.getDate() + 1)
-  }
-  return count
-}
-
-function formatHours(n: number): string {
-  return Number.isInteger(n) ? String(n) : n.toFixed(1)
-}
 
 function defaultPayDate(period: string) {
   const [y, m] = period.split('-').map(Number)

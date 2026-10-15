@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Search, Upload, FileSpreadsheet, X } from 'l
 import { supabase } from '../../lib/supabase'
 import { parseHealthInsuranceCsv, parseNationalPensionCsv, parseEmploymentInsuranceCsv, type InsuranceRow } from '../../utils/insurance-csv'
 import { PayslipGeneratorPanel, type GeneratorEmployee } from './PayslipGeneratorPanel'
+import { calculateOvertimeBreakdown } from '../../utils/overtime-calc'
 import { exportPayrollLedgerToExcel } from '../../utils/payroll-ledger-excel'
 import { exportPayslipToExcel } from '../../utils/payslip-excel'
 import { exportPayslipToPdf, exportPayslipToImage } from '../../utils/payslip-image'
@@ -199,6 +200,18 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
     }
   }, [period, healthInsuranceData, insuranceCsvNames])
 
+  // 예전 버전이 localStorage 에 남겨 둔 자료를 한 번 치운다.
+  // 이 코드가 배포되기 전에 쓰던 PC 에는 지금도 남아 있다. 그냥 두면 계속 읽힌다.
+  useEffect(() => {
+    try {
+      Object.keys(localStorage)
+        .filter(k => k.startsWith('busungtk_insurance_'))
+        .forEach(k => localStorage.removeItem(k))
+    } catch {
+      // 접근 불가면 애초에 남은 것도 없다
+    }
+  }, [])
+
   const loadSummaries = useCallback(async () => {
     setLoading(true)
     const { data: slips } = await supabase
@@ -352,11 +365,12 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
         work_start: string | null
         work_end: string | null
         message: string | null
-        지급내역: Array<{ 항목: string; 금액: number }> | null
+        지급내역: Array<{ 항목: string; 금액: number; 시간?: number }> | null
         공제내역: Array<{ 항목: string; 금액: number }> | null
       }
       const ids = Array.from(bulkSelectedIds)
-      const [{ data: slips }, { data: payrollInfos }] = await Promise.all([
+      const { start: monthStart, end: monthEnd } = monthRange(period)
+      const [{ data: slips }, { data: payrollInfos }, { data: otReqs }, { data: compLeave }, { data: leaves }] = await Promise.all([
         supabase
           .from('payslips')
           .select('employee_id, work_start, work_end, message, 지급내역, 공제내역')
@@ -369,7 +383,45 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
           .select('employee_id, birth_date')
           .in('employee_id', ids)
           .returns<{ employee_id: string; birth_date: string | null }[]>(),
+        supabase
+          .from('overtime_requests')
+          .select('id, employee_id, date, planned_start, planned_end')
+          .in('employee_id', ids)
+          .eq('status', 'approved')
+          .gte('date', monthStart)
+          .lte('date', monthEnd)
+          .returns<{ id: string; employee_id: string; date: string; planned_start: string; planned_end: string }[]>(),
+        supabase
+          .from('substitute_history')
+          .select('related_request_id')
+          .not('related_request_id', 'is', null)
+          .returns<{ related_request_id: string | null }[]>(),
+        supabase
+          .from('leave_requests')
+          .select('employee_id, days')
+          .in('employee_id', ids)
+          .eq('status', 'approved')
+          .gte('start_date', monthStart)
+          .lte('end_date', monthEnd)
+          .returns<{ employee_id: string; days: number }[]>(),
       ])
+      // 미리보기(PayslipGeneratorPanel)와 동일하게: 대체휴무로 처리된 야근은 제외하고 직원별로 집계
+      const compLeaveIds = new Set((compLeave ?? []).map(r => r.related_request_id))
+      const otByEmp = new Map<string, { extended: number; night: number; holiday: number }>()
+      for (const r of otReqs ?? []) {
+        if (compLeaveIds.has(r.id)) continue
+        const bd = calculateOvertimeBreakdown(r.date, r.planned_start, r.planned_end)
+        const acc = otByEmp.get(r.employee_id) ?? { extended: 0, night: 0, holiday: 0 }
+        acc.extended += bd.extendedMinutes
+        acc.night += bd.nightMinutes
+        acc.holiday += bd.holidayMinutes + bd.holidayOvertimeMinutes + bd.holidayNightMinutes + bd.holidayOvertimeNightMinutes
+        otByEmp.set(r.employee_id, acc)
+      }
+      const leaveDaysByEmp = new Map<string, number>()
+      for (const l of leaves ?? []) {
+        leaveDaysByEmp.set(l.employee_id, (leaveDaysByEmp.get(l.employee_id) ?? 0) + (l.days || 0))
+      }
+      const businessDays = countBusinessDays(monthStart, monthEnd)
       const slipByEmpId = new Map((slips ?? []).map(s => [s.employee_id, s]))
       const birthDateByEmpId = new Map((payrollInfos ?? []).map(p => [p.employee_id, p.birth_date]))
       const empById = new Map(employees.map(e => [e.id, e]))
@@ -382,7 +434,28 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
         const emp = empById.get(id)
         const slip = slipByEmpId.get(id)
         if (!emp || !slip) { if (emp) skipped.push(emp.name); continue }
-        const payments = (slip.지급내역 ?? []).map(p => ({ label: p.항목, amount: p.금액 }))
+        const ot = otByEmp.get(id) ?? { extended: 0, night: 0, holiday: 0 }
+        // 시간 정보가 없는 예전 저장분은 승인된 야근신청 집계 시간으로 대신 채움 (미리보기와 동일)
+        const autoHoursByLabel: Record<string, number> = {
+          '연장근로수당': ot.extended / 60,
+          '야간근로수당': ot.night / 60,
+          '휴일근로수당': ot.holiday / 60,
+        }
+        const payments = (slip.지급내역 ?? []).map(p => ({ label: p.항목, amount: p.금액, hours: p.시간 ?? autoHoursByLabel[p.항목] }))
+        const hoursOf = (label: string) => payments.find(p => p.label === label)?.hours ?? 0
+        const leaveDays = leaveDaysByEmp.get(id) ?? 0
+        const workDays = Math.max(0, businessDays - leaveDays)
+        const baseHours = workDays * 8
+        const workStats = {
+          totalWorkDays: `${workDays}일`,
+          totalMinutes: Math.round((baseHours + hoursOf('연장근로수당') + hoursOf('휴일근로수당')) * 60),
+          baseMinutes: baseHours * 60,
+          extendedMinutes: Math.round(hoursOf('연장근로수당') * 60),
+          nightMinutes: Math.round(hoursOf('야간근로수당') * 60),
+          holidayMinutes: Math.round(hoursOf('휴일근로수당') * 60),
+          leaveMinutes: leaveDays > 0 ? leaveDays * 8 * 60 : null,
+          etcMinutes: null,
+        }
         const deductions = (slip.공제내역 ?? []).map(d => ({ label: d.항목, amount: d.금액 }))
         const calcMethods = payments
           .filter(p => DEFAULT_CALC_FORMULAS[p.label])
@@ -398,6 +471,7 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
           workEnd: slip.work_end,
           payments,
           deductions,
+          workStats,
           calcMethods,
           message: slip.message,
         })
