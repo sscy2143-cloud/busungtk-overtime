@@ -44,6 +44,7 @@ const KNOWN: Record<string, { title: string; action: ErrorAction; hint?: string 
   STORE_FAILED: { title: '서버에 저장하지 못했습니다', action: 'none', hint: '잠시 후 다시 시도하세요. 입력은 보존되어 있습니다' },
   BAD_REQUEST: { title: '요청 형식이 올바르지 않습니다', action: 'none' },
   UNKNOWN_USER: { title: '사용자를 확인할 수 없습니다', action: 'login' },
+  UNAUTHENTICATED: { title: '로그인이 필요합니다', action: 'login' },
   ROLE_MISMATCH: { title: '권한 정보가 서버와 다릅니다', action: 'login' },
 }
 
