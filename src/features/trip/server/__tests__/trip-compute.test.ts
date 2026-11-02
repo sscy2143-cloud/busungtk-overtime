@@ -14,7 +14,7 @@ function fakeIO(over: Partial<ComputeIO> & { claim?: Partial<ClaimRow>; days?: D
   const days: DayRow[] = over.days ?? [
     { id: 'day-1', claim_id: 'claim-1', employee_id: alice.id, work_date: MON, entry: siteEntry(MON, '08:00', '17:00'), revision: 1 },
   ]
-  const stored: { claimId: string; ruleVersion: string; calcs: Record<string, DayComputation>; computedBy: string }[] = []
+  const stored: { claimId: string; claimVersion: number; ruleVersion: string; calcs: Record<string, DayComputation & { dayRevision: number }>; computedBy: string }[] = []
   const io: ComputeIO = {
     userIdFromJwt: async (jwt) => ({ 'jwt-alice': alice.id, 'jwt-bob': bob.id, 'jwt-boss': boss.id })[jwt] ?? null,
     findEmployee: async (id) => ({ [alice.id]: alice, [bob.id]: bob, [boss.id]: boss })[id] ?? null,
@@ -25,8 +25,8 @@ function fakeIO(over: Partial<ComputeIO> & { claim?: Partial<ClaimRow>; days?: D
     findOtherActiveDay: async () => null,
     loadVerifiedHolidays: async () => ({ dates: [...TEST_CALENDAR.holidays], source: 'holidays 테이블 (검증 1건)' }),
     loadOtherRequests: async () => [],
-    storeCalcs: async (claimId, ruleVersion, calcs, computedBy) => {
-      stored.push({ claimId, ruleVersion, calcs, computedBy })
+    storeCalcs: async (claimId, claimVersion, ruleVersion, calcs, computedBy) => {
+      stored.push({ claimId, claimVersion, ruleVersion, calcs, computedBy })
       return Object.fromEntries(Object.keys(calcs).map((k, i) => [k, `calc-${i + 1}`]))
     },
     ...over,
@@ -40,8 +40,21 @@ describe('서버 재계산 — 계산은 DB 입력으로만', () => {
     const r = await runTripCompute('jwt-alice', { claimId: 'claim-1' }, io)
     expect(r).toMatchObject({ ok: true, claimId: 'claim-1', ruleVersion: RULE_VERSION, calcIds: { 'day-1': 'calc-1' }, reviewCodes: { 'day-1': [] } })
     expect(stored).toHaveLength(1)
-    expect(stored[0]).toMatchObject({ claimId: 'claim-1', ruleVersion: RULE_VERSION, computedBy: alice.id })
-    expect(stored[0].calcs['day-1'].result).toMatchObject({ ok: true, trip: { hours: 4 }, status: 'confirmed' })
+    expect(stored[0]).toMatchObject({ claimId: 'claim-1', claimVersion: 1, ruleVersion: RULE_VERSION, computedBy: alice.id })
+    expect(stored[0].calcs['day-1']).toMatchObject({ dayRevision: 1, result: { ok: true, trip: { hours: 4 }, status: 'confirmed' } })
+  })
+
+  it('계산-저장 경쟁 방어: 함수가 읽은 신청 버전·근무일 판 번호를 저장 RPC 에 같이 보낸다 (RPC 가 다르면 VERSION_CONFLICT)', async () => {
+    const { io, stored } = fakeIO({
+      claim: { version: 7 },
+      days: [{ id: 'day-1', claim_id: 'claim-1', employee_id: alice.id, work_date: MON, entry: siteEntry(MON, '08:00', '17:00'), revision: 3 }],
+    })
+    await runTripCompute('jwt-alice', { claimId: 'claim-1' }, io)
+    expect(stored[0].claimVersion).toBe(7)
+    expect(stored[0].calcs['day-1'].dayRevision).toBe(3)
+    // 그 사이 입력이 바뀌어 RPC 가 거부하면 그대로 전달한다
+    const raced = fakeIO({ storeCalcs: async () => { throw new Error('VERSION_CONFLICT: 계산 뒤 입력이 바뀌었습니다. 다시 계산하세요') } })
+    expect(await runTripCompute('jwt-alice', { claimId: 'claim-1' }, raced.io)).toMatchObject({ ok: false, code: 'VERSION_CONFLICT' })
   })
 
   it('조작 1·2·3: 본문에 계산 결과·규칙 버전·지역 표준시간을 넣어 보내도 전부 무시된다', async () => {
@@ -61,8 +74,7 @@ describe('서버 재계산 — 계산은 DB 입력으로만', () => {
     // 저장 요청은 서버가 DB 입력으로 다시 계산한 값과 정확히 같다
     const expected = computeClaimDays({ header: dayHeader(['대전']), employeeId: alice.id, days: [{ id: 'day-1', claimId: 'claim-1', employeeId: alice.id, date: MON, entry: siteEntry(MON, '08:00', '17:00'), revision: 1 }], calendar: TEST_CALENDAR })
     const { day, ...rest } = expected[0]
-    void day
-    expect(stored[0].calcs['day-1']).toEqual(rest)
+    expect(stored[0].calcs['day-1']).toEqual({ ...rest, dayRevision: day.revision })
   })
 
   it('규칙 버전: DB 활성 버전이 서버 번들과 다르면 계산하지 않는다 (배포 불일치)', async () => {

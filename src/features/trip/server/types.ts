@@ -8,6 +8,9 @@
 import type { DayComputation } from '../data'
 import type { Actor, ClaimHeader, ClaimStatus, DayEntry, IsoDate } from '../data'
 
+/** 저장 RPC 에 넘기는 하루 계산 + 계산에 쓴 입력 판 번호 */
+export type StoredDayComputation = DayComputation & { dayRevision: number }
+
 /** 브라우저가 보내는 전부. 이 밖의 필드(계산 결과·규칙 버전·역할 등)는 읽지 않는다 */
 export interface ComputeRequest {
   claimId: string
@@ -93,6 +96,10 @@ export interface ComputeIO {
   loadVerifiedHolidays(): Promise<{ dates: IsoDate[]; source: string }>
   /** overtime_requests 같은 직원·날짜·status ∉ (cancelled, rejected) */
   loadOtherRequests(employeeId: string, dates: IsoDate[]): Promise<OtherRequestRow[]>
-  /** RPC trip_store_server_calcs — day id → calc id */
-  storeCalcs(claimId: string, ruleVersion: string, calcs: Record<string, DayComputation>, computedBy: string): Promise<Record<string, string>>
+  /**
+   * RPC trip_store_server_calcs — day id → calc id.
+   * claimVersion 과 각 dayRevision 은 함수가 입력을 읽은 시점의 값이다. 저장 시점에 DB 와 다르면(그 사이 입력이 바뀜)
+   * RPC 가 VERSION_CONFLICT 로 거부한다 — 옛 입력으로 낸 계산이 새 입력에 붙는 경쟁을 막는다.
+   */
+  storeCalcs(claimId: string, claimVersion: number, ruleVersion: string, calcs: Record<string, StoredDayComputation>, computedBy: string): Promise<Record<string, string>>
 }

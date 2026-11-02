@@ -60,9 +60,9 @@ function makeIO(service: SupabaseClient, anon: SupabaseClient): ComputeIO {
         .eq('employee_id', employeeId).in('date', dates).not('status', 'in', '("cancelled","rejected")')
       return (data ?? []) as { date: string; planned_start: string; planned_end: string; status: string }[]
     },
-    async storeCalcs(claimId, ruleVersion, calcs, computedBy) {
+    async storeCalcs(claimId, claimVersion, ruleVersion, calcs, computedBy) {
       const { data, error } = await service.rpc('trip_store_server_calcs', {
-        p_claim_id: claimId, p_rule_version: ruleVersion, p_calcs: calcs, p_computed_by: computedBy,
+        p_claim_id: claimId, p_claim_version: claimVersion, p_rule_version: ruleVersion, p_calcs: calcs, p_computed_by: computedBy,
       })
       // PostgREST: RPC 의 raise exception '<코드>' 는 error.message 에 코드로 온다
       if (error) throw new Error(`${error.message}: ${(error as { details?: string }).details ?? ''}`)

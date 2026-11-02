@@ -8,9 +8,9 @@
 import { RULE_VERSION } from '../engine'
 import {
   NO_CALENDAR, REVIEW_NOTICE_CODES, addDays, computeClaimDays,
-  type Actor, type ClaimHeader, type DayComputation, type HolidayCalendar, type IsoDate, type TripDayRecord,
+  type Actor, type ClaimHeader, type HolidayCalendar, type IsoDate, type TripDayRecord,
 } from '../data'
-import type { ClaimRow, ComputeIO, ComputeRequest, ComputeResponse, DayRow } from './types'
+import type { ClaimRow, ComputeIO, ComputeRequest, ComputeResponse, DayRow, StoredDayComputation } from './types'
 
 const fail = (code: string, message: string): ComputeResponse => ({ ok: false, code, message })
 
@@ -101,11 +101,11 @@ export async function runTripCompute(jwt: string | undefined, body: unknown, io:
     otherRequestLookup: (_e, date) => otherByDate.get(date) ?? [],
   })
 
-  const calcs: Record<string, DayComputation> = {}
+  const calcs: Record<string, StoredDayComputation> = {}
   const reviewCodes: Record<string, string[]> = {}
   for (const d of drafts) {
     const { day, ...rest } = d
-    calcs[day.id] = rest
+    calcs[day.id] = { ...rest, dayRevision: day.revision }
     const flags = rest.result?.ok ? rest.result.flags.map((f) => f.code) : []
     const notices = rest.classification.notices.filter((n) => REVIEW_NOTICE_CODES.has(n.code)).map((n) => n.code)
     reviewCodes[day.id] = [...new Set([...flags, ...notices])]
@@ -114,7 +114,7 @@ export async function runTripCompute(jwt: string | undefined, body: unknown, io:
   // 7. 저장 — service_role 전용 RPC. 실패 코드는 RPC 의 예외 코드를 그대로 돌려준다
   let calcIds: Record<string, string>
   try {
-    calcIds = await io.storeCalcs(claim.id, RULE_VERSION, calcs, actor.id)
+    calcIds = await io.storeCalcs(claim.id, claim.version, RULE_VERSION, calcs, actor.id)
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     const code = /^[A-Z_]+$/.test(msg.split(':')[0]) ? msg.split(':')[0] : 'STORE_FAILED'
