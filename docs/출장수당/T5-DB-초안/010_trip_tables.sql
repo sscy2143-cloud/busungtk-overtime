@@ -54,19 +54,30 @@ $$;
 --   rule_status: { "<RuleId>": "<RuleStatus>" } — rules.ts RULES 의 status 만 사본.
 --   미확정 회사 규정(E3~E7, N1, N2)은 여기서 'undecided' 상태로만 둔다. DB 가 확정하지 않는다.
 --   계산 결과(trip_day_calcs)가 한 번이라도 참조한 버전은 수정·삭제 금지 (트리거).
+--   단, is_active 만 바꾸는 UPDATE 는 허용한다 (새 버전으로 바꿀 때 옛 버전을 끄기 위해).
+--   is_active (v2 서버 재계산): 지금 계산에 쓰는 버전. 부분 UNIQUE 로 최대 1건.
+--     시행일(effective_from)이 미정이라 활성 여부는 is_active 로만 판단한다 (계약 5절).
+--     서버 저장 RPC(040 trip_store_server_calcs)는 rule_version = trip_active_rule_version() 만 받는다.
 create table public.trip_rule_versions (
   version         text primary key,                   -- rules.ts RULE_VERSION
   effective_from  date,                               -- null = 시행일 미정 (시범 계산 전용)
   effective_to    date,
   rule_status     jsonb not null,
   note            text not null default '',
+  is_active       boolean not null default false,
   created_at      timestamptz not null default now(),
   check (effective_to is null or effective_from is null or effective_to >= effective_from),
   check (jsonb_typeof(rule_status) = 'object')
 );
 
+-- 활성 버전은 1건만
+create unique index uq_trip_rule_versions_active
+  on public.trip_rule_versions(is_active)
+  where is_active;
+
 -- [미확인] 시행일: 최종본 작성일(2026-10-26)을 쓸지, 회사가 정할지 미결정 → null 로 둠.
-insert into public.trip_rule_versions (version, effective_from, rule_status, note) values (
+-- 이 seed 가 활성 버전이다. 서버 번들의 RULE_VERSION 과 같아야 한다 (다르면 compute 함수가 RULE_VERSION_MISMATCH).
+insert into public.trip_rule_versions (version, effective_from, rule_status, note, is_active) values (
   '2026-10-26-final/proposals-v0',
   null,
   jsonb_build_object(
@@ -81,7 +92,8 @@ insert into public.trip_rule_versions (version, effective_from, rule_status, not
     'N1', 'undecided', 'N2', 'undecided',
     'C-0', 'legal_review'
   ),
-  'rules.ts 사본. undecided 규칙이 쓰인 값은 제안값(proposed)이며 관리자 확정 전 급여 미반영'
+  'rules.ts 사본. undecided 규칙이 쓰인 값은 제안값(proposed)이며 관리자 확정 전 급여 미반영',
+  true
 );
 
 create or replace function public.trip_rule_versions_guard()
@@ -90,6 +102,10 @@ language plpgsql
 set search_path = public, pg_temp
 as $$
 begin
+  -- is_active 만 바꾸는 UPDATE 는 허용 (활성 버전 교체). 다른 칼럼이 하나라도 바뀌면 아래 검사
+  if tg_op = 'UPDATE' and (to_jsonb(new) - 'is_active') = (to_jsonb(old) - 'is_active') then
+    return new;
+  end if;
   if exists (select 1 from public.trip_day_calcs where rule_version = old.version) then
     raise exception 'RULE_VERSION_IN_USE'
       using detail = format('계산 결과가 참조한 규칙 버전(%s)은 수정·삭제할 수 없습니다. 새 버전을 만드세요', old.version);
@@ -350,6 +366,37 @@ create trigger trip_claim_days_before_insert
   before insert on public.trip_claim_days
   for each row execute function public.trip_claim_days_before_insert();
 
+-- 끝난 신청(approved / rejected / cancelled)의 근무일은 바꿀 수 없다 (보안검토 2-4, 계약 2-1).
+--   입력(entry)·revision·시각 칼럼은 물론 is_removed / removed_at 변경도 막는다.
+--   예외: 신청 상태 사본(claim_status) 동기화만 하는 UPDATE.
+--     trip_claims_sync_day_status(AFTER UPDATE) 가 승인·반려·취소 순간에 claim_status 를 바꾸므로
+--     이 예외가 없으면 승인 자체가 LOCKED 로 실패한다. updated_at 은 공통 트리거가 바꾸므로 비교에서 뺀다.
+--   RPC(040)도 상태를 검사하지만, 테이블 수준에서 한 번 더 막는다 (SECURITY DEFINER·service_role 포함).
+create or replace function public.trip_claim_days_lock_guard()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+declare
+  v_status text;
+begin
+  select status into v_status from public.trip_claims where id = old.claim_id;
+  if v_status in ('approved', 'rejected', 'cancelled') then
+    if (to_jsonb(new) - 'claim_status' - 'updated_at') = (to_jsonb(old) - 'claim_status' - 'updated_at')
+       and new.claim_status = v_status then
+      return new;
+    end if;
+    raise exception 'LOCKED'
+      using detail = format('승인·반려·취소된 신청(%s)의 근무일은 바꿀 수 없습니다', v_status);
+  end if;
+  return new;
+end;
+$$;
+
+create trigger trip_claim_days_lock
+  before update on public.trip_claim_days
+  for each row execute function public.trip_claim_days_lock_guard();
+
 -- 신청 상태가 바뀌면 근무일 사본(claim_status)도 바꾼다.
 -- 취소·반려로 바뀌면 그 날짜들이 부분 UNIQUE 대상에서 빠진다.
 create or replace function public.trip_claims_sync_day_status()
@@ -372,11 +419,14 @@ create trigger trip_claims_sync_day_status
 -- ============================================================
 -- 6. trip_actual_times — 실제 출발·도착 (기록 전용, 계산에 쓰지 않음)
 -- ============================================================
--- 매핑: DayEntry.actual { departAt?, arriveAt?, source } → depart_min / arrive_min / source
+-- 매핑: DayEntry.actual { departAt?, arriveAt?, arriveNextDay?, source } → depart_min / arrive_min / source
+--   arriveNextDay = true 면 arrive_min 에 1440 을 더한다 (근무일 0시 기준 분, 040 _trip_record_actual).
 --   types.ts 에서는 entry jsonb 안에 함께 있다. 이 테이블은 3년 보관·법정 검증용 정규화 사본이며
 --   RPC 가 entry.actual 에서 채운다. 원본은 여전히 trip_claim_days.entry.
---   [미확인] actual 시각의 "다음 날" 여부 칸이 types.ts 에 없다 (ClockTime 만 있음).
---            자정 넘긴 도착은 현재 표현 불가 → T1/T2 쪽 타입 보강 필요. 우선 0~1439 만 허용.
+--   자정 넘긴 도착: types.ts 의 actual.arriveNextDay 로 표현 → arrive_min 0~2879 허용 (다음 날 23:59 까지).
+--   출발(departAt)에는 다음 날 표시가 없으므로 depart_min 은 0~1439 그대로.
+--   [미확인] arriveAt = '24:00' + arriveNextDay = true 는 2880 이 되어 CHECK 위반으로 저장이 실패한다
+--            (화면이 '다음 날 24:00' 을 '다다음 날 00:00' 으로 받지 않는 한 생기지 않는 값).
 --   표준 이동시간을 이 테이블에 넣지 않는다. 빈 값(null)은 "기록 없음/기억 안 남".
 --   HANDOFF 5-1 의 'Q-외부'(채널톡 참고 표시)는 자동 입력이 아니므로 source='external' 은 관리자 확인 전제.
 create table public.trip_actual_times (
@@ -384,7 +434,7 @@ create table public.trip_actual_times (
   day_id       uuid not null references public.trip_claim_days(id) on delete restrict,
   day_revision integer not null,
   depart_min   integer check (depart_min between 0 and 1439),
-  arrive_min   integer check (arrive_min between 0 and 1439),
+  arrive_min   integer check (arrive_min between 0 and 2879),
   source       text not null check (source in ('self', 'companion_copy', 'admin', 'external')),
   recorded_by  uuid not null references public.employees(id) on delete restrict,
   recorded_at  timestamptz not null default now(),
@@ -410,7 +460,10 @@ create table public.trip_actual_times (
 --   (DB 전용)
 --     seq            : 같은 근무일의 "최신 계산" 판정용 단조 증가 번호 (repository.latestCalc 의 삽입 순서 대응)
 --     entry_snapshot : 계산 당시 근무일 입력 사본. 클라이언트가 아니라 RPC 가 trip_claim_days.entry 에서 복사
---     computed_by, engine_source : 누가 어디서 계산했는지 ('client' = 브라우저 엔진, 'edge' = 서버 엔진)
+--     computed_by, engine_source : 누가 어디서 계산했는지
+--       'server' = Vercel Function(api/trip-compute.ts)이 DB 입력으로 계산 (v2 기본)
+--       'edge'   = Supabase Edge Function (대안, 이번 구현은 쓰지 않음)
+--       'client'(브라우저 엔진)는 CHECK 로 불허. 기본값도 없앴다 → 저장 RPC 가 반드시 명시해야 함
 --     result_ok, missing_count, review_codes : 승인 검사용 사본 (RPC 가 result/classification 에서 계산)
 --     4그룹 수치 (HANDOFF 6절, 서로 옮기지 않음) — result.ok = true 일 때만 값, 단위는 시간(numeric)
 --       1그룹 trip_hours, trip_night_travel_hours
@@ -454,11 +507,22 @@ create table public.trip_day_calcs (
   actual_night_work_hours  numeric(5,2),
   proposed_by              text[] not null default '{}',
   requires_legal_review    text[] not null default '{}',
-  engine_source            text not null default 'client' check (engine_source in ('client', 'edge')),
+  engine_source            text not null check (engine_source in ('server', 'edge')),
   computed_by              uuid not null references public.employees(id) on delete restrict,
   computed_at              timestamptz not null default now(),
   unique (seq),
-  check (result_ok = false or result is not null)
+  check (result_ok = false or result is not null),
+  -- 수치 방어선 (보안검토 2-3, 계약 2-1). null 은 CHECK 를 통과한다 (result_ok = false 인 행)
+  check (missing_count >= 0),
+  check (trip_hours              between 0 and 8),    -- 표준 편도 최대 4h × 왕복
+  check (trip_night_travel_hours >= 0),
+  check (overtime_hours          between 0 and 24),
+  check (overtime_night_hours    >= 0),
+  check (holiday_within8_hours   between 0 and 24),
+  check (holiday_over8_hours     between 0 and 24),
+  check (legal_total_work_hours  >= 0),
+  check (legal_daily_over8_hours >= 0),
+  check (actual_night_work_hours >= 0)
 );
 
 create index idx_trip_day_calcs_day_seq on public.trip_day_calcs(day_id, seq desc);
@@ -522,7 +586,7 @@ create index idx_trip_adjustments_claim on public.trip_adjustments(claim_id);
 --       calcIds → calc_ids (승인 당시 계산 결과 id 배열 보존), flagDecisions → flag_decisions (jsonb 원본),
 --       reason → reason, at → created_at
 --   (DB 전용) claim_version : 검토 시점 신청 version
---   [미확인] uuid[] 요소에 FK 를 걸 수 없음 → RPC 에서 존재·소속 검사로 대신함.
+--   uuid[] 요소에는 FK 를 걸 수 없음 → BEFORE INSERT 트리거로 존재·소속 검사 (아래, REVIEW_CALC_MISMATCH).
 create table public.trip_reviews (
   id              uuid primary key default gen_random_uuid(),
   claim_id        uuid not null references public.trip_claims(id) on delete restrict,
@@ -539,6 +603,33 @@ create table public.trip_reviews (
 );
 
 create index idx_trip_reviews_claim on public.trip_reviews(claim_id);
+
+-- calc_ids 의 모든 원소가 같은 신청의 계산 결과인지 (보안검토 2-7, 계약 2-1)
+--   다른 신청의 calc id 를 끼워 넣거나 없는 id 를 넣으면 거부.
+create or replace function public.trip_reviews_calc_guard()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+begin
+  if exists (
+    select 1
+    from unnest(new.calc_ids) as x(calc_id)
+    where not exists (
+      select 1 from public.trip_day_calcs c
+      where c.id = x.calc_id and c.claim_id = new.claim_id
+    )
+  ) then
+    raise exception 'REVIEW_CALC_MISMATCH'
+      using detail = '검토 기록의 계산 결과가 이 신청의 것이 아닙니다';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger trip_reviews_calc_guard
+  before insert on public.trip_reviews
+  for each row execute function public.trip_reviews_calc_guard();
 
 -- ============================================================
 -- 10. trip_review_flags — 확인 표시와 처리 결과

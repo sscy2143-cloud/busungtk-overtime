@@ -11,6 +11,15 @@
 --   - 추가 방어: anon·authenticated 의 테이블 쓰기 권한(GRANT)도 회수한다.
 --   - trip_day_calcs 는 트리거(010)로 누구도 UPDATE/DELETE 불가. 정책도 없음.
 --   - 기존 테이블의 정책은 하나도 건드리지 않는다.
+--   - v2: 출장 데이터 테이블 7개(claims, claim_days, actual_times, day_calcs, adjustments,
+--     reviews, review_flags)의 SELECT 정책에 기능 스위치 조건을 붙인다 (보안검토 2-5, 계약 2-3).
+--       직원 정책   … and trip_feature_enabled('employee_form')
+--       관리자 정책 … and trip_feature_enabled('admin_review')
+--     스위치가 꺼지면 RPC 뿐 아니라 조회도 0행이다. trip_latest_day_calcs 뷰는 security_invoker 라 같이 걸린다.
+--     기준 데이터(rule_versions, regions, holidays, feature_flags)와 스위치 변경 이력은 조건 없이 둔다
+--     (화면이 스위치 상태를 읽어야 하고, 관리자는 꺼진 상태에서도 변경 이력을 봐야 하므로).
+--   - service_role(Vercel Function)은 RLS 를 우회한다. 계산 저장 trip_store_server_calcs 는 040 에서
+--     권한(service_role 전용)과 함수 안 검사로 막는다.
 --
 -- 관리자 판정은 trip_can_view_all() 한 곳에 모은다.
 --   초안: 기존 public.is_manager_or_admin() (20260225210000) 을 그대로 씀.
@@ -99,11 +108,11 @@ create policy "trip_feature_flag_history_select_manager"
 -- ============================================================
 create policy "trip_claims_select_self"
   on public.trip_claims for select to authenticated
-  using (employee_id = auth.uid());
+  using (employee_id = auth.uid() and public.trip_feature_enabled('employee_form'));
 
 create policy "trip_claims_select_manager"
   on public.trip_claims for select to authenticated
-  using (public.trip_can_view_all());
+  using (public.trip_can_view_all() and public.trip_feature_enabled('admin_review'));
 
 -- [미결정] 동행자끼리 서로의 건을 볼 수 있게 할지 (initiator 가 동행 초안 진행 상황을 보는 기능).
 --          초안은 본인 건만. 필요하면 RPC 로 "제출 여부"만 돌려주는 방식을 권장 (시각·점심 등 개인 입력 비공개).
@@ -113,81 +122,96 @@ create policy "trip_claims_select_manager"
 -- ============================================================
 create policy "trip_claim_days_select_self"
   on public.trip_claim_days for select to authenticated
-  using (employee_id = auth.uid());
+  using (employee_id = auth.uid() and public.trip_feature_enabled('employee_form'));
 
 create policy "trip_claim_days_select_manager"
   on public.trip_claim_days for select to authenticated
-  using (public.trip_can_view_all());
+  using (public.trip_can_view_all() and public.trip_feature_enabled('admin_review'));
 
 -- ============================================================
 -- trip_actual_times (근무일 → 직원)
 -- ============================================================
 create policy "trip_actual_times_select_self"
   on public.trip_actual_times for select to authenticated
-  using (exists (
-    select 1 from public.trip_claim_days d
-    where d.id = trip_actual_times.day_id and d.employee_id = auth.uid()
-  ));
+  using (
+    public.trip_feature_enabled('employee_form')
+    and exists (
+      select 1 from public.trip_claim_days d
+      where d.id = trip_actual_times.day_id and d.employee_id = auth.uid()
+    )
+  );
 
 create policy "trip_actual_times_select_manager"
   on public.trip_actual_times for select to authenticated
-  using (public.trip_can_view_all());
+  using (public.trip_can_view_all() and public.trip_feature_enabled('admin_review'));
 
 -- ============================================================
 -- trip_day_calcs (신청 → 직원). UPDATE/DELETE 정책 없음 + 트리거로 금지
 -- ============================================================
 create policy "trip_day_calcs_select_self"
   on public.trip_day_calcs for select to authenticated
-  using (exists (
-    select 1 from public.trip_claims c
-    where c.id = trip_day_calcs.claim_id and c.employee_id = auth.uid()
-  ));
+  using (
+    public.trip_feature_enabled('employee_form')
+    and exists (
+      select 1 from public.trip_claims c
+      where c.id = trip_day_calcs.claim_id and c.employee_id = auth.uid()
+    )
+  );
 
 create policy "trip_day_calcs_select_manager"
   on public.trip_day_calcs for select to authenticated
-  using (public.trip_can_view_all());
+  using (public.trip_can_view_all() and public.trip_feature_enabled('admin_review'));
 
 -- ============================================================
 -- trip_adjustments — 직원도 본인 건 수정 이력은 볼 수 있다 (무엇이 왜 바뀌었는지)
 -- ============================================================
 create policy "trip_adjustments_select_self"
   on public.trip_adjustments for select to authenticated
-  using (exists (
-    select 1 from public.trip_claims c
-    where c.id = trip_adjustments.claim_id and c.employee_id = auth.uid()
-  ));
+  using (
+    public.trip_feature_enabled('employee_form')
+    and exists (
+      select 1 from public.trip_claims c
+      where c.id = trip_adjustments.claim_id and c.employee_id = auth.uid()
+    )
+  );
 
 create policy "trip_adjustments_select_manager"
   on public.trip_adjustments for select to authenticated
-  using (public.trip_can_view_all());
+  using (public.trip_can_view_all() and public.trip_feature_enabled('admin_review'));
 
 -- ============================================================
 -- trip_reviews — 직원도 본인 건 검토 결과(되돌림 사유 등)는 본다
 -- ============================================================
 create policy "trip_reviews_select_self"
   on public.trip_reviews for select to authenticated
-  using (exists (
-    select 1 from public.trip_claims c
-    where c.id = trip_reviews.claim_id and c.employee_id = auth.uid()
-  ));
+  using (
+    public.trip_feature_enabled('employee_form')
+    and exists (
+      select 1 from public.trip_claims c
+      where c.id = trip_reviews.claim_id and c.employee_id = auth.uid()
+    )
+  );
 
 create policy "trip_reviews_select_manager"
   on public.trip_reviews for select to authenticated
-  using (public.trip_can_view_all());
+  using (public.trip_can_view_all() and public.trip_feature_enabled('admin_review'));
 
 -- ============================================================
 -- trip_review_flags
 -- ============================================================
 create policy "trip_review_flags_select_self"
   on public.trip_review_flags for select to authenticated
-  using (exists (
-    select 1 from public.trip_claims c
-    where c.id = trip_review_flags.claim_id and c.employee_id = auth.uid()
-  ));
+  using (
+    public.trip_feature_enabled('employee_form')
+    and exists (
+      select 1 from public.trip_claims c
+      where c.id = trip_review_flags.claim_id and c.employee_id = auth.uid()
+    )
+  );
 
 create policy "trip_review_flags_select_manager"
   on public.trip_review_flags for select to authenticated
-  using (public.trip_can_view_all());
+  using (public.trip_can_view_all() and public.trip_feature_enabled('admin_review'));
 
 -- 의도적으로 만들지 않은 것 (점검용 메모)
 --   - 모든 trip_* 테이블의 insert/update/delete 정책

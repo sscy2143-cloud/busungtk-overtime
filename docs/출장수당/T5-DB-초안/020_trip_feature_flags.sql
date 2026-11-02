@@ -138,6 +138,9 @@ $$;
 
 revoke all on function public.trip_feature_enabled(text)       from public, anon;
 grant execute on function public.trip_feature_enabled(text)    to authenticated;
+-- v2: 서버 계산 함수(api/trip-compute.ts, service_role)가 rpc('trip_feature_enabled') 로 스위치를 읽는다 (계약 3절).
+--   [미확인] Supabase 기본 권한으로 service_role 에 이미 EXECUTE 가 있을 수 있으나 명시해 둔다 (C-8).
+grant execute on function public.trip_feature_enabled(text)    to service_role;
 -- trip_require_feature 는 RPC 내부 전용. 클라이언트 직접 호출 불필요
 revoke all on function public.trip_require_feature(text)       from public, anon, authenticated;
 revoke all on function public.trip_set_feature(text, boolean, text) from public, anon;

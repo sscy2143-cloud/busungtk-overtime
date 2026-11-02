@@ -45,18 +45,23 @@
 -- ============================================================
 -- 040 되돌리기: RPC
 -- ============================================================
+--   v2(서버 재계산) 시그니처. v1 의 _trip_store_calc / _trip_apply_calcs 는 040 에서 삭제되어 여기서도 뺐다.
+--   (v1 은 어떤 DB 에도 적용된 적 없음. v1 롤백은 ../T5-DB-초안_v1_클라이언트계산_백업/900_rollback.sql)
 drop function if exists public.trip_review(uuid, text, uuid[], jsonb, text);
-drop function if exists public.trip_admin_adjust_day(uuid, uuid, integer, jsonb, text, jsonb);
-drop function if exists public.trip_invite_companions(uuid, uuid[], jsonb);
+drop function if exists public.trip_admin_adjust_day(uuid, uuid, integer, jsonb, text);
+drop function if exists public.trip_invite_companions(uuid, uuid[]);
 drop function if exists public.trip_cancel(uuid, integer);
 drop function if exists public.trip_submit(uuid, integer);
-drop function if exists public.trip_update_draft(uuid, integer, jsonb, jsonb, jsonb);
-drop function if exists public.trip_create_claim(jsonb, jsonb, jsonb, uuid);
+drop function if exists public.trip_update_draft(uuid, integer, jsonb, jsonb);
+drop function if exists public.trip_create_claim(jsonb, jsonb, uuid);
+
+-- 서버 계산 저장·판정 (v2 신규, 만든 순서의 역순)
+drop function if exists public.trip_store_server_calcs(uuid, integer, text, jsonb, uuid);
+drop function if exists public._trip_calc_is_current(public.trip_claim_days);
+drop function if exists public.trip_active_rule_version();
 
 drop function if exists public._trip_companion_copy(jsonb);
 drop function if exists public._trip_latest_calc_ids(uuid);
-drop function if exists public._trip_apply_calcs(uuid, jsonb, uuid);
-drop function if exists public._trip_store_calc(public.trip_claim_days, jsonb, uuid);
 drop function if exists public._trip_update_day_entry(uuid, jsonb, uuid);
 drop function if exists public._trip_insert_day(uuid, uuid, jsonb, uuid);
 drop function if exists public._trip_record_actual(public.trip_claim_days, uuid);
@@ -68,22 +73,33 @@ drop function if exists public._trip_actor_role(uuid);
 drop function if exists public._trip_actor_id();
 
 -- ============================================================
--- 030 되돌리기: RLS
---   정책은 테이블과 함께 사라진다. 별도 함수만 지운다.
--- ============================================================
-drop function if exists public.trip_can_view_all();
-
--- ============================================================
--- 020 되돌리기: 기능 스위치
+-- 020 되돌리기 (1): 테이블 행 형식을 반환하는 함수는 테이블보다 먼저
+--   trip_set_feature 는 trip_feature_flags 행을 반환하므로 테이블 삭제 전에 지운다.
 -- ============================================================
 drop function if exists public.trip_set_feature(text, boolean, text);
 drop function if exists public.trip_require_feature(text);
-drop function if exists public.trip_feature_enabled(text);
+
+-- ============================================================
+-- 030 되돌리기: RLS
+--   정책은 테이블과 함께 사라진다.
+--   ⚠ 순서 수정(v2): 정책 식이 trip_can_view_all() 과 (v2부터) trip_feature_enabled() 를 참조하므로,
+--      cascade 없이 함수를 먼저 지우면 "다른 객체가 의존" 오류로 멈춘다. 두 함수는 테이블 삭제 뒤(맨 아래)에 지운다.
+--      (v1 초안은 trip_can_view_all() 을 테이블보다 먼저 지워 같은 오류가 날 수 있었다.)
+-- ============================================================
+
+-- ============================================================
+-- 020 되돌리기 (2): 기능 스위치 테이블
+-- ============================================================
 drop table if exists public.trip_feature_flag_history;
 drop table if exists public.trip_feature_flags;
 
 -- ============================================================
 -- 010 되돌리기: 테이블 (FK 역순). 트리거·인덱스·정책은 테이블과 함께 삭제됨
+--   v2 추가분도 테이블과 함께 사라진다:
+--     trip_rule_versions.is_active 칼럼 · uq_trip_rule_versions_active 인덱스
+--     trip_day_calcs 수치 CHECK 제약 · engine_source CHECK
+--     trip_claim_days_lock 트리거 · trip_reviews_calc_guard 트리거
+--   트리거 함수는 아래에서 따로 지운다.
 -- ============================================================
 drop view  if exists public.trip_latest_day_calcs;
 drop table if exists public.trip_review_flags;
@@ -99,12 +115,18 @@ drop table if exists public.trip_rule_versions;
 
 -- 트리거 함수 (테이블 삭제 뒤)
 drop function if exists public.trip_review_flags_guard();
+drop function if exists public.trip_reviews_calc_guard();      -- v2
 drop function if exists public.trip_append_only();
 drop function if exists public.trip_day_calcs_immutable();
 drop function if exists public.trip_claims_sync_day_status();
+drop function if exists public.trip_claim_days_lock_guard();   -- v2
 drop function if exists public.trip_claim_days_before_insert();
 drop function if exists public.trip_rule_versions_guard();
 drop function if exists public.trip_clock_to_min(text, boolean);
+
+-- 정책이 참조하던 함수 (정책은 위 테이블 삭제로 이미 사라짐)
+drop function if exists public.trip_feature_enabled(text);
+drop function if exists public.trip_can_view_all();
 
 -- ============================================================
 -- 확인 (읽기 전용) — commit 전에 실행

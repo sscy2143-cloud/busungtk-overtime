@@ -9,17 +9,20 @@
 - 작성 2026-11-02 · 브랜치 `feature/trip-allowance` (작업 트리 `busungtk-overtime-trip`)
 - 근거: `docs/출장수당/HANDOFF.md` 4·6·7·9·10·11절, `src/features/trip/data/{types,repository,service}.ts`, `src/features/trip/engine/{rules,regions}.ts`
 - 범위: 신규 테이블·RLS·RPC. **기존 테이블은 무변경**, 급여(payslips·급여대장) 연결 없음.
+- **현재 판: v2 (서버 재계산)** — 2026-11-02 보안 검토 반영. 계약은 `계약-서버계산.md`, 이유는 `../T5-보안검토_계산결과조작.md`.
+- v1(클라이언트 계산 결과 저장) 원본은 `../T5-DB-초안_v1_클라이언트계산_백업/` 에 그대로 보관. v1 은 **적용 금지**.
 
 ## 파일과 적용 순서
 
 | 순서 | 파일 | 내용 |
 |---|---|---|
-| 1 | `010_trip_tables.sql` | 신규 테이블 10개 + 최신 계산 뷰. 규칙 버전·지역 seed. 계산 결과 수정 금지 트리거 |
+| 1 | `010_trip_tables.sql` | 신규 테이블 10개 + 최신 계산 뷰. 규칙 버전(활성 1건)·지역 seed. 계산 결과 수정 금지·수치 CHECK, 끝난 신청 근무일 잠금, 검토 calc 소속 검사 트리거 |
 | 2 | `020_trip_feature_flags.sql` | 기능 스위치 테이블·이력, `trip_feature_enabled`, `trip_set_feature`(admin 전용) |
-| 3 | `030_trip_rls.sql` | RLS. 직원 본인 SELECT, 관리자 전체 SELECT, 직접 쓰기 정책 없음 |
-| 4 | `040_trip_rpc.sql` | 쓰기 RPC 7개 + 내부 보조 함수 |
+| 3 | `030_trip_rls.sql` | RLS. 직원 본인 SELECT, 관리자 전체 SELECT (둘 다 기능 스위치 ON 일 때만), 직접 쓰기 정책 없음 |
+| 4 | `040_trip_rpc.sql` | 쓰기 RPC 7개(입력만 받음: `trip_create_claim`, `trip_update_draft`, `trip_submit`, `trip_cancel`, `trip_invite_companions`, `trip_admin_adjust_day`, `trip_review`) + 서버 계산 저장 RPC `trip_store_server_calcs(uuid, integer, text, jsonb, uuid)`(service_role 전용) + 조회 `trip_active_rule_version()` + 내부 보조 함수 |
 | 되돌림 | `900_rollback.sql` | 위 전부를 역순 삭제. 기존 객체 무영향 확인 쿼리 포함 |
-| 사전 | `대조-체크리스트.md` | Supabase 재개 뒤 읽기 전용으로 확인할 항목 (C-1 ~ C-9) |
+| 사전 | `대조-체크리스트.md` | Supabase 재개 뒤 읽기 전용으로 확인할 항목 (C-1 ~ C-11) |
+| 계약 | `계약-서버계산.md` | TypeScript(`api/trip-compute.ts`)와 SQL 이 같이 따르는 계약. 바꿀 때는 양쪽을 같이 |
 
 적용할 때의 형태 (승인 뒤, SQL Editor 에서):
 
@@ -43,11 +46,14 @@ commit;   -- 이상하면 rollback;
    - [ ] C-7 기존 함수 정의·권한
    - [ ] C-8 기본 GRANT 설정
    - [ ] C-9 직원 삭제 흐름 (`on delete restrict` 영향)
+   - [ ] C-10 `overtime_requests` 칼럼(`date`, `status`, `planned_start`, `planned_end`) — 서버 계산의 같은 날 야근 조회
+   - [ ] C-11 service_role 호출 판정·함수 권한 (`request.jwt.claims` 의 role, EXECUTE 권한)
 3. [ ] 대조 결과로 초안 수정 (특히 `trip_can_view_all()`, `holidays` 이름)
 4. [ ] `900_rollback.sql` 을 같은 트랜잭션 안에서 "적용 → 롤백 → rollback;" 으로 한 번 검증 (데이터 없는 상태)
 5. [ ] HANDOFF 10절 보안 정리 순서와 충돌하지 않는지 확인 (secpatch·master 미커밋분 병합 이후 적용 권장)
-6. [ ] **사용자 승인**
-7. [ ] 적용 뒤 기능 스위치는 모두 꺼진 상태로 둠. 켜는 것은 화면 준비 후 별도 승인
+6. [ ] `api/trip-compute.ts`(서버 계산 함수)가 `계약-서버계산.md` 와 일치하고, 서버 번들 `RULE_VERSION` = 010 seed 의 활성 버전인지 확인. 함수가 배포되지 않으면 제출·승인이 전부 `CALC_STALE_OR_UNTRUSTED` 로 막힌다 (잘못 저장되는 쪽으로는 실패하지 않음)
+7. [ ] **사용자 승인**
+8. [ ] 적용 뒤 기능 스위치는 모두 꺼진 상태로 둠. 켜는 것은 화면 준비 후 별도 승인
 
 ## 설계 요약
 
@@ -70,12 +76,21 @@ commit;   -- 이상하면 rollback;
 
 | 규칙 | 강제 위치 | 오류 코드 |
 |---|---|---|
-| 기능이 꺼져 있으면 거부 | 모든 쓰기 RPC 첫 줄 `trip_require_feature` | `FEATURE_DISABLED` |
+| 기능이 꺼져 있으면 거부 | 모든 쓰기 RPC 첫 줄 `trip_require_feature` + RLS SELECT 정책 조건(조회 0행) | `FEATURE_DISABLED` |
 | 역할은 서버에서 조회 | `_trip_actor_id()` + `employees.role` (auth.uid) | `UNAUTHENTICATED`, `FORBIDDEN` |
 | 본인 건만 작성·수정·제출·취소 | 각 RPC | `FORBIDDEN` |
-| 동시 수정 감지 | `trip_update_draft`·`trip_submit`·`trip_cancel` (version), `trip_admin_adjust_day` (revision) | `VERSION_CONFLICT` |
+| 동시 수정 감지 | `trip_update_draft`·`trip_submit`·`trip_cancel`·`trip_review` (`for update` 잠금 + version), `trip_admin_adjust_day` (revision) | `VERSION_CONFLICT` |
 | 같은 직원·날짜 중복 금지 (진행 중 건끼리) | 부분 UNIQUE 인덱스 + RPC 사전 검사 | `DUPLICATE_DAY` |
+| 계산 결과는 서버만 저장 | `trip_store_server_calcs` (service_role 전용, 함수 안 역할 재검사) | `FORBIDDEN` |
+| 서버 계산이 현재 입력과 맞아야 제출·승인 | `trip_submit`, `trip_review(approve)` → `_trip_calc_is_current` | `CALC_STALE_OR_UNTRUSTED` |
 | 입력 누락·계산 실패 시 제출 불가 | `trip_submit` | `INCOMPLETE` |
+| 계산 규칙 버전 = 활성 버전 | `trip_store_server_calcs` | `RULE_VERSION_MISMATCH` |
+| 근무일 전부를 한 번에 계산 | `trip_store_server_calcs` | `CALC_INCOMPLETE_SET` |
+| 계산 뒤 입력이 바뀌면 저장 거부 (계산-저장 경쟁) | `trip_store_server_calcs` — `p_claim_version` = 신청 version, 근무일별 `dayRevision` = revision | `VERSION_CONFLICT` |
+| 수치·형식 방어선 | `trip_store_server_calcs` + `trip_day_calcs` CHECK | `CALC_INVARIANT` |
+| 엔진 입력 지역 = 유효 지역 | `trip_store_server_calcs` | `UNKNOWN_REGION` |
+| 끝난 신청의 근무일 변경 금지 | `trip_claim_days` BEFORE UPDATE 트리거 | `LOCKED` |
+| 검토 기록의 calc 는 같은 신청 것 | `trip_reviews` BEFORE INSERT 트리거 | `REVIEW_CALC_MISMATCH` |
 | 관리자 수정 사유 필수, 원본 보존 | `trip_admin_adjust_day` + CHECK 제약 | `REASON_REQUIRED` |
 | 본인 건 승인 금지 | `trip_review` | `SELF_REVIEW` |
 | 화면의 계산 결과에 승인 고정 | `trip_review` (최신 calc id 집합 비교) | `STALE_CALC` |
@@ -90,17 +105,41 @@ commit;   -- 이상하면 rollback;
 - 관리자 전체 조회는 `trip_can_view_all()` 한 곳에 모았습니다. 지금은 기존 `is_manager_or_admin()` 을 씁니다.
 - 20260916 권한 체계가 운영에 적용됐다면 이 함수 본문만 `has_admin_permission('trip_view')` 로 바꿉니다.
 
-## ⚠ 위험: 서버 재계산 없이 저장
+## v2 (서버 재계산) — 계산 결과 저장 구조
 
-계산 엔진은 TypeScript 입니다. 그래서 RPC 는 **클라이언트가 보낸 계산 결과를 서버에서 다시 계산하지 않고 저장**합니다.
+v1 은 브라우저가 보낸 계산 결과(`p_calcs`)를 형식만 보고 저장했습니다. 조작된 클라이언트가 입력과 다른 인정시간을 저장·승인시킬 수 있어(보안 검토 위협 1·2·3) **v2 에서 구조를 바꿨습니다.**
 
-- **위험:** 조작된 클라이언트가 입력과 맞지 않는 출장·연장 시간을 보낼 수 있습니다. RPC 는 형식, 규칙 버전 존재, 소속 근무일만 검사합니다.
-- **이미 넣은 완화**
-  - 계산 행의 입력 사본(`entry_snapshot`)은 클라이언트 값이 아니라 서버가 저장한 근무일 입력에서 복사합니다. 사후에 다시 계산해 대조할 수 있습니다.
-  - 동행 초안의 복사 규칙은 서버 함수(`_trip_companion_copy`)로 강제합니다.
-  - 관리자 승인이 반드시 필요하고, 승인 전 상태에서는 급여에 반영되지 않습니다.
-- **권장 추가 완화 (T6·T7):** 관리자 검토 화면이 `entry_snapshot` 으로 엔진을 다시 돌려, 저장된 값과 다르면 승인을 막고 표시합니다.
-- **근본 대안:** Supabase Edge Function(Deno)에서 같은 `engine/` 코드를 실행해 계산하고, 서비스 키로 저장합니다(`engine_source = 'edge'`). 엔진이 순수 함수라 이식은 쉽지만 배포 경로가 하나 늘어납니다. 급여 적용(6단계) 전에는 이 방식으로 바꾸는 것을 권장합니다.
+```
+브라우저 ─ 입력만 ─▶ trip_create_claim / trip_update_draft          → {id, version}
+브라우저 ─ JWT ───▶ POST /api/trip-compute {claimId}               (Vercel Function)
+                     JWT 검증 → employees.role → 기능 스위치 → 본인 건/관리자
+                     → DB 입력 읽기 → computeClaimDays → trip_store_server_calcs (service_role)
+브라우저 ─────────▶ trip_submit         — 서버 계산이 현재 입력과 맞아야 함
+관리자   ─────────▶ trip_admin_adjust_day → /api/trip-compute → trip_review
+```
+
+- **계산 결과는 서버만 만듭니다.** 공개 RPC 는 `p_calcs` 를 받지 않습니다. `_trip_store_calc`·`_trip_apply_calcs` 는 삭제했습니다.
+- **저장은 service_role 전용 RPC `trip_store_server_calcs(p_claim_id, p_claim_version, p_rule_version, p_calcs, p_computed_by)` 하나뿐입니다.** anon·authenticated 는 EXECUTE 권한이 없고, 함수 첫 줄에서 호출 역할을 다시 확인합니다.
+- **계산-저장 경쟁 방어:** 함수가 입력을 읽은 시점의 신청 version(`p_claim_version`)과 근무일별 revision(`p_calcs` 각 항목의 `dayRevision`)을 저장 시점 DB 값과 대조합니다. 그 사이 입력이 바뀌었으면 `VERSION_CONFLICT` 로 저장하지 않고, 화면이 다시 계산합니다.
+- **저장 직전 방어선** (서버 계산의 버그·회귀도 잡기 위해)
+  - 규칙 버전 = 활성 버전(`trip_rule_versions.is_active`, 1건)
+  - 신청의 빠지지 않은 근무일 **전부**를 한 번에 저장 (일부만 저장 불가)
+  - 수치 0 이상, 출장 인정 8시간 이하, 연장 24시간 이하, 휴일근로 24시간 이하 (함수 검사 + 테이블 CHECK)
+  - 엔진 입력의 지역 코드가 근무일에 유효한 `trip_regions` 행
+  - `entry_snapshot` 은 DB 의 근무일 입력, `engine_source = 'server'`, `computed_by` = 함수가 검증한 사용자
+- **제출·승인 조건:** 모든 근무일의 최신 계산이 "서버 계산 · 현재 revision · 현재 입력 · 활성 규칙 버전" (`_trip_calc_is_current`). 아니면 `CALC_STALE_OR_UNTRUSTED` → 화면이 계산을 다시 부릅니다.
+- **보강 (보안검토 2-4 ~ 2-7):** 끝난 신청 근무일 잠금 트리거(`LOCKED`), RLS 조회에도 기능 스위치, `for update` 잠금, 검토 기록 calc 소속 트리거(`REVIEW_CALC_MISMATCH`).
+- **서버 조회가 필요한 확인 항목** (`api/trip-compute.ts` 쪽, 계약 3절): `OTHER_REQUEST_SAME_DAY`(같은 날 `overtime_requests`), `CARRY_IN_*`·`NEXT_DAY_ENTRY_MISSING`(compute 함수 안), `HOLIDAY_SOURCE_UNVERIFIED`(`holidays.is_verified` 행이 0이면 모든 날). 저장 RPC 는 이 6개 안내 코드와 엔진 flags 를 관리자 확인 표시로 올립니다 (`service.ts` `REVIEW_NOTICE_CODES` 와 같음).
+- **미리보기:** 브라우저는 지금처럼 같은 엔진으로 계산해 보여 줍니다. 저장되지 않습니다.
+
+### v2 에서 남은 위험
+
+| 위험 | 내용 | 대응 |
+|---|---|---|
+| 외부 조건 변경 | 계산 뒤 공휴일 검증·같은 날 야근이 바뀌어도 `_trip_calc_is_current` 는 true | 관리자 검토 화면을 열 때 compute 를 한 번 부르는 것을 권장 (결과가 같으면 calc id 유지) |
+| 활성 규칙 버전 교체 | 교체 순간 제출·검토 중인 모든 건이 `CALC_STALE_OR_UNTRUSTED` | 의도된 동작. 교체 뒤 재계산 필요 |
+| 계산 함수 장애 | compute 가 안 되면 제출·승인 불가 | 입력은 보존됨. 잘못 저장되는 쪽으로는 실패하지 않음 |
+| 엔진 자체 버그 | 서버·브라우저가 같은 엔진이라 같은 오류 | 테스트(사례·경계·무작위) + 시범 운영 수기 병행 |
 
 ## 기존 스키마와 충돌 가능성
 
@@ -120,13 +159,15 @@ commit;   -- 이상하면 rollback;
 - 규칙 버전 시행일 (`effective_from = null`), 지역 seed 적용 시작일(임시 2026-10-26)
 - 지역 적용 기간 겹침 방지 제약 (btree_gist 확장 필요)
 - `DayEntry.actual` 의 "다음 날" 표현 없음 → 자정 넘긴 실제 도착 저장 불가. 타입 보강 필요
-- 숙박 기간 상한 31일 (service.ts 에 없는 임시 방어)
+- 숙박 기간 상한 31일 (날짜 개수 기준, service.ts `MAX_STAY_DAYS` 와 같은 임시 상한)
 - 승인 경로 2단계(인사담당 1차 → 대표 최종, K7)
 - 관리자가 본인 건을 수정하는 것을 막을지
 - 동행자끼리 서로의 건 조회 허용 여부
 - 증빙·마감(K11) 검사, 동행자 알림(ot_notifications)
 - 승인 취소(K5) RPC, 정산·월 마감(`payroll_periods`, `allowance_settlements`)은 후속 단계
-- 규칙 버전이 근무일에 적용되는 버전인지 검사 (시행일 미정이라 존재만 검사)
+- 규칙 버전이 근무일에 적용되는 버전인지 검사 (시행일 미정이라 `is_active` 1건만 기준. 시행일 확정 시 유효기간 검사 추가)
+- `request.jwt.claims`·`current_setting('role')` 로 service_role 을 판정하는 방식이 운영 PostgREST·새 API 키 체계에서 기대대로인지 (C-11)
+- 실제 도착 `'24:00'` + `arriveNextDay` 는 2880 이 되어 `trip_actual_times.arrive_min`(0~2879) CHECK 에 걸림 (화면 입력 범위 확인 필요)
 
 ## 적용 직후 확인 (읽기 전용)
 
@@ -136,6 +177,11 @@ select table_name from information_schema.tables
  where table_schema = 'public' and (table_name like 'trip\_%' or table_name = 'holidays') order by 1;
 select count(*) from public.trip_regions;          -- 47
 select key, enabled from public.trip_feature_flags; -- 모두 false
+select public.trip_active_rule_version();          -- '2026-10-26-final/proposals-v0' (서버 번들 RULE_VERSION 과 같아야 함)
+
+-- 서버 계산 저장 RPC 는 service_role 만 실행 가능해야 함: anon·authenticated 가 false
+select r as role, has_function_privilege(r, 'public.trip_store_server_calcs(uuid, integer, text, jsonb, uuid)', 'execute') as can_exec
+from unnest(array['anon', 'authenticated', 'service_role']) as r;
 
 -- 직접 쓰기가 막혔는지: authenticated 권한 확인
 select table_name, privilege_type from information_schema.role_table_grants
@@ -148,8 +194,7 @@ select tablename, count(*) from pg_policies where schemaname = 'public'
 
 ---
 
-## 보강 (2026-11-02, 보안 검토 후)
+## 변경 이력
 
-**이 초안의 "클라이언트가 계산 결과를 보내는" 구조는 그대로 적용하지 않는다.** `../T5-보안검토_계산결과조작.md` 의 권장안(B: Vercel Function 이 DB 입력으로 다시 계산, `engine_source='server'`)으로 바꾼 뒤 적용한다. 바꿀 항목은 그 문서 3절. 계산 함수는 `src/features/trip/data/compute.ts` 의 `computeClaimDays` (저장소 의존 없음)로 이미 분리되어 있다.
-
-추가로 서버 조회가 필요해진 확인 항목: `OTHER_REQUEST_SAME_DAY`(같은 날 `overtime_requests`), `CARRY_IN_*`(전날에서 넘어온 작업과 다음 날 입력 대조 — compute 함수 안에서 처리), `HOLIDAY_SOURCE_UNVERIFIED`(`holidays.is_verified` 행이 0이면 모든 날).
+- **v2 (2026-11-02, 서버 재계산)** — 보안 검토 권장안 B 반영. 위 "v2 (서버 재계산)" 절과 `계약-서버계산.md` 참고. 040 의 공개 RPC 시그니처가 바뀌었다 (`p_calcs` 제거, `trip_create_claim`·`trip_update_draft`·`trip_admin_adjust_day` 반환 jsonb). 같은 날 보완: `trip_store_server_calcs` 에 `p_claim_version` 인자와 근무일별 `dayRevision` 검사 추가 (계산-저장 경쟁 방어, 계약 2-2 검사 7·8).
+- **v1 (2026-11-02, 클라이언트 계산 저장)** — 적용 금지. 원본: `../T5-DB-초안_v1_클라이언트계산_백업/`.

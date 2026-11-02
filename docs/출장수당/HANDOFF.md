@@ -34,14 +34,21 @@
 | T3 | 직원 신청 화면 `screens/` (통합 입구, 양식, 미리보기, 동행, 목록) | 3 | 완료(메모리) | `1e30ea2` |
 | T4 | 관리자 검토 화면 `screens/admin/` (목록·필터, 상세, 확인 항목, 승인·반려·되돌림, 수정, 이력, 정산 미리보기) | 4 | 완료(메모리) | `1e30ea2` |
 | T2-보강 2차 | `computeClaimDays` 분리, 넘어온 작업 대조, 같은 날 다른 신청, 실제 도착 다음 날, 숙박 상한, 동시성·흐름 테스트, 샌드박스 | 1.5·3·4 | 완료 | 아래 git log 참조 |
-| T5 | DB 테이블·RLS·RPC·기능 플래그·롤백 **SQL 초안** `docs/출장수당/T5-DB-초안/` + **보안 검토(서버 재계산 구조로 변경 필요)** | 2 | 초안 (실행 안 함) | `79b2660` + 이후 docs 커밋 |
+| T5 | DB 테이블·RLS·RPC·기능 플래그·롤백 **SQL 초안 v2 (서버 재계산)** `docs/출장수당/T5-DB-초안/`. v1(클라이언트 계산)은 `T5-DB-초안_v1_클라이언트계산_백업/`. TS↔SQL 계약은 `T5-DB-초안/계약-서버계산.md` | 2 | 초안 (실행 안 함) | `79b2660` → v2는 이후 docs 커밋 |
+| T5-서버 | `server/trip-compute.ts`(핵심 로직, 테스트 17건) + `api/trip-compute.ts`(Vercel 핸들러) + 저장소 잠금·정합성 | 2 | 코드 완료, **배포 안 함** | `232bc1d` |
 | T6 | 실제 Supabase 연결 (RPC 구현체로 `GuardedTripService` 교체) | 2 | 미착수 — Supabase 재개·승인 후 | — |
 | T7 | 기존 앱 연결 (라우트·사이드바·승인 화면 탭) | 3·4 | **보류** (master 미커밋분과 충돌 위험, 4절·10절 참조) | — |
 | T8 | 정산·마감·명세서 | 5 | 미착수 | — |
 | T9 | 시범 운영·수기 병행 | 6 | 미착수 | — |
 | T10 | 통합 승인함 등 후속 | 7 | 미착수 | — |
 
-**검증 상태 (2026-11-02, 보강 후):** 테스트 259건 통과(엔진 108, 데이터 82, 화면 모델 23, 화면 렌더·흐름 18, 독립성 34 — 세부는 `npx vitest run`), `tsc` 통과, `npm run build` 성공, 신규 코드 ESLint 0건.
+**검증 상태 (2026-11-02, 서버 재계산 후):** 테스트 281건 통과(엔진 108, 데이터 87, 서버 17, 화면 모델 23, 화면 렌더·흐름 18, 독립성 28 — 세부는 `npx vitest run`), `tsc` 통과, `api/trip-compute.ts` 단독 `tsc` 통과, `npm run build` 성공, 신규 코드 ESLint 0건.
+
+**서버 재계산 구조 (2026-11-02 채택, 사용자 승인)**
+- 브라우저는 입력만 RPC 로 저장 → `POST /api/trip-compute {claimId}` → 함수가 JWT 검증·`employees.role`·기능 스위치·본인 건 확인 후 **DB 입력으로 `computeClaimDays`** → service_role 전용 RPC `trip_store_server_calcs` 로 저장(`engine_source='server'`) → 제출·승인 RPC 는 현재 입력에 대한 서버 계산이 있을 때만 통과(`CALC_STALE_OR_UNTRUSTED`).
+- 본문의 계산 결과·규칙 버전·지역·역할은 읽지 않는다(테스트로 고정). DB 활성 규칙 버전 ≠ 서버 번들 `RULE_VERSION` 이면 거부.
+- 계산-저장 경쟁(함수가 입력을 읽은 뒤 저장 전에 입력이 바뀌는 경우)은 저장 RPC 에 신청 version·근무일 revision 을 같이 보내 `VERSION_CONFLICT` 로 막는다 (계약 2-2 검사 7·8).
+- 아직 안 한 것: Vercel 배포, RPC 기반 클라이언트 어댑터(T6), 실제 DB 시험, 관리자 검토 화면을 열 때 계산 1회 호출(외부 조건 변경 반영). 순서는 `운영적용_필요사항.md`.
 
 **11-02 보강 (T2-보강 2차)**
 - `data/compute.ts`: `computeClaimDays` — 저장소에 기대지 않는 신청 단위 계산(다음 날 연결, 전날에서 넘어온 작업 대조 `CARRY_IN_NOT_ENTERED/OVERLAP/GAP`, 같은 날 다른 신청 `OTHER_REQUEST_SAME_DAY`). 메모리 서비스와 향후 서버 계산 함수가 같은 코드를 쓴다
@@ -367,7 +374,8 @@
 기준 사례: 대전(편도 2h) 현장 08~17, 점심 1h → 출장 4시간.
 코드: C:\Users\user\busungtk-overtime-trip (worktree, feature/trip-allowance). 출장 코드는 src/features/trip/ 안에서만.
       T0 0cc2d74 · T1 bfae455 · T2 7968367 · T3·T4 1e30ea2 · docs 79b2660 · 이후는 git log 참조. 커밋은 로컬만, push 없음.
-      T5 는 docs/출장수당/T5-보안검토_계산결과조작.md 권장안(서버 재계산)으로 040 을 수정한 뒤 적용.
+      T5 v2(서버 재계산) 초안: docs/출장수당/T5-DB-초안/ (계약: 계약-서버계산.md). 서버 코드: src/features/trip/server/, api/trip-compute.ts (232bc1d).
+      다음은 T6(배포·RPC 클라이언트 어댑터·실제 DB 시험) — 사용자 승인 후에만.
 보존: C:\Users\user\busungtk-overtime (master 06f610a, 미커밋 42개 — 보존)
       C:\Users\user\busungtk-overtime-secpatch (미커밋 38개 — 보존). 두 작업트리의 파일은 수정 금지.
 DB: 근태관리 Supabase(wvwbaqyxztgcrkiacvql)는 무료 플랜 2개 제한으로 사용자가 의도적으로 일시정지함(장애 아님).

@@ -15,17 +15,29 @@
 -- 모든 공개 RPC 의 첫 줄
 --   (a) trip_require_feature('<key>')       → 꺼져 있으면 FEATURE_DISABLED
 --   (b) _trip_actor_id() / employees.role    → auth.uid() 로 서버에서 조회. 클라이언트가 보낸 역할은 받지도 않음
+--   (service_role 전용 trip_store_server_calcs 는 (b) 대신 호출 역할 검사 + p_computed_by 존재 검사)
 --
 -- 예외 형식: raise exception '<코드>' using detail = '<한국어 안내>'
 --   PostgREST 응답의 message = 코드, details = 안내. 클라이언트는 service.ts 의 Result.code 와 같은 코드로 매핑.
 --
--- ⚠ 계산 신뢰 문제 (README "위험" 절 참고)
---   계산 엔진은 TypeScript(src/features/trip/engine)라 이 RPC 는 서버에서 다시 계산하지 않는다.
---   클라이언트가 보낸 계산 결과(p_calcs)를 "형식·소속·버전"만 검사하고 저장한다.
---   즉 조작된 클라이언트는 입력과 맞지 않는 시간을 보낼 수 있다.
---   완화: (1) 입력 사본(entry_snapshot)은 클라이언트 값이 아니라 서버가 저장한 근무일 입력에서 복사
---         (2) 관리자 검토 화면이 entry_snapshot 으로 엔진을 다시 돌려 불일치를 표시 (T6/T7 과제)
---         (3) 근본 대안: Supabase Edge Function 에서 같은 엔진을 실행해 engine_source='edge' 로 저장
+-- 계산 결과는 서버가 다시 계산해 저장한다 (v2, 계약-서버계산.md · ../T5-보안검토_계산결과조작.md 권장안 B)
+--   - 브라우저는 입력 원본(header, entries)만 보낸다. 공개 RPC 는 계산 결과(p_calcs)를 받지 않는다.
+--     v1 의 _trip_store_calc / _trip_apply_calcs 는 삭제했다 (v1 백업: ../T5-DB-초안_v1_클라이언트계산_백업/).
+--   - 계산은 Vercel Function api/trip-compute.ts 가 DB 에 저장된 입력으로 computeClaimDays
+--     (src/features/trip/data/compute.ts)를 돌려 만들고, service_role 전용 RPC
+--     trip_store_server_calcs 로만 저장한다. engine_source = 'server', entry_snapshot = DB 의 근무일 입력.
+--   - anon / authenticated 는 trip_store_server_calcs 를 실행할 권한이 없다. 함수 안에서도 호출 역할을
+--     다시 확인한다 (request.jwt.claims 의 role = 'service_role').
+--   - 제출(trip_submit)·승인(trip_review approve)은 모든 진행 중 근무일의 최신 계산이
+--     _trip_calc_is_current (server 계산 · 현재 revision · 현재 입력 · 활성 규칙 버전)일 때만 된다.
+--     아니면 CALC_STALE_OR_UNTRUSTED → 화면은 /api/trip-compute 를 다시 부른 뒤 재시도한다.
+--   - 저장 직전 방어선: 활성 규칙 버전 일치, 근무일 집합 완전성, 수치 범위, 지역 코드 유효성
+--     (함수 검사 + 010 의 CHECK 제약 이중).
+--   - 미리보기는 지금처럼 브라우저에서 같은 엔진으로 계산한다 (표시 전용, 저장되지 않음).
+--
+-- 흐름 (계약 1절)
+--   직원  : trip_create_claim / trip_update_draft → POST /api/trip-compute → trip_submit
+--   관리자: trip_admin_adjust_day → POST /api/trip-compute → trip_review
 --
 -- 승인 권한: 초안은 role='admin'(대표)만. service.ts 의 actor.role === 'admin' 과 같고,
 --   CLAUDE.md "야근 승인/반려는 대표만" 관례와 같다.
@@ -120,8 +132,9 @@ begin
   if o_kind = 'stay' and o_end <= o_start then
     raise exception 'INVALID_DATE' using detail = '숙박 출장은 끝나는 날이 시작일보다 뒤여야 합니다';
   end if;
-  -- [미확인] 숙박 기간 상한. service.ts 에는 없음. 오입력(연도 오타) 방지용 임시 상한 31일
-  if o_end - o_start > 31 then
+  -- 숙박 기간 상한: service.ts MAX_STAY_DAYS = 31 (eachDate(start, end).length > 31 거부, 임시 상한)과 같게.
+  --   날짜 개수 31일 = 끝날 - 시작일 차이 30일.
+  if o_end - o_start > 30 then
     raise exception 'INVALID_DATE' using detail = '출장 기간이 너무 깁니다 (31일 이하)';
   end if;
 
@@ -208,7 +221,11 @@ begin
     p_day.id,
     p_day.revision,
     public.trip_clock_to_min(p_day.entry #>> '{actual,departAt}'),
-    public.trip_clock_to_min(p_day.entry #>> '{actual,arriveAt}'),
+    -- 자정 넘긴 도착: arriveNextDay = true 면 +1440 (trip_clock_to_min 의 두 번째 인자)
+    public.trip_clock_to_min(
+      p_day.entry #>> '{actual,arriveAt}',
+      coalesce((p_day.entry #>> '{actual,arriveNextDay}')::boolean, false)
+    ),
     p_day.entry #>> '{actual,source}',
     p_actor
   )
@@ -272,163 +289,378 @@ begin
 end;
 $$;
 
--- 계산 결과 1건 저장 (TripCalcRecord). 직전 결과와 같으면 새로 만들지 않고 기존 id 반환
---   (service.ts recompute: 승인 묶음이 불필요하게 깨지지 않게)
--- p_calc 형식 (클라이언트 엔진 결과, id·claimId·dayId·dayRevision·computedAt 은 서버가 정함):
---   { "ruleVersion": "...", "classification": {...}, "engineInput": {...}|null,
---     "result": {...}|null, "carryOut": {...}?, "carryIn": {...}? }
-create or replace function public._trip_store_calc(p_day public.trip_claim_days, p_calc jsonb, p_actor uuid)
-returns uuid
+-- ------------------------------------------------------------
+-- 규칙 버전 · 계산 신뢰 판정 (v2 서버 재계산, 계약 2-2)
+-- ------------------------------------------------------------
+
+-- 지금 계산에 쓰는 규칙 버전 (trip_rule_versions.is_active, 부분 UNIQUE 로 최대 1건). 없으면 null
+--   compute 함수는 이 값이 서버 번들 RULE_VERSION 과 같은지 먼저 본다 (다르면 RULE_VERSION_MISMATCH, 계약 3절).
+--   시행일(effective_from) 미정이라 유효기간은 보지 않는다. 시행일 확정 시 근무일 기준 검사 추가 (계약 5절).
+create or replace function public.trip_active_rule_version()
+returns text
+language sql security definer stable
+set search_path = public, pg_temp
+as $$
+  select version from public.trip_rule_versions where is_active limit 1
+$$;
+
+-- 근무일의 최신 계산이 "현재 입력에 대한 서버 계산"인지 (내부용)
+--   최신(seq 최대) 계산이 있고
+--     engine_source = 'server'
+--     day_revision  = 현재 revision
+--     entry_snapshot = 현재 entry (jsonb 동등 비교 — 키 순서 무관)
+--     rule_version  = 활성 버전
+--   이면 true. 계산이 없거나 활성 버전이 없으면(null 비교) false.
+create or replace function public._trip_calc_is_current(p_day public.trip_claim_days)
+returns boolean
+language sql security definer stable
+set search_path = public, pg_temp
+as $$
+  select coalesce((
+    select c.engine_source = 'server'
+       and c.day_revision = p_day.revision
+       and c.entry_snapshot = p_day.entry
+       and c.rule_version = public.trip_active_rule_version()
+    from public.trip_day_calcs c
+    where c.day_id = p_day.id
+    order by c.seq desc
+    limit 1
+  ), false)
+$$;
+
+
+-- ============================================================
+-- trip_store_server_calcs — 서버 계산 결과 저장 (service_role 전용, 계약 2-2)
+-- ============================================================
+--   호출자: api/trip-compute.ts (Vercel Function, SUPABASE_SERVICE_ROLE_KEY). 브라우저는 호출할 수 없다.
+--   p_claim_id      : 계산한 신청
+--   p_claim_version : 함수가 입력을 읽은 시점의 trip_claims.version
+--   p_rule_version  : 서버 번들의 RULE_VERSION (engine/rules.ts)
+--   p_calcs         : { "<day_id uuid>": DayComputation & { dayRevision: number } }
+--                     DayComputation = { classification, engineInput, result, carryIn?, carryOut? }
+--                     (src/features/trip/data/compute.ts 의 DayComputation 을 JSON 으로. null 허용 필드는 JSON null)
+--                     dayRevision = 함수가 읽은 그 근무일의 revision (src/features/trip/server/types.ts StoredDayComputation)
+--   p_computed_by  : 함수가 검증한 JWT 의 사용자 id (감사용)
+--   반환           : { "<day_id>": "<calc_id>" }
+--
+--   검사 (계약 2-2 의 1~8). 하나라도 실패하면 예외 → 함수 전체 롤백 (일부 근무일만 저장되는 일 없음)
+--     0. 호출 역할 service_role                         → FORBIDDEN
+--        (+ 기능 스위치 employee_form / admin_review 둘 다 꺼짐 → FEATURE_DISABLED, 계약 0-5 방어선)
+--     1. 신청 존재 / status ∈ (draft, returned, submitted) → NOT_FOUND / NOT_EDITABLE
+--     2. p_rule_version = trip_active_rule_version()      → RULE_VERSION_MISMATCH
+--     3. 키 집합 = 빠지지 않은 근무일 id 전부              → CALC_INCOMPLETE_SET
+--     4. p_computed_by 가 employees 에 존재                → UNKNOWN_USER
+--     5. 형식·수치 불변식                                  → CALC_INVARIANT
+--     6. engineInput.regions 가 근무일에 유효한 지역       → UNKNOWN_REGION
+--     7. p_claim_version = 잠근 trip_claims.version        → VERSION_CONFLICT
+--     8. 근무일마다 dayRevision(정수) = trip_claim_days.revision → VERSION_CONFLICT
+--   실행 순서: 7 은 신청을 잠근 직후 판정이 가능하므로 근무일 루프 전(4 다음)에, 8 은 근무일 루프 안에서
+--              그날의 5·6 검사 다음에 본다. 어느 순서든 실패하면 전부 롤백되어 결과는 같다.
+--   저장: entry_snapshot := day.entry(DB 값), day_revision := day.revision,
+--         engine_source := 'server', computed_by := p_computed_by.
+--         직전 계산과 같으면(아래 비교) 새 행 없이 기존 id 반환 — 승인 화면의 calc id 묶음이 불필요하게 깨지지 않게.
+--
+--   계산과 저장 사이 경쟁 → 7·8 로 해결
+--      함수가 입력을 읽은 뒤 이 RPC 를 부르기 전에 직원이 trip_update_draft(또는 관리자가 trip_admin_adjust_day)로
+--      입력을 바꾸면, 옛 입력으로 낸 계산이 새 입력(entry_snapshot = 저장 시점 DB 값)에 붙어 "현재 계산"으로
+--      판정될 수 있었다. 두 RPC 는 모두 trip_claims.version 을 올리고, 입력이 바뀐 근무일은 revision 을 올린다.
+--      그래서 함수가 읽은 시점의 version(7)과 근무일 revision(8)을 저장 시점 DB 값과 대조하면 그 사이의 변경이
+--      전부 VERSION_CONFLICT 로 걸리고, 옛 입력의 계산은 저장되지 않는다 (화면은 다시 계산).
+--      신청을 for update 로 잠근 뒤 비교하므로, 비교와 저장 사이에 다른 수정이 끼어들 수 없다.
+--      dayRevision 은 비교에만 쓰고 계산 행에 따로 저장하지 않는다 (day_revision 칼럼은 DB 의 revision).
+create or replace function public.trip_store_server_calcs(
+  p_claim_id uuid,
+  p_claim_version integer,
+  p_rule_version text,
+  p_calcs jsonb,
+  p_computed_by uuid
+)
+returns jsonb
 language plpgsql security definer
 set search_path = public, pg_temp
 as $$
 declare
-  v_latest  public.trip_day_calcs;
-  v_id      uuid;
-  v_rule    text;
+  v_role    text;
+  v_active_version text;
+  v_claim   public.trip_claims;
+  v_day     public.trip_claim_days;
+  v_key     text;
+  v_day_id  uuid;
+  v_keys    uuid[] := '{}';
+  v_active  uuid[];
+  v_calc    jsonb;
   v_cls     jsonb;
   v_input   jsonb;
   v_result  jsonb;
   v_cin     jsonb;
   v_cout    jsonb;
   v_ok      boolean;
+  v_path    text[];
+  v_code    text;
   v_codes   text[];
+  v_latest  public.trip_day_calcs;
+  v_id      uuid;
+  v_out     jsonb := '{}'::jsonb;
 begin
-  if p_calc is null or jsonb_typeof(p_calc) <> 'object' then
-    raise exception 'INVALID_CALC' using detail = format('%s 계산 결과 형식이 올바르지 않습니다', p_day.work_date);
-  end if;
-
-  v_rule   := p_calc ->> 'ruleVersion';
-  v_cls    := p_calc -> 'classification';
-  v_input  := nullif(p_calc -> 'engineInput', 'null'::jsonb);
-  v_result := nullif(p_calc -> 'result',      'null'::jsonb);
-  v_cin    := nullif(p_calc -> 'carryIn',     'null'::jsonb);
-  v_cout   := nullif(p_calc -> 'carryOut',    'null'::jsonb);
-
-  if v_rule is null or not exists (select 1 from public.trip_rule_versions where version = v_rule) then
-    raise exception 'UNKNOWN_RULE_VERSION' using detail = format('등록되지 않은 규칙 버전입니다: %s', coalesce(v_rule, '(없음)'));
-  end if;
-  -- [미확인] 근무일에 적용되는 규칙 버전인지(effective_from/to) 검사. 시행일 미정이라 지금은 존재만 검사
-  if jsonb_typeof(v_cls) is distinct from 'object'
-     or jsonb_typeof(v_cls -> 'missing') is distinct from 'array'
-     or jsonb_typeof(v_cls -> 'notices') is distinct from 'array' then
-    raise exception 'INVALID_CALC' using detail = format('%s 분류 결과 형식이 올바르지 않습니다', p_day.work_date);
-  end if;
-
-  v_ok := coalesce((v_result ->> 'ok')::boolean, false);
-  if v_ok and (v_result ->> 'ruleVersion') is distinct from v_rule then
-    raise exception 'CALC_RULE_MISMATCH' using detail = '계산 결과의 규칙 버전이 맞지 않습니다';
-  end if;
-
-  -- 직전 결과와 같으면 재사용
-  select * into v_latest
-  from public.trip_day_calcs
-  where day_id = p_day.id
-  order by seq desc
-  limit 1;
-  if found
-     and v_latest.day_revision = p_day.revision
-     and v_latest.rule_version = v_rule
-     and v_latest.classification = v_cls
-     and v_latest.engine_input is not distinct from v_input
-     and v_latest.result is not distinct from v_result
-     and v_latest.carry_in is not distinct from v_cin
-     and v_latest.carry_out is not distinct from v_cout then
-    return v_latest.id;
-  end if;
-
-  -- 확인 표시 코드 = 엔진 flags + 다음 날 기록 누락 (service.ts reviewItems)
-  v_codes := array(
-    select distinct x from (
-      select f ->> 'code' as x
-      from jsonb_array_elements(case when v_ok then coalesce(v_result -> 'flags', '[]'::jsonb) else '[]'::jsonb end) f
-      union
-      select n ->> 'code'
-      from jsonb_array_elements(v_cls -> 'notices') n
-      where n ->> 'code' = 'NEXT_DAY_ENTRY_MISSING'
-    ) s
-    where x is not null
-    order by x
+  -- 0. 호출 역할: service_role 만 (EXECUTE 권한 회수와 이중 방어)
+  --    [미확인] request.jwt.claims 가 없는 연결에서는 빈 문자열이 올 수 있어 nullif 로 감쌈 (''::jsonb 는 오류).
+  --    [미확인] SECURITY DEFINER 안에서도 current_setting('role') 은 호출 연결의 SET ROLE 값을 돌려준다고 보고
+  --             계약대로 둠 → 대조-체크리스트 C-11 로 확인. SQL Editor(postgres)에서 직접 부르면 FORBIDDEN 이 정상.
+  v_role := coalesce(
+    nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role',
+    current_setting('role', true)
   );
-
-  insert into public.trip_day_calcs (
-    claim_id, day_id, day_revision, rule_version, entry_snapshot,
-    classification, engine_input, result, carry_out, carry_in,
-    result_ok, missing_count, review_codes,
-    value_status, trip_status, night_travel_status, overtime_status, night_overtime_status,
-    trip_hours, trip_night_travel_hours, overtime_hours, overtime_night_hours,
-    holiday_within8_hours, holiday_over8_hours,
-    legal_total_work_hours, legal_daily_over8_hours, legal_basis,
-    actual_night_work_hours, proposed_by, requires_legal_review,
-    engine_source, computed_by
-  ) values (
-    p_day.claim_id, p_day.id, p_day.revision, v_rule,
-    p_day.entry,                                   -- 서버가 가진 입력 사본 (클라이언트 값 아님)
-    v_cls, v_input, v_result, v_cout, v_cin,
-    v_ok, jsonb_array_length(v_cls -> 'missing'), v_codes,
-    case when v_ok then v_result ->> 'status' end,
-    case when v_ok then v_result #>> '{valueStatus,trip}' end,
-    case when v_ok then v_result #>> '{valueStatus,nightTravel}' end,
-    case when v_ok then v_result #>> '{valueStatus,overtime}' end,
-    case when v_ok then v_result #>> '{valueStatus,nightOvertime}' end,
-    case when v_ok then (v_result #>> '{trip,hours}')::numeric end,
-    case when v_ok then (v_result #>> '{trip,nightTravelHours}')::numeric end,
-    case when v_ok then (v_result #>> '{overtime,hours}')::numeric end,
-    case when v_ok then (v_result #>> '{overtime,nightHours}')::numeric end,
-    case when v_ok then (v_result #>> '{holiday,within8Hours}')::numeric end,
-    case when v_ok then (v_result #>> '{holiday,over8Hours}')::numeric end,
-    case when v_ok then (v_result #>> '{legal,totalWorkHours}')::numeric end,
-    case when v_ok then (v_result #>> '{legal,dailyOver8Hours}')::numeric end,
-    case when v_ok then v_result #>> '{legal,basis}' end,
-    case when v_ok then (v_result #>> '{actualNight,workHours}')::numeric end,
-    case when v_ok then array(select jsonb_array_elements_text(coalesce(v_result -> 'proposedBy', '[]'::jsonb))) else '{}' end,
-    case when v_ok then array(select jsonb_array_elements_text(coalesce(v_result -> 'requiresLegalReview', '[]'::jsonb))) else '{}' end,
-    'client',
-    p_actor
-  )
-  returning id into v_id;
-
-  insert into public.trip_review_flags (calc_id, claim_id, code)
-  select v_id, p_day.claim_id, c from unnest(v_codes) as c;
-
-  return v_id;
-end;
-$$;
-
--- 신청의 진행 중 근무일 전부에 계산 결과 저장
---   p_calcs: { "YYYY-MM-DD": <p_calc>, ... }. 키가 없는 날은 저장하지 않음 (제출 단계에서 INCOMPLETE)
-create or replace function public._trip_apply_calcs(p_claim_id uuid, p_calcs jsonb, p_actor uuid)
-returns void
-language plpgsql security definer
-set search_path = public, pg_temp
-as $$
-declare
-  v_key text;
-  v_day public.trip_claim_days;
-begin
-  if p_calcs is null or p_calcs = '{}'::jsonb then
-    return;
+  if v_role is distinct from 'service_role' then
+    raise exception 'FORBIDDEN' using detail = '계산 결과는 서버 계산 함수만 저장할 수 있습니다';
   end if;
-  if jsonb_typeof(p_calcs) <> 'object' then
-    raise exception 'INVALID_CALC' using detail = '계산 결과 묶음 형식이 올바르지 않습니다';
+
+  -- 기능 스위치 (계약 0-5). 함수가 먼저 경로별(employee_form / admin_review)로 검사하고,
+  --   여기서는 둘 다 꺼진 경우만 막는다. [보고] 계약 2-2 검사 목록에 없는 추가 방어선.
+  if not (public.trip_feature_enabled('employee_form') or public.trip_feature_enabled('admin_review')) then
+    raise exception 'FEATURE_DISABLED' using detail = '출장 기능이 꺼져 있어 계산 결과를 저장할 수 없습니다';
+  end if;
+
+  -- 1. 신청 존재·상태. 잠금 순서는 공개 RPC 와 같게 trip_claims 먼저 (교착 방지)
+  select * into v_claim from public.trip_claims where id = p_claim_id for update;
+  if not found then
+    raise exception 'NOT_FOUND' using detail = '신청을 찾을 수 없습니다';
+  end if;
+  if v_claim.status not in ('draft', 'returned', 'submitted') then
+    raise exception 'NOT_EDITABLE' using detail = '승인·반려·취소된 신청은 다시 계산해 저장할 수 없습니다';
+  end if;
+
+  -- 2. 규칙 버전 = 활성 버전 (활성 버전이 없으면 무엇이든 불일치)
+  v_active_version := public.trip_active_rule_version();
+  if p_rule_version is null or v_active_version is null or p_rule_version <> v_active_version then
+    raise exception 'RULE_VERSION_MISMATCH'
+      using detail = format('계산 규칙 버전(%s)이 현재 활성 버전(%s)과 다릅니다',
+                            coalesce(p_rule_version, '(없음)'), coalesce(v_active_version, '(없음)'));
+  end if;
+
+  -- 3. 근무일 집합: 키 = 이 신청의 빠지지 않은 근무일 id 전부 (빠진 날도, 남는 키도 불허)
+  if p_calcs is null or jsonb_typeof(p_calcs) <> 'object' then
+    raise exception 'CALC_INCOMPLETE_SET' using detail = '계산 결과 묶음 형식이 올바르지 않습니다';
   end if;
   for v_key in select jsonb_object_keys(p_calcs) loop
-    if not exists (
-      select 1 from public.trip_claim_days
-      where claim_id = p_claim_id and not is_removed and to_char(work_date, 'YYYY-MM-DD') = v_key
-    ) then
-      raise exception 'DATE_OUT_OF_SCHEDULE' using detail = format('%s 계산 결과에 해당하는 근무일이 없습니다', v_key);
+    begin
+      v_day_id := v_key::uuid;
+    exception when others then
+      raise exception 'CALC_INCOMPLETE_SET' using detail = format('근무일 id 형식이 아닙니다: %s', v_key);
+    end;
+    -- 대문자·중괄호 등 다른 표기로 같은 id 를 두 번 넣는 것 방지 (정규 표기만 허용)
+    if v_day_id::text <> v_key then
+      raise exception 'CALC_INCOMPLETE_SET' using detail = format('근무일 id 는 소문자 표준 형식이어야 합니다: %s', v_key);
     end if;
+    v_keys := v_keys || v_day_id;
   end loop;
+  v_active := array(
+    select id from public.trip_claim_days
+    where claim_id = p_claim_id and not is_removed
+  );
+  if cardinality(v_active) = 0 then
+    raise exception 'CALC_INCOMPLETE_SET' using detail = '계산할 근무일이 없습니다';
+  end if;
+  if exists (select unnest(v_keys) except select unnest(v_active))
+     or exists (select unnest(v_active) except select unnest(v_keys)) then
+    raise exception 'CALC_INCOMPLETE_SET'
+      using detail = '계산 결과의 근무일이 신청의 현재 근무일과 맞지 않습니다. 다시 계산하세요';
+  end if;
+
+  -- 4. 계산을 요청한 사용자(감사용)가 직원으로 존재
+  if p_computed_by is null or not exists (select 1 from public.employees where id = p_computed_by) then
+    raise exception 'UNKNOWN_USER' using detail = '계산을 요청한 사용자를 찾을 수 없습니다';
+  end if;
+
+  -- 7. 계산-저장 경쟁 방어: 함수가 읽은 신청 version = 지금(잠근) version
+  if p_claim_version is null or p_claim_version <> v_claim.version then
+    raise exception 'VERSION_CONFLICT' using detail = '계산 뒤 입력이 바뀌었습니다. 다시 계산하세요';
+  end if;
+
+  -- 5·6. 근무일마다 형식·불변식·지역 검사 후 저장
+  --   근무일 순서로 처리. 뒤에서 예외가 나면 앞에서 저장한 것도 함께 롤백된다.
   for v_day in
     select * from public.trip_claim_days
     where claim_id = p_claim_id and not is_removed
     order by work_date
+    for update
   loop
-    if p_calcs ? to_char(v_day.work_date, 'YYYY-MM-DD') then
-      perform public._trip_store_calc(v_day, p_calcs -> to_char(v_day.work_date, 'YYYY-MM-DD'), p_actor);
+    v_calc := p_calcs -> v_day.id::text;
+    if jsonb_typeof(v_calc) is distinct from 'object' then
+      raise exception 'CALC_INVARIANT' using detail = format('%s 계산 결과 형식이 올바르지 않습니다', v_day.work_date);
     end if;
+    v_cls    := v_calc -> 'classification';
+    v_input  := nullif(v_calc -> 'engineInput', 'null'::jsonb);
+    v_result := nullif(v_calc -> 'result',      'null'::jsonb);
+    v_cin    := nullif(v_calc -> 'carryIn',     'null'::jsonb);
+    v_cout   := nullif(v_calc -> 'carryOut',    'null'::jsonb);
+
+    -- 5-a. 형식: classification(missing·notices 배열), 나머지는 객체 또는 null
+    if jsonb_typeof(v_cls) is distinct from 'object'
+       or jsonb_typeof(v_cls -> 'missing') is distinct from 'array'
+       or jsonb_typeof(v_cls -> 'notices') is distinct from 'array' then
+      raise exception 'CALC_INVARIANT' using detail = format('%s 분류 결과 형식이 올바르지 않습니다', v_day.work_date);
+    end if;
+    if (v_input  is not null and jsonb_typeof(v_input)  <> 'object')
+       or (v_result is not null and jsonb_typeof(v_result) <> 'object')
+       or (v_cin    is not null and jsonb_typeof(v_cin)    <> 'object')
+       or (v_cout   is not null and jsonb_typeof(v_cout)   <> 'object') then
+      raise exception 'CALC_INVARIANT' using detail = format('%s 계산 결과 형식이 올바르지 않습니다', v_day.work_date);
+    end if;
+    if v_result is not null and jsonb_typeof(v_result -> 'ok') is distinct from 'boolean' then
+      raise exception 'CALC_INVARIANT' using detail = format('%s 계산 결과에 성공 여부(ok)가 없습니다', v_day.work_date);
+    end if;
+    v_ok := coalesce((v_result ->> 'ok')::boolean, false);
+
+    -- 5-b. 성공 결과(TripDayResult)의 불변식
+    if v_ok then
+      if (v_result ->> 'ruleVersion') is distinct from p_rule_version then
+        raise exception 'CALC_INVARIANT' using detail = format('%s 계산 결과의 규칙 버전이 맞지 않습니다', v_day.work_date);
+      end if;
+      if jsonb_typeof(v_result -> 'flags') is distinct from 'array'
+         or jsonb_typeof(coalesce(v_result -> 'proposedBy', '[]'::jsonb)) <> 'array'
+         or jsonb_typeof(coalesce(v_result -> 'requiresLegalReview', '[]'::jsonb)) <> 'array' then
+        raise exception 'CALC_INVARIANT' using detail = format('%s 계산 결과의 목록 형식이 올바르지 않습니다', v_day.work_date);
+      end if;
+      -- 필수 수치: 숫자이고 0 이상 (CASE 로 숫자가 아닐 때 형변환 오류가 나지 않게)
+      foreach v_path slice 1 in array array[
+        array['trip', 'hours'],          array['trip', 'nightTravelHours'],
+        array['overtime', 'hours'],      array['overtime', 'nightHours'],
+        array['legal', 'totalWorkHours'], array['legal', 'dailyOver8Hours'],
+        array['actualNight', 'workHours']
+      ] loop
+        if case when jsonb_typeof(v_result #> v_path) = 'number'
+                then (v_result #>> v_path)::numeric < 0
+                else true end then
+          raise exception 'CALC_INVARIANT'
+            using detail = format('%s %s 값이 올바르지 않습니다 (0 이상 숫자)', v_day.work_date, array_to_string(v_path, '.'));
+        end if;
+      end loop;
+      -- 상한: 출장 인정 ≤ 8 (표준 편도 최대 4h × 왕복), 연장 ≤ 24
+      if (v_result #>> '{trip,hours}')::numeric > 8 then
+        raise exception 'CALC_INVARIANT' using detail = format('%s 출장 인정시간이 8시간을 넘습니다', v_day.work_date);
+      end if;
+      if (v_result #>> '{overtime,hours}')::numeric > 24 then
+        raise exception 'CALC_INVARIANT' using detail = format('%s 연장 인정시간이 24시간을 넘습니다', v_day.work_date);
+      end if;
+      -- 휴일근로: 평일·토요일은 JSON null, 일요일·공휴일은 두 값 모두 0~24
+      if jsonb_typeof(v_result -> 'holiday') = 'object' then
+        foreach v_path slice 1 in array array[array['holiday', 'within8Hours'], array['holiday', 'over8Hours']] loop
+          if case when jsonb_typeof(v_result #> v_path) = 'number'
+                  then (v_result #>> v_path)::numeric not between 0 and 24
+                  else true end then
+            raise exception 'CALC_INVARIANT'
+              using detail = format('%s %s 값이 올바르지 않습니다 (0~24)', v_day.work_date, array_to_string(v_path, '.'));
+          end if;
+        end loop;
+      elsif jsonb_typeof(v_result -> 'holiday') is distinct from 'null' then
+        raise exception 'CALC_INVARIANT' using detail = format('%s 휴일근로 값 형식이 올바르지 않습니다', v_day.work_date);
+      end if;
+    end if;
+
+    -- 6. 엔진 입력의 지역 코드가 trip_regions 에 있고 근무일에 유효한지
+    if v_input is not null and v_input ? 'regions' then
+      if jsonb_typeof(v_input -> 'regions') <> 'array' then
+        raise exception 'CALC_INVARIANT' using detail = format('%s 엔진 입력의 지역 형식이 올바르지 않습니다', v_day.work_date);
+      end if;
+      for v_code in select jsonb_array_elements_text(v_input -> 'regions') loop
+        if not public._trip_region_valid(v_code, v_day.work_date) then
+          raise exception 'UNKNOWN_REGION'
+            using detail = format('%s 계산에 알 수 없는 지역이 쓰였습니다: %s', v_day.work_date, v_code);
+        end if;
+      end loop;
+    end if;
+
+    -- 8. 근무일 단위 경쟁 방어: 함수가 읽은 revision = 지금 revision (정수만 허용, 없으면 거부)
+    if jsonb_typeof(v_calc -> 'dayRevision') is distinct from 'number'
+       or (v_calc ->> 'dayRevision') !~ '^[0-9]+$'
+       or (v_calc ->> 'dayRevision')::bigint <> v_day.revision then
+      raise exception 'VERSION_CONFLICT'
+        using detail = format('계산 뒤 %s 입력이 바뀌었습니다. 다시 계산하세요', v_day.work_date);
+    end if;
+
+    -- 직전 계산과 같으면 재사용 (v1 비교 로직 + 서버 계산·현재 입력 조건)
+    select * into v_latest
+    from public.trip_day_calcs
+    where day_id = v_day.id
+    order by seq desc
+    limit 1;
+    if found
+       and v_latest.engine_source = 'server'
+       and v_latest.day_revision = v_day.revision
+       and v_latest.entry_snapshot = v_day.entry
+       and v_latest.rule_version = p_rule_version
+       and v_latest.classification = v_cls
+       and v_latest.engine_input is not distinct from v_input
+       and v_latest.result is not distinct from v_result
+       and v_latest.carry_in is not distinct from v_cin
+       and v_latest.carry_out is not distinct from v_cout then
+      v_out := v_out || jsonb_build_object(v_day.id::text, v_latest.id);
+      continue;
+    end if;
+
+    -- 확인 표시 코드 = 엔진 flags + 분류 안내 중 관리자 확인 대상
+    --   service.ts reviewItems / REVIEW_NOTICE_CODES 와 같아야 한다 (6개).
+    --   v1 은 NEXT_DAY_ENTRY_MISSING 하나만 올려 service.ts 와 달랐음 → v2 에서 맞춤.
+    v_codes := array(
+      select distinct x from (
+        select f ->> 'code' as x
+        from jsonb_array_elements(case when v_ok then v_result -> 'flags' else '[]'::jsonb end) f
+        union
+        select n ->> 'code'
+        from jsonb_array_elements(v_cls -> 'notices') n
+        where n ->> 'code' = any (array[
+          'NEXT_DAY_ENTRY_MISSING', 'HOLIDAY_SOURCE_UNVERIFIED',
+          'CARRY_IN_NOT_ENTERED', 'CARRY_IN_OVERLAP', 'CARRY_IN_GAP', 'OTHER_REQUEST_SAME_DAY'
+        ])
+      ) s
+      where x is not null
+      order by x
+    );
+
+    insert into public.trip_day_calcs (
+      claim_id, day_id, day_revision, rule_version, entry_snapshot,
+      classification, engine_input, result, carry_out, carry_in,
+      result_ok, missing_count, review_codes,
+      value_status, trip_status, night_travel_status, overtime_status, night_overtime_status,
+      trip_hours, trip_night_travel_hours, overtime_hours, overtime_night_hours,
+      holiday_within8_hours, holiday_over8_hours,
+      legal_total_work_hours, legal_daily_over8_hours, legal_basis,
+      actual_night_work_hours, proposed_by, requires_legal_review,
+      engine_source, computed_by
+    ) values (
+      v_day.claim_id, v_day.id, v_day.revision, p_rule_version,
+      v_day.entry,                                   -- DB 의 근무일 입력 (호출자 값 아님)
+      v_cls, v_input, v_result, v_cout, v_cin,
+      v_ok, jsonb_array_length(v_cls -> 'missing'), v_codes,
+      case when v_ok then v_result ->> 'status' end,
+      case when v_ok then v_result #>> '{valueStatus,trip}' end,
+      case when v_ok then v_result #>> '{valueStatus,nightTravel}' end,
+      case when v_ok then v_result #>> '{valueStatus,overtime}' end,
+      case when v_ok then v_result #>> '{valueStatus,nightOvertime}' end,
+      case when v_ok then (v_result #>> '{trip,hours}')::numeric end,
+      case when v_ok then (v_result #>> '{trip,nightTravelHours}')::numeric end,
+      case when v_ok then (v_result #>> '{overtime,hours}')::numeric end,
+      case when v_ok then (v_result #>> '{overtime,nightHours}')::numeric end,
+      case when v_ok then (v_result #>> '{holiday,within8Hours}')::numeric end,
+      case when v_ok then (v_result #>> '{holiday,over8Hours}')::numeric end,
+      case when v_ok then (v_result #>> '{legal,totalWorkHours}')::numeric end,
+      case when v_ok then (v_result #>> '{legal,dailyOver8Hours}')::numeric end,
+      case when v_ok then v_result #>> '{legal,basis}' end,
+      case when v_ok then (v_result #>> '{actualNight,workHours}')::numeric end,
+      case when v_ok then array(select jsonb_array_elements_text(coalesce(v_result -> 'proposedBy', '[]'::jsonb))) else '{}' end,
+      case when v_ok then array(select jsonb_array_elements_text(coalesce(v_result -> 'requiresLegalReview', '[]'::jsonb))) else '{}' end,
+      'server',
+      p_computed_by
+    )
+    returning id into v_id;
+
+    insert into public.trip_review_flags (calc_id, claim_id, code)
+    select v_id, v_day.claim_id, c from unnest(v_codes) as c;
+
+    v_out := v_out || jsonb_build_object(v_day.id::text, v_id);
   end loop;
+
+  return v_out;
 end;
 $$;
 
@@ -476,15 +708,15 @@ $$;
 -- ============================================================
 --   p_header      : ClaimHeader
 --   p_entries     : DayEntry[]
---   p_calcs       : { "YYYY-MM-DD": 계산 결과 } — 미리보기 엔진 결과
 --   p_employee_id : 대리 작성 대상 (admin 만). null 이면 본인
+--   반환          : { "id": uuid, "version": integer } (계약 1절)
+--   v2: 계산 결과(p_calcs)를 받지 않는다. 저장 뒤 화면이 POST /api/trip-compute 를 부른다.
 create or replace function public.trip_create_claim(
   p_header jsonb,
   p_entries jsonb,
-  p_calcs jsonb default '{}'::jsonb,
   p_employee_id uuid default null
 )
-returns public.trip_claims
+returns jsonb
 language plpgsql security definer
 set search_path = public, pg_temp
 as $$
@@ -536,10 +768,8 @@ begin
     perform public._trip_insert_day(v_id, v_employee, v_entry, v_uid);
   end loop;
 
-  perform public._trip_apply_calcs(v_id, p_calcs, v_uid);
-
   select * into v_claim from public.trip_claims where id = v_id;
-  return v_claim;
+  return jsonb_build_object('id', v_claim.id, 'version', v_claim.version);
 end;
 $$;
 
@@ -549,14 +779,17 @@ $$;
 -- ============================================================
 --   p_header / p_entries 가 null 이면 기존 값 유지.
 --   p_entries 에서 빠진 날은 is_removed 표시 (계산 결과가 참조하므로 물리 삭제 안 함).
+--   반환: { "id": uuid, "version": integer } (계약 1절)
+--   v2: 계산 결과(p_calcs)를 받지 않는다. 입력이 바뀐 날은 revision 이 올라가 기존 계산이 "오래된 계산"이 되고,
+--       화면이 POST /api/trip-compute 를 다시 불러야 제출할 수 있다.
+--   동시 수정: 시작에서 trip_claims 행을 for update 로 잠근 뒤 version 비교 (보안검토 2-6).
 create or replace function public.trip_update_draft(
   p_claim_id uuid,
   p_expected_version integer,
   p_header jsonb default null,
-  p_entries jsonb default null,
-  p_calcs jsonb default '{}'::jsonb
+  p_entries jsonb default null
 )
-returns public.trip_claims
+returns jsonb
 language plpgsql security definer
 set search_path = public, pg_temp
 as $$
@@ -638,10 +871,8 @@ begin
     perform public._trip_insert_day(p_claim_id, v_claim.employee_id, v_entry, v_uid);
   end loop;
 
-  perform public._trip_apply_calcs(p_claim_id, p_calcs, v_uid);
-
   select * into v_claim from public.trip_claims where id = p_claim_id;
-  return v_claim;
+  return jsonb_build_object('id', v_claim.id, 'version', v_claim.version);
 end;
 $$;
 
@@ -649,7 +880,12 @@ $$;
 -- ============================================================
 -- 3. trip_submit — 제출 (service.ts submit)
 -- ============================================================
---   모든 진행 중 근무일에 "현재 revision 의 최신 계산 결과"가 있고, 입력 누락이 없고, 계산이 성공해야 한다.
+--   검사 순서 (계약 2-2)
+--     1. 모든 진행 중 근무일의 최신 계산이 _trip_calc_is_current (서버 계산 · 현재 revision · 현재 입력 ·
+--        활성 규칙 버전) → 아니면 CALC_STALE_OR_UNTRUSTED (계산 없음 / 오래됨 / 규칙 버전 바뀜)
+--        화면은 이 코드를 받으면 POST /api/trip-compute 를 부른 뒤 다시 제출한다.
+--     2. 그 계산에 입력 누락이 없고(missing_count = 0) 계산이 성공(result_ok) → 아니면 INCOMPLETE
+--   동시 수정: trip_claims 를 for update 로 잠근 뒤 version 비교 (보안검토 2-6).
 --   [미확인] K11 증빙·다음 영업일 마감 검사는 기존 overtime-window 규칙 재사용 방식 결정 후 추가.
 create or replace function public.trip_submit(p_claim_id uuid, p_expected_version integer)
 returns public.trip_claims
@@ -684,13 +920,24 @@ begin
     raise exception 'NO_DAYS' using detail = '근무일을 하나 이상 입력하세요';
   end if;
 
+  -- 1. 서버 계산이 현재 입력과 맞는지
   select string_agg(to_char(d.work_date, 'YYYY-MM-DD'), ', ' order by d.work_date) into v_blocked
   from public.trip_claim_days d
-  left join lateral (
+  where d.claim_id = p_claim_id and not d.is_removed
+    and not public._trip_calc_is_current(d);
+  if v_blocked is not null then
+    raise exception 'CALC_STALE_OR_UNTRUSTED'
+      using detail = format('서버 계산이 없거나 지금 입력과 맞지 않는 날이 있습니다. 다시 계산한 뒤 제출하세요: %s', v_blocked);
+  end if;
+
+  -- 2. 입력 누락·계산 실패
+  select string_agg(to_char(d.work_date, 'YYYY-MM-DD'), ', ' order by d.work_date) into v_blocked
+  from public.trip_claim_days d
+  join lateral (
     select * from public.trip_day_calcs c where c.day_id = d.id order by c.seq desc limit 1
   ) lc on true
   where d.claim_id = p_claim_id and not d.is_removed
-    and (lc.id is null or lc.day_revision <> d.revision or lc.missing_count > 0 or not lc.result_ok);
+    and (lc.missing_count > 0 or not lc.result_ok);
   if v_blocked is not null then
     raise exception 'INCOMPLETE' using detail = format('입력이 더 필요한 날이 있습니다: %s', v_blocked);
   end if;
@@ -754,14 +1001,13 @@ $$;
 -- ============================================================
 --   동행자마다 자기 건(origin='companion_draft', 같은 group_id)을 draft 로 만든다. 제출은 각자.
 --   복사 규칙은 서버 함수 _trip_companion_copy 로 강제 (클라이언트가 점심·휴게를 끼워 넣지 못함).
---   p_calcs: { "<동행자 uuid>": { "YYYY-MM-DD": 계산 결과 } } — 선택.
---     없으면 계산 결과 없이 만들어지고, 동행자가 열어서 저장(trip_update_draft)할 때 계산된다.
---     계산이 없으면 trip_submit 이 INCOMPLETE 로 막으므로 미계산 초안이 정산될 수 없다.
+--   v2: 계산 결과(p_calcs)를 받지 않는다 (v1 의 _trip_apply_calcs 삭제에 따른 변경 — 계약 2-2 표에는 없음).
+--     동행 초안은 계산 없이 만들어지고, 동행자가 자기 건을 열면 화면이 POST /api/trip-compute 를 부른다
+--     (함수는 "본인 건" 이므로 동행자가 호출 가능). 계산이 없으면 trip_submit 이 CALC_STALE_OR_UNTRUSTED 로 막는다.
 --   [미확인] 동행자 알림(ot_notifications) 연동은 기존 테이블 쓰기라 이번 초안에서 제외.
 create or replace function public.trip_invite_companions(
   p_claim_id uuid,
-  p_companion_ids uuid[],
-  p_calcs jsonb default '{}'::jsonb
+  p_companion_ids uuid[]
 )
 returns jsonb
 language plpgsql security definer
@@ -791,10 +1037,6 @@ begin
   if v_claim.status not in ('draft', 'submitted', 'returned') then
     raise exception 'NOT_EDITABLE' using detail = '진행 중인 신청에서만 동행자를 추가할 수 있습니다';
   end if;
-  if p_calcs is not null and jsonb_typeof(p_calcs) <> 'object' then
-    raise exception 'INVALID_CALC' using detail = '계산 결과 묶음 형식이 올바르지 않습니다';
-  end if;
-
   v_dates := array(select work_date from public.trip_claim_days where claim_id = p_claim_id and not is_removed);
 
   for v_cid in select distinct x from unnest(coalesce(p_companion_ids, '{}')) as x loop
@@ -824,7 +1066,6 @@ begin
     loop
       perform public._trip_insert_day(v_new_id, v_cid, public._trip_companion_copy(v_day.entry), v_uid);
     end loop;
-    perform public._trip_apply_calcs(v_new_id, coalesce(p_calcs -> v_cid::text, '{}'::jsonb), v_uid);
 
     v_created := v_created || to_jsonb(v_new_id);
   end loop;
@@ -840,18 +1081,21 @@ $$;
 --   제출된 건만. 사유 필수. 날짜 변경 금지. 근무일 revision 불일치 → VERSION_CONFLICT.
 --   수정 전후 입력을 trip_adjustments 에 남기고(K4 재발 방지), 신청 version 을 올린다
 --   (검토 화면이 들고 있던 계산 id 집합이 바뀌므로 뒤이은 승인은 STALE_CALC 로 막힘).
---   p_calcs: 수정 후 신청 전체 재계산 결과 { "YYYY-MM-DD": 계산 결과 }.
---     수정한 날의 새 revision 계산 결과는 필수 (없으면 INCOMPLETE_CALC).
+--   v2: 계산 결과(p_calcs)를 받지 않는다 (v1 의 _trip_apply_calcs 삭제에 따른 변경 — 계약 2-2 표에는 없음).
+--     흐름은 계약 1절대로 trip_admin_adjust_day → POST /api/trip-compute → trip_review.
+--     수정한 날은 revision 이 올라가 기존 계산이 오래된 계산이 되므로, 다시 계산하기 전에는
+--     trip_review(approve) 가 STALE_CALC 또는 CALC_STALE_OR_UNTRUSTED 로 막힌다.
+--     v1 의 반환(수정한 날의 새 계산 행)과 INCOMPLETE_CALC 검사는 없앴다.
+--   반환: { "claimId", "dayId", "revision", "version" } — 화면이 다음 compute·검토에 쓰는 값
 --   [미확인] 관리자가 본인 건을 수정하는 것을 막을지. service.ts 는 막지 않음(승인은 SELF_REVIEW 로 막힘).
 create or replace function public.trip_admin_adjust_day(
   p_claim_id uuid,
   p_day_id uuid,
   p_expected_revision integer,
   p_entry jsonb,
-  p_reason text,
-  p_calcs jsonb
+  p_reason text
 )
-returns public.trip_day_calcs
+returns jsonb
 language plpgsql security definer
 set search_path = public, pg_temp
 as $$
@@ -861,7 +1105,6 @@ declare
   v_claim public.trip_claims;
   v_day   public.trip_claim_days;
   v_new   public.trip_claim_days;
-  v_calc  public.trip_day_calcs;
   v_code  text;
 begin
   perform public.trip_require_feature('admin_review');
@@ -914,15 +1157,16 @@ begin
     v_day.id, p_claim_id, v_uid, v_day.entry, p_entry, v_day.revision, v_new.revision, btrim(p_reason)
   );
 
-  update public.trip_claims set version = version + 1, updated_at = now() where id = p_claim_id;
+  update public.trip_claims set version = version + 1, updated_at = now()
+  where id = p_claim_id
+  returning * into v_claim;
 
-  perform public._trip_apply_calcs(p_claim_id, p_calcs, v_uid);
-
-  select * into v_calc from public.trip_day_calcs where day_id = v_day.id order by seq desc limit 1;
-  if not found or v_calc.day_revision <> v_new.revision then
-    raise exception 'INCOMPLETE_CALC' using detail = '수정한 근무일의 다시 계산한 결과가 없습니다';
-  end if;
-  return v_calc;
+  return jsonb_build_object(
+    'claimId',  v_claim.id,
+    'dayId',    v_new.id,
+    'revision', v_new.revision,
+    'version',  v_claim.version
+  );
 end;
 $$;
 
@@ -932,7 +1176,12 @@ $$;
 -- ============================================================
 --   검사 순서는 service.ts 와 같다:
 --     FORBIDDEN → NOT_FOUND → SELF_REVIEW → NOT_SUBMITTED → (INVALID_ARGUMENT) → REASON_REQUIRED
---     → STALE_CALC → (승인만) CALC_ERROR → UNRESOLVED_FLAGS
+--     → STALE_CALC → (승인만) CALC_STALE_OR_UNTRUSTED → CALC_ERROR → UNRESOLVED_FLAGS
+--   v2: 승인은 모든 진행 중 근무일의 최신 계산이 _trip_calc_is_current 일 때만 (계약 2-2).
+--       서버 계산이 아니거나, 입력·revision·활성 규칙 버전과 맞지 않으면 CALC_STALE_OR_UNTRUSTED.
+--       계산이 아예 없는 근무일도 여기서 걸린다 (STALE_CALC 는 계산이 있는 날의 id 집합만 비교하므로).
+--   동시 수정: trip_claims 를 for update 로 잠근 뒤 검사 (보안검토 2-6).
+--   trip_reviews 의 calc_ids 소속은 010 트리거(REVIEW_CALC_MISMATCH)가 한 번 더 검사한다.
 --   p_flag_decisions: FlagDecision[] = [{ "calcId": uuid, "code": text, "decision": "acknowledged", "note"?: text }]
 --   승인일 때만 확인 표시를 acknowledged 로 바꾼다. 반려·되돌림 때 보낸 결정은 검토 기록에만 남긴다
 --   (service.ts 는 매 검토마다 결정을 새로 요구하므로, 되돌림 후 재제출 시 다시 확인해야 함).
@@ -955,6 +1204,7 @@ declare
   v_current    uuid[];
   v_expected   uuid[];
   v_unresolved text;
+  v_stale      text;
   v_review_id  uuid;
   v_decisions  jsonb := coalesce(p_flag_decisions, '[]'::jsonb);
 begin
@@ -994,6 +1244,16 @@ begin
   end if;
 
   if p_action = 'approve' then
+    -- 서버 계산이 현재 입력·활성 규칙 버전과 맞는지 (계산 없는 날 포함)
+    select string_agg(to_char(d.work_date, 'YYYY-MM-DD'), ', ' order by d.work_date) into v_stale
+    from public.trip_claim_days d
+    where d.claim_id = p_claim_id and not d.is_removed
+      and not public._trip_calc_is_current(d);
+    if v_stale is not null then
+      raise exception 'CALC_STALE_OR_UNTRUSTED'
+        using detail = format('서버 계산이 없거나 지금 입력과 맞지 않는 날이 있습니다. 다시 계산한 뒤 검토하세요: %s', v_stale);
+    end if;
+
     -- 계산 실패 또는 근무일 현재 입력과 맞지 않는(오래된) 계산이 하나라도 있으면 승인 불가
     if exists (
       select 1
@@ -1057,6 +1317,10 @@ $$;
 -- 실행 권한
 --   내부 보조 함수: 클라이언트 실행 불가 (공개 RPC 는 SECURITY DEFINER 소유자 권한으로 호출)
 --   공개 RPC: authenticated 만 (anon 불가)
+--   서버 계산 저장(trip_store_server_calcs): service_role 만 (계약 2-2). anon·authenticated 는 EXECUTE 없음.
+--   [미확인] Supabase 는 public 스키마 새 함수에 anon·authenticated·service_role 로 직접 EXECUTE 를 주는
+--            기본 권한(default privileges)을 쓸 수 있다 → 그래서 public 뿐 아니라 anon·authenticated 도 명시해 회수.
+--            service_role 의 함수 실행 권한은 아래 grant 로 명시 (대조-체크리스트 C-8·C-11).
 -- ============================================================
 revoke all on function public._trip_actor_id()                                         from public, anon, authenticated;
 revoke all on function public._trip_actor_role(uuid)                                   from public, anon, authenticated;
@@ -1067,24 +1331,31 @@ revoke all on function public._trip_conflict_date(uuid, date[], uuid)           
 revoke all on function public._trip_record_actual(public.trip_claim_days, uuid)        from public, anon, authenticated;
 revoke all on function public._trip_insert_day(uuid, uuid, jsonb, uuid)                from public, anon, authenticated;
 revoke all on function public._trip_update_day_entry(uuid, jsonb, uuid)                from public, anon, authenticated;
-revoke all on function public._trip_store_calc(public.trip_claim_days, jsonb, uuid)    from public, anon, authenticated;
-revoke all on function public._trip_apply_calcs(uuid, jsonb, uuid)                     from public, anon, authenticated;
+revoke all on function public._trip_calc_is_current(public.trip_claim_days)            from public, anon, authenticated;
 revoke all on function public._trip_latest_calc_ids(uuid)                              from public, anon, authenticated;
 revoke all on function public._trip_companion_copy(jsonb)                              from public, anon, authenticated;
 revoke all on function public.trip_clock_to_min(text, boolean)                         from public, anon;
 grant execute on function public.trip_clock_to_min(text, boolean)                      to authenticated;
 
-revoke all on function public.trip_create_claim(jsonb, jsonb, jsonb, uuid)             from public, anon;
-grant execute on function public.trip_create_claim(jsonb, jsonb, jsonb, uuid)          to authenticated;
-revoke all on function public.trip_update_draft(uuid, integer, jsonb, jsonb, jsonb)    from public, anon;
-grant execute on function public.trip_update_draft(uuid, integer, jsonb, jsonb, jsonb) to authenticated;
+-- 활성 규칙 버전: 화면(미리보기 버전 표시)·서버 함수(배포 불일치 검사)가 읽는다. 값 자체는 비밀 아님
+revoke all on function public.trip_active_rule_version()                               from public, anon;
+grant execute on function public.trip_active_rule_version()                            to authenticated, service_role;
+
+-- 서버 계산 저장: service_role 전용
+revoke all on function public.trip_store_server_calcs(uuid, integer, text, jsonb, uuid)    from public, anon, authenticated;
+grant execute on function public.trip_store_server_calcs(uuid, integer, text, jsonb, uuid) to service_role;
+
+revoke all on function public.trip_create_claim(jsonb, jsonb, uuid)                    from public, anon;
+grant execute on function public.trip_create_claim(jsonb, jsonb, uuid)                 to authenticated;
+revoke all on function public.trip_update_draft(uuid, integer, jsonb, jsonb)           from public, anon;
+grant execute on function public.trip_update_draft(uuid, integer, jsonb, jsonb)        to authenticated;
 revoke all on function public.trip_submit(uuid, integer)                               from public, anon;
 grant execute on function public.trip_submit(uuid, integer)                            to authenticated;
 revoke all on function public.trip_cancel(uuid, integer)                               from public, anon;
 grant execute on function public.trip_cancel(uuid, integer)                            to authenticated;
-revoke all on function public.trip_invite_companions(uuid, uuid[], jsonb)              from public, anon;
-grant execute on function public.trip_invite_companions(uuid, uuid[], jsonb)           to authenticated;
-revoke all on function public.trip_admin_adjust_day(uuid, uuid, integer, jsonb, text, jsonb)    from public, anon;
-grant execute on function public.trip_admin_adjust_day(uuid, uuid, integer, jsonb, text, jsonb) to authenticated;
+revoke all on function public.trip_invite_companions(uuid, uuid[])                     from public, anon;
+grant execute on function public.trip_invite_companions(uuid, uuid[])                  to authenticated;
+revoke all on function public.trip_admin_adjust_day(uuid, uuid, integer, jsonb, text)    from public, anon;
+grant execute on function public.trip_admin_adjust_day(uuid, uuid, integer, jsonb, text) to authenticated;
 revoke all on function public.trip_review(uuid, text, uuid[], jsonb, text)             from public, anon;
 grant execute on function public.trip_review(uuid, text, uuid[], jsonb, text)          to authenticated;
