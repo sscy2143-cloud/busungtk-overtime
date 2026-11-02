@@ -59,3 +59,17 @@ export function weekStartOf(d: IsoDate): IsoDate {
   const w = weekdayOf(d)
   return addDays(d, w === 0 ? -6 : 1 - w)
 }
+
+/**
+ * 공휴일 달력. 출처가 검증되지 않았으면(verified=false) 평일·휴일 구분을 관리자 확인 대상으로 올린다.
+ * 코드에 공휴일을 고정하지 않는다 — 검증된 달력(DB holidays 테이블 등)을 주입한다.
+ */
+export interface HolidayCalendar {
+  holidays: ReadonlySet<IsoDate>
+  verified: boolean
+  /** 예: 'holidays 테이블 2026 (검증 2026-11-01)', 'none' */
+  source: string
+}
+
+/** 출처 없음 — 모든 날이 관리자 확인 대상이 된다 */
+export const NO_CALENDAR: HolidayCalendar = Object.freeze({ holidays: new Set<IsoDate>(), verified: false, source: 'none' })

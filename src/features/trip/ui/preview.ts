@@ -28,7 +28,7 @@ export interface DayPreview {
   proposedNote?: string
 }
 
-export function buildDayPreview(calc: TripCalcRecord): DayPreview {
+export function buildDayPreview(calc: Pick<TripCalcRecord, 'classification' | 'result'>): DayPreview {
   const { classification: cls, result } = calc
   const heading = [cls.workType ? WORK_TYPE_LABEL[cls.workType] : '확인 필요', DAY_KIND_LABEL[cls.dayKind]].join(' · ')
   const base: DayPreview = {

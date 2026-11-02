@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { classifyDay } from '../../data'
-import { HOLIDAY, MON, TUE, alice, boss, dayHeader, setup, siteEntry, stayHeader, unwrap } from '../../data/__tests__/fixtures'
+import { MON, TEST_CALENDAR, TUE, alice, boss, dayHeader, setup, siteEntry, stayHeader, unwrap } from '../../data/__tests__/fixtures'
 import { TRIP_FEATURE, approvalBlockers, buildDayPreview, formSections, formatClock, formatHours, toReviewRow, visibleSections } from '..'
 
-const opts = { holidays: new Set([HOLIDAY]) }
+const opts = { calendar: TEST_CALENDAR }
 
 describe('표시 형식', () => {
   it('시각·시간 표기', () => {

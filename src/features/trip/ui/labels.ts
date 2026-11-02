@@ -70,6 +70,7 @@ export const FLAG_TITLE: Record<string, string> = {
   N1_NIGHT_OVERTIME_ALLOCATION: '야간 연장 배분 (N1)',
   N2_LUNCH_DURING_TRAVEL: '이동 중 점심 (N2)',
   NEXT_DAY_ENTRY_MISSING: '다음 날 근무 기록 없음',
+  HOLIDAY_SOURCE_UNVERIFIED: '공휴일 달력 미검증',
 }
 
 export const flagTitle = (code: string): string => FLAG_TITLE[code] ?? code

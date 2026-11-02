@@ -10,8 +10,8 @@
  */
 
 import { RULE_VERSION, calculateTripDay, checkWeek, type TripDayResult, type WeekCheck } from '../engine'
-import { addDays, eachDate, isIsoDate, weekStartOf, type IsoDate } from './calendar'
-import { classifyDay } from './classify'
+import { addDays, eachDate, isIsoDate, weekStartOf, type HolidayCalendar, type IsoDate } from './calendar'
+import { classifyDay, type ClassifyOptions } from './classify'
 import { RepoError, type TripRepository } from './repository'
 import type {
   Actor, ClaimHeader, DayEntry, FlagDecision, Result, TripCalcRecord, TripClaimRecord, TripDayRecord,
@@ -22,7 +22,8 @@ export const PAYROLL_APPLICATION_ENABLED = false
 
 export interface ServiceDeps {
   repo: TripRepository
-  holidays: ReadonlySet<IsoDate>
+  /** 공휴일 달력. 검증되지 않은 출처면 모든 날이 관리자 확인 대상 */
+  calendar: HolidayCalendar
   now: () => string
   newId: (prefix: string) => string
   /** 그 주(월요일 시작)에 결근·연차가 있는지 — 5-6 토요일 확인용 */
@@ -56,6 +57,20 @@ export interface GroupMismatch {
   date: IsoDate
   field: 'site' | 'regions' | 'missing_day'
   employeeIds: string[]
+}
+
+export type DayComputation = Pick<TripCalcRecord, 'classification' | 'engineInput' | 'result' | 'carryIn' | 'carryOut'>
+
+/** 하루 분류 + 계산. 저장(recompute)과 화면 미리보기가 같은 함수를 쓴다 */
+export function computeDay(header: ClaimHeader, entry: DayEntry, opts: ClassifyOptions): DayComputation {
+  const cls = classifyDay(header, entry, opts)
+  const result = cls.input ? calculateTripDay(cls.input) : null
+  const { input, ...classification } = cls
+  // 엔진이 "이동 시각을 입력하세요"로 답하면 그 항목만 추가로 묻는다 (E4 충돌)
+  if (result && !result.ok && result.errors.some((e) => e.code === 'E4_TRAVEL_CONFLICT')) {
+    classification.missing = [...classification.missing, 'travelStarts.out']
+  }
+  return { classification, engineInput: input, result }
 }
 
 export function createTripService(deps: ServiceDeps) {
@@ -101,17 +116,10 @@ export function createTripService(deps: ServiceDeps) {
   /** 근무일 전부 다시 계산. 입력·연결이 그대로인 날은 이전 결과를 그대로 쓴다 (승인 묶음이 불필요하게 깨지지 않게) */
   function recompute(claim: TripClaimRecord): void {
     const days = repo.listDays(claim.id)
-    type Draft = Pick<TripCalcRecord, 'classification' | 'engineInput' | 'result' | 'carryIn' | 'carryOut'> & { day: TripDayRecord }
+    type Draft = DayComputation & { day: TripDayRecord }
     const drafts: Draft[] = days.map((day) => {
       const weekHasAbsenceOrLeave = deps.absenceLookup?.(claim.employeeId, weekStartOf(day.date))
-      const cls = classifyDay(claim.header, day.entry, { holidays: deps.holidays, weekHasAbsenceOrLeave })
-      const result = cls.input ? calculateTripDay(cls.input) : null
-      const { input, ...classification } = cls
-      // 엔진이 "이동 시각을 입력하세요"로 답하면 그 항목만 추가로 묻는다 (E4 충돌)
-      if (result && !result.ok && result.errors.some((e) => e.code === 'E4_TRAVEL_CONFLICT')) {
-        classification.missing = [...classification.missing, 'travelStarts.out']
-      }
-      return { day, classification, engineInput: input, result }
+      return { day, ...computeDay(claim.header, day.entry, { calendar: deps.calendar, weekHasAbsenceOrLeave }) }
     })
 
     // 다음 근무일로 넘어간 작업·이동 연결 (5-4, E7)
@@ -417,10 +425,13 @@ export function companionCopy(entry: DayEntry): DayEntry {
   }
 }
 
-/** 관리자가 승인 전에 확인해야 하는 항목: 엔진 확인 표시 전부 + 다음 날 기록 누락 */
+/** 분류 단계 안내 중 관리자가 반드시 처리해야 하는 것 */
+export const REVIEW_NOTICE_CODES: ReadonlySet<string> = new Set(['NEXT_DAY_ENTRY_MISSING', 'HOLIDAY_SOURCE_UNVERIFIED'])
+
+/** 관리자가 승인 전에 확인해야 하는 항목: 엔진 확인 표시 전부 + 다음 날 기록 누락 + 달력 미검증 */
 export function reviewItems(c: TripCalcRecord): string[] {
   const flags = c.result?.ok ? c.result.flags.map((f) => f.code) : []
-  const notices = c.classification.notices.filter((n) => n.code === 'NEXT_DAY_ENTRY_MISSING').map((n) => n.code)
+  const notices = c.classification.notices.filter((n) => REVIEW_NOTICE_CODES.has(n.code)).map((n) => n.code)
   return [...new Set([...flags, ...notices])]
 }
 

@@ -4,9 +4,9 @@ import { addDays, dayKindOf, eachDate, isIsoDate, weekStartOf } from '../calenda
 import { classifyDay } from '../classify'
 import { parseClock, toHourRange } from '../time-input'
 import type { ClaimHeader, DayEntry } from '../types'
-import { HOLIDAY, MON, SAT, TUE, WED, dayHeader, siteEntry, stayHeader } from './fixtures'
+import { HOLIDAY, MON, SAT, TEST_CALENDAR, TUE, WED, dayHeader, siteEntry, stayHeader } from './fixtures'
 
-const opts = { holidays: new Set([HOLIDAY]) }
+const opts = { calendar: TEST_CALENDAR }
 const calc = (h: ClaimHeader, e: DayEntry): TripDayResult => {
   const c = classifyDay(h, e, opts)
   if (!c.input) throw new Error(`입력 부족: ${c.missing.join(',')}`)
@@ -17,10 +17,10 @@ const calc = (h: ClaimHeader, e: DayEntry): TripDayResult => {
 
 describe('날짜·시각 변환', () => {
   it('요일과 날짜 구분 (토요일·일요일·공휴일)', () => {
-    expect(dayKindOf(MON, opts.holidays)).toBe('weekday')
-    expect(dayKindOf(SAT, opts.holidays)).toBe('saturday')
-    expect(dayKindOf('2026-11-08', opts.holidays)).toBe('holiday')
-    expect(dayKindOf(HOLIDAY, opts.holidays)).toBe('holiday')
+    expect(dayKindOf(MON, opts.calendar.holidays)).toBe('weekday')
+    expect(dayKindOf(SAT, opts.calendar.holidays)).toBe('saturday')
+    expect(dayKindOf('2026-11-08', opts.calendar.holidays)).toBe('holiday')
+    expect(dayKindOf(HOLIDAY, opts.calendar.holidays)).toBe('holiday')
     expect(dayKindOf(SAT, new Set([SAT]))).toBe('holiday') // 토요일 공휴일 → 휴일
   })
 

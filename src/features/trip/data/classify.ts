@@ -12,7 +12,7 @@
  */
 
 import { REGIONS, type HourRange, type TravelLegInput, type TripDayInput, type WorkType } from '../engine'
-import { dayKindOf, type IsoDate } from './calendar'
+import { dayKindOf, type HolidayCalendar, type IsoDate } from './calendar'
 import { toHour, toHourRange } from './time-input'
 import type { ClaimHeader, Classification, DayEntry, DayPosition, MissingField, Notice, Schedule } from './types'
 
@@ -44,7 +44,7 @@ const LEG_DIRECTIONS: Record<DayPosition, ('out' | 'back')[]> = {
 }
 
 export interface ClassifyOptions {
-  holidays: ReadonlySet<IsoDate>
+  calendar: HolidayCalendar
   /** 5-6: 토요일 근무 주에 결근·연차가 있는지 (시스템이 조회해서 넘김) */
   weekHasAbsenceOrLeave?: boolean
 }
@@ -52,13 +52,19 @@ export interface ClassifyOptions {
 export function classifyDay(header: ClaimHeader, entry: DayEntry, opts: ClassifyOptions): Classification {
   const notices: Notice[] = []
   const missing: MissingField[] = []
-  const dayKind = dayKindOf(entry.date, opts.holidays)
+  const dayKind = dayKindOf(entry.date, opts.calendar.holidays)
   const position = dayPosition(header.schedule, entry.date)
   if (position === null) {
     return {
       workType: null, dayKind, position: 'single', input: null, missing: [],
       notices: [{ code: 'DATE_OUT_OF_SCHEDULE', message: `${entry.date}은 출장 일정 밖의 날짜입니다` }],
     }
+  }
+  if (!opts.calendar.verified) {
+    notices.push({
+      code: 'HOLIDAY_SOURCE_UNVERIFIED',
+      message: `공휴일 달력 출처가 검증되지 않았습니다 (${opts.calendar.source}). 평일·토요일·휴일 구분을 관리자가 확인해야 합니다`,
+    })
   }
 
   const regions = entry.regions ?? header.regions
