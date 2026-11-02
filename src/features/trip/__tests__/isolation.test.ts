@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 // 출장 기능 소스(테스트 제외)를 문자열로 읽어 기존 앱 코드·DB·브라우저 저장소·현재 시각에 기대지 않는지 확인한다
-const pure = import.meta.glob<string>(['../data/*.ts', '../ui/*.ts'], { query: '?raw', import: 'default', eager: true })
+const pure = import.meta.glob<string>(['../data/*.ts', '../ui/*.ts', '../server/*.ts'], { query: '?raw', import: 'default', eager: true })
 const screens = import.meta.glob<string>(['../screens/*.ts', '../screens/*.tsx', '../screens/admin/*.tsx'], { query: '?raw', import: 'default', eager: true })
 
 const importsOf = (src: string) => [...src.matchAll(/from\s+['"]([^'"]+)['"]/g)].map((m) => m[1])

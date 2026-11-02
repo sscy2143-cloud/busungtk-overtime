@@ -65,6 +65,13 @@ export function createMemoryRepository(): TripRepository {
     const c = claims.get(claimId)
     return c !== undefined && ACTIVE_STATUSES.includes(c.status)
   }
+  /** DB 트리거와 같은 잠금: 승인·반려·취소된 신청의 근무일은 고칠 수 없다 (계약 2-1) */
+  const assertUnlocked = (claimId: string, what: string) => {
+    const c = claims.get(claimId)
+    if (c && (c.status === 'approved' || c.status === 'rejected' || c.status === 'cancelled')) {
+      throw new RepoError('LOCKED', `${what}: 승인·반려·취소된 신청은 바꿀 수 없습니다`)
+    }
+  }
 
   return {
     insertClaim(claim) {
@@ -108,12 +115,15 @@ export function createMemoryRepository(): TripRepository {
     updateDay(id, expectedRevision, entry) {
       const cur = days.get(id)
       if (!cur) throw new RepoError('NOT_FOUND', id)
+      assertUnlocked(cur.claimId, `근무일 ${cur.date}`)
       if (cur.revision !== expectedRevision) throw new RepoError('VERSION_CONFLICT', `근무일 ${cur.date}이 먼저 수정되었습니다`)
       const next = { ...cur, entry: clone(entry), revision: cur.revision + 1 }
       days.set(id, next)
       return clone(next)
     },
     deleteDay(id) {
+      const cur = days.get(id)
+      if (cur) assertUnlocked(cur.claimId, `근무일 ${cur.date}`)
       days.delete(id)
     },
     listDays: (claimId) => [...days.values()].filter((d) => d.claimId === claimId).sort((a, b) => a.date.localeCompare(b.date)).map(clone),
@@ -126,6 +136,9 @@ export function createMemoryRepository(): TripRepository {
 
     insertCalc(calc) {
       if (calcs.has(calc.id)) throw new RepoError('IMMUTABLE', '계산 결과는 수정할 수 없습니다')
+      const day = days.get(calc.dayId)
+      if (!day || day.claimId !== calc.claimId) throw new RepoError('CALC_DAY_MISMATCH', '계산 결과의 근무일이 그 신청의 것이 아닙니다')
+      if (day.revision !== calc.dayRevision) throw new RepoError('CALC_STALE_OR_UNTRUSTED', `근무일 ${day.date} 입력(${day.revision}판)과 계산(${calc.dayRevision}판)이 다릅니다`)
       calcs.set(calc.id, deepFreeze(clone(calc)))
       calcOrder.push(calc.id)
     },
@@ -140,7 +153,14 @@ export function createMemoryRepository(): TripRepository {
 
     insertAdjustment: (a) => void adjustments.push(clone(a)),
     listAdjustments: (claimId) => adjustments.filter((a) => a.claimId === claimId).map(clone),
-    insertReview: (r) => void reviews.push(clone(r)),
+    insertReview(r) {
+      // DB 트리거와 같은 검사: 승인이 묶는 계산 결과는 전부 그 신청의 것이어야 한다 (계약 2-1)
+      for (const id of r.calcIds) {
+        const c = calcs.get(id)
+        if (!c || c.claimId !== r.claimId) throw new RepoError('REVIEW_CALC_MISMATCH', `계산 결과 ${id}는 이 신청의 것이 아닙니다`)
+      }
+      reviews.push(clone(r))
+    },
     listReviews: (claimId) => reviews.filter((r) => r.claimId === claimId).map(clone),
   }
 }

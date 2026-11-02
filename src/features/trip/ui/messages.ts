@@ -32,6 +32,17 @@ const KNOWN: Record<string, { title: string; action: ErrorAction; hint?: string 
   CALC_ERROR: { title: '계산되지 않은 근무일이 있어 승인할 수 없습니다', action: 'fix_input', hint: '되돌려서 직원에게 입력을 요청하거나 관리자 수정으로 보완하세요' },
   DATE_CHANGE_NOT_ALLOWED: { title: '근무일 날짜는 바꿀 수 없습니다', action: 'fix_input' },
   FEATURE_DISABLED: { title: '출장수당 기능이 아직 열리지 않았습니다', action: 'none', hint: '도입 공지 후 사용할 수 있습니다' },
+  // 서버 재계산 (계약-서버계산.md 4절)
+  CALC_STALE_OR_UNTRUSTED: { title: '서버 계산이 아직 없거나 입력이 바뀌었습니다', action: 'reload', hint: '다시 계산한 뒤 제출·검토하세요' },
+  RULE_VERSION_MISMATCH: { title: '규칙 버전이 맞지 않습니다', action: 'none', hint: '앱이 갱신되는 중입니다. 잠시 후 다시 시도하세요' },
+  CALC_INCOMPLETE_SET: { title: '모든 근무일의 계산이 필요합니다', action: 'reload' },
+  UNKNOWN_REGION: { title: '등록되지 않은 지역 코드입니다', action: 'fix_input' },
+  CALC_INVARIANT: { title: '계산 결과가 검증을 통과하지 못했습니다', action: 'none', hint: '관리자에게 알려 주세요. 입력은 보존되어 있습니다' },
+  CALC_DAY_MISMATCH: { title: '계산 결과가 이 신청의 것이 아닙니다', action: 'reload' },
+  LOCKED: { title: '승인·반려·취소된 신청은 바꿀 수 없습니다', action: 'none' },
+  REVIEW_CALC_MISMATCH: { title: '승인 대상 계산 결과가 이 신청의 것이 아닙니다', action: 'reload' },
+  STORE_FAILED: { title: '서버에 저장하지 못했습니다', action: 'none', hint: '잠시 후 다시 시도하세요. 입력은 보존되어 있습니다' },
+  BAD_REQUEST: { title: '요청 형식이 올바르지 않습니다', action: 'none' },
   UNKNOWN_USER: { title: '사용자를 확인할 수 없습니다', action: 'login' },
   ROLE_MISMATCH: { title: '권한 정보가 서버와 다릅니다', action: 'login' },
 }
