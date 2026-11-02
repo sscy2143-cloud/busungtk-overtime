@@ -7,8 +7,8 @@
 
 import type { TripDayError, TripDayResult } from '../engine'
 import {
-  computeDay, eachDate, type ClaimHeader, type ClaimStatus, type Classification, type DayEntry, type HolidayCalendar,
-  type IsoDate, type Schedule, type TripClaimRecord,
+  MAX_STAY_DAYS, computeDay, eachDate, type ClaimHeader, type ClaimStatus, type Classification, type DayEntry,
+  type HolidayCalendar, type IsoDate, type Schedule, type TripClaimRecord,
 } from '../data'
 
 export interface SavedRef {
@@ -37,9 +37,18 @@ export type FormAction =
   | { type: 'failed'; code: string; message: string }
   | { type: 'clearError' }
 
+/** 화면용 날짜 목록. 서비스와 같은 상한(MAX_STAY_DAYS)으로 잘라 입력 카드가 무한히 늘지 않게 한다 */
 export function scheduleDates(s: Schedule): IsoDate[] {
   if (s.kind === 'day') return [s.date]
-  return s.endDate > s.startDate ? eachDate(s.startDate, s.endDate) : [s.startDate]
+  return s.endDate > s.startDate ? eachDate(s.startDate, s.endDate).slice(0, MAX_STAY_DAYS) : [s.startDate]
+}
+
+/** 일정 자체의 문제 — 서비스 validateHeader 와 같은 기준 */
+export function scheduleProblem(s: Schedule): string | null {
+  if (s.kind === 'day') return null
+  if (s.endDate <= s.startDate) return '숙박 출장은 복귀일이 출발일보다 뒤여야 합니다'
+  if (eachDate(s.startDate, s.endDate).length > MAX_STAY_DAYS) return `숙박 출장은 ${MAX_STAY_DAYS}일을 넘을 수 없습니다`
+  return null
 }
 
 export function initialFormState(date: IsoDate, regions: string[] = []): TripFormState {
@@ -128,6 +137,8 @@ export function submitBlockers(state: TripFormState, computed: DayDraftComputati
   else if (state.saved.status !== 'draft' && state.saved.status !== 'returned') out.push('작성 중이거나 되돌아온 신청만 제출할 수 있습니다')
   if (state.dirty && state.saved) out.push('고친 내용을 저장한 뒤 제출하세요')
   if (state.header.regions.length === 0) out.push('지역을 고르세요')
+  const sp = scheduleProblem(state.header.schedule)
+  if (sp) out.push(sp)
   const incomplete = computed.filter((d) => d.classification.missing.length > 0 || !d.result || !d.result.ok).map((d) => d.date)
   if (incomplete.length > 0) out.push(`입력이 더 필요한 날: ${incomplete.join(', ')}`)
   return out

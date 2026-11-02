@@ -137,6 +137,12 @@ function sectionBody(key: SectionKey, entry: DayEntry, onPatch: (p: Partial<DayE
             <Field label="실제 출발"><input type="time" className={inputClass} value={entry.actual?.departAt ?? ''} onChange={(e) => onPatch({ actual: actualPatch(entry, { departAt: e.target.value || undefined }) })} /></Field>
             <Field label="실제 도착"><input type="time" className={inputClass} value={entry.actual?.arriveAt ?? ''} onChange={(e) => onPatch({ actual: actualPatch(entry, { arriveAt: e.target.value || undefined }) })} /></Field>
           </div>
+          {entry.actual?.arriveAt && (
+            <label className="flex min-h-11 items-center gap-2 text-sm text-dark-800">
+              <input type="checkbox" className="h-5 w-5" checked={entry.actual.arriveNextDay ?? false} onChange={(e) => onPatch({ actual: actualPatch(entry, { arriveNextDay: e.target.checked || undefined }) })} />
+              도착이 다음 날(자정 이후)입니다
+            </label>
+          )}
           <p className="text-xs text-dark-500">기록만 하고 계산에는 쓰지 않습니다. 기억나지 않으면 비워 두세요 — 표준시간을 대신 넣지 않습니다</p>
         </div>
       )
@@ -150,10 +156,11 @@ function clean(v: { out?: string; back?: string }): DayEntry['travelStarts'] {
   return Object.keys(o).length ? o : undefined
 }
 
-function actualPatch(entry: DayEntry, patch: { departAt?: string; arriveAt?: string }): DayEntry['actual'] {
+function actualPatch(entry: DayEntry, patch: { departAt?: string; arriveAt?: string; arriveNextDay?: boolean }): DayEntry['actual'] {
   const next = { ...(entry.actual ?? { source: 'self' as const }), ...patch }
   if (!next.departAt) delete next.departAt
-  if (!next.arriveAt) delete next.arriveAt
+  if (!next.arriveAt) { delete next.arriveAt; delete next.arriveNextDay }
+  if (!next.arriveNextDay) delete next.arriveNextDay
   return next.departAt || next.arriveAt ? next : undefined
 }
 

@@ -8,7 +8,7 @@ export { buildDayPreview, type DayPreview, type PreviewRow } from './preview'
 export { approvalBlockers, toReviewRow, type ReviewRow, type ReviewTotals } from './review-model'
 export { buildClaimDetail, type ClaimDetailView, type DayDetailView, type ReviewItemView } from './review-detail'
 export {
-  formReducer, initialFormState, previewDays, scheduleDates, submitBlockers,
+  formReducer, initialFormState, previewDays, scheduleDates, scheduleProblem, submitBlockers,
   type DayDraftComputation, type FormAction, type SavedRef, type TripFormState,
 } from './form-state'
 export { ERROR_ACTION_LABEL, describeError, type ErrorAction, type ErrorNotice } from './messages'

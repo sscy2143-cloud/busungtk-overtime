@@ -58,8 +58,8 @@ export interface DayEntry {
   delay?: { hours: number; evidenceFileIds: string[] }
   jeju?: { legs: TimeRangeInput[]; evidenceFileIds: string[] }
   earlyLeaveDirected?: boolean
-  /** 기록 전용. 표준시간으로 미리 채우지 않는다 */
-  actual?: { departAt?: ClockTime; arriveAt?: ClockTime; source: ActualSource }
+  /** 기록 전용. 표준시간으로 미리 채우지 않는다. 자정을 넘긴 도착은 arriveNextDay 로 표시 */
+  actual?: { departAt?: ClockTime; arriveAt?: ClockTime; arriveNextDay?: boolean; source: ActualSource }
 }
 
 export type DayPosition = 'single' | 'first' | 'middle' | 'last'

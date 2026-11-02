@@ -12,7 +12,7 @@
  */
 
 import { REGIONS, type HourRange, type TravelLegInput, type TripDayInput, type WorkType } from '../engine'
-import { dayKindOf, type HolidayCalendar, type IsoDate } from './calendar'
+import { dayKindOf, isVerifiedCalendar, type HolidayCalendar, type IsoDate } from './calendar'
 import { toHour, toHourRange } from './time-input'
 import type { ClaimHeader, Classification, DayEntry, DayPosition, MissingField, Notice, Schedule } from './types'
 
@@ -60,7 +60,7 @@ export function classifyDay(header: ClaimHeader, entry: DayEntry, opts: Classify
       notices: [{ code: 'DATE_OUT_OF_SCHEDULE', message: `${entry.date}은 출장 일정 밖의 날짜입니다` }],
     }
   }
-  if (!opts.calendar.verified) {
+  if (!isVerifiedCalendar(opts.calendar)) {
     notices.push({
       code: 'HOLIDAY_SOURCE_UNVERIFIED',
       message: `공휴일 달력 출처가 검증되지 않았습니다 (${opts.calendar.source}). 평일·토요일·휴일 구분을 관리자가 확인해야 합니다`,
@@ -146,7 +146,7 @@ export function classifyDay(header: ClaimHeader, entry: DayEntry, opts: Classify
     ...(entry.earlyLeaveDirected ? { earlyLeaveDirected: true } : {}),
     ...(dayKind === 'saturday' && opts.weekHasAbsenceOrLeave ? { weekHasAbsenceOrLeave: true } : {}),
     ...(entry.actual
-      ? { actualRecord: { departAt: toHour(entry.actual.departAt), arriveAt: toHour(entry.actual.arriveAt) } }
+      ? { actualRecord: { departAt: toHour(entry.actual.departAt), arriveAt: toHour(entry.actual.arriveAt, entry.actual.arriveNextDay) } }
       : {}),
   }
 

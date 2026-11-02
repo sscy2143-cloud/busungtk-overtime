@@ -73,3 +73,9 @@ export interface HolidayCalendar {
 
 /** 출처 없음 — 모든 날이 관리자 확인 대상이 된다 */
 export const NO_CALENDAR: HolidayCalendar = Object.freeze({ holidays: new Set<IsoDate>(), verified: false, source: 'none' })
+
+/** 검증된 달력으로 인정하는 조건: verified 표시 + 출처 문자열이 실제로 있음 ('none'·빈 문자열은 미검증) */
+export function isVerifiedCalendar(c: HolidayCalendar): boolean {
+  const src = c.source.trim()
+  return c.verified && src !== '' && src.toLowerCase() !== 'none'
+}

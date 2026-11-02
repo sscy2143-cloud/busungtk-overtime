@@ -7,7 +7,8 @@ export {
   FEATURES_ALL_OFF, createGuardedTripService, createStaticGate,
   type ClaimDetailData, type FeatureKey, type FeatureState, type GuardedTripService, type TripAccessGate,
 } from './gate'
+export { computeClaimDays, computeDay, type ClaimComputeArgs, type DayComputation, type DayComputationWithDay } from './compute'
 export {
-  PAYROLL_APPLICATION_ENABLED, REVIEW_NOTICE_CODES, companionCopy, computeDay, createTripService, reviewItems,
-  type DayComputation, type GroupMismatch, type ServiceDeps, type SettlementDay, type TripService,
+  MAX_STAY_DAYS, PAYROLL_APPLICATION_ENABLED, REVIEW_NOTICE_CODES, companionCopy, createTripService, reviewItems,
+  type GroupMismatch, type ServiceDeps, type SettlementDay, type TripService,
 } from './service'

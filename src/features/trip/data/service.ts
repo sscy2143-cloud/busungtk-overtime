@@ -9,12 +9,12 @@
  *  - 급여 반영은 이 단계에서 하지 않는다 (C-0 노무 확인 전).
  */
 
-import { RULE_VERSION, calculateTripDay, checkWeek, type TripDayResult, type WeekCheck } from '../engine'
+import { RULE_VERSION, checkWeek, type TripDayResult, type WeekCheck } from '../engine'
 import { addDays, eachDate, isIsoDate, weekStartOf, type HolidayCalendar, type IsoDate } from './calendar'
-import { classifyDay, type ClassifyOptions } from './classify'
+import { computeClaimDays } from './compute'
 import { RepoError, type TripRepository } from './repository'
 import type {
-  Actor, ClaimHeader, DayEntry, FlagDecision, Result, TripCalcRecord, TripClaimRecord, TripDayRecord,
+  Actor, ClaimHeader, DayEntry, FlagDecision, Result, TripCalcRecord, TripClaimRecord,
 } from './types'
 
 /** 이 단계에서는 어떤 결과도 급여에 반영하지 않는다 (C-0, 노무 확인 전) */
@@ -28,6 +28,8 @@ export interface ServiceDeps {
   newId: (prefix: string) => string
   /** 그 주(월요일 시작)에 결근·연차가 있는지 — 5-6 토요일 확인용 */
   absenceLookup?: (employeeId: string, weekStart: IsoDate) => boolean
+  /** 같은 날 기존 야근 등 다른 신청의 표시 문구 (예: '야근 18:00~21:00'). 있으면 관리자 확인 항목 */
+  otherRequestLookup?: (employeeId: string, date: IsoDate) => string[]
 }
 
 const fail = <T,>(code: string, message: string): Result<T> => ({ ok: false, code, message })
@@ -59,19 +61,8 @@ export interface GroupMismatch {
   employeeIds: string[]
 }
 
-export type DayComputation = Pick<TripCalcRecord, 'classification' | 'engineInput' | 'result' | 'carryIn' | 'carryOut'>
-
-/** 하루 분류 + 계산. 저장(recompute)과 화면 미리보기가 같은 함수를 쓴다 */
-export function computeDay(header: ClaimHeader, entry: DayEntry, opts: ClassifyOptions): DayComputation {
-  const cls = classifyDay(header, entry, opts)
-  const result = cls.input ? calculateTripDay(cls.input) : null
-  const { input, ...classification } = cls
-  // 엔진이 "이동 시각을 입력하세요"로 답하면 그 항목만 추가로 묻는다 (E4 충돌)
-  if (result && !result.ok && result.errors.some((e) => e.code === 'E4_TRAVEL_CONFLICT')) {
-    classification.missing = [...classification.missing, 'travelStarts.out']
-  }
-  return { classification, engineInput: input, result }
-}
+/** 숙박 출장 최대 일수 — 회사 규정이 아니라 입력 실수·악의적 입력 방어용 임시 상한 (T5 SQL 초안과 같은 값) */
+export const MAX_STAY_DAYS = 31
 
 export function createTripService(deps: ServiceDeps) {
   const { repo } = deps
@@ -86,6 +77,7 @@ export function createTripService(deps: ServiceDeps) {
     } else {
       if (!isIsoDate(s.startDate) || !isIsoDate(s.endDate)) return fail('INVALID_DATE', '날짜가 올바르지 않습니다')
       if (s.endDate <= s.startDate) return fail('INVALID_DATE', '숙박 출장은 끝나는 날이 시작일보다 뒤여야 합니다')
+      if (eachDate(s.startDate, s.endDate).length > MAX_STAY_DAYS) return fail('INVALID_DATE', `숙박 출장은 ${MAX_STAY_DAYS}일을 넘을 수 없습니다 (임시 상한)`)
     }
     return ok(null)
   }
@@ -115,32 +107,15 @@ export function createTripService(deps: ServiceDeps) {
 
   /** 근무일 전부 다시 계산. 입력·연결이 그대로인 날은 이전 결과를 그대로 쓴다 (승인 묶음이 불필요하게 깨지지 않게) */
   function recompute(claim: TripClaimRecord): void {
-    const days = repo.listDays(claim.id)
-    type Draft = DayComputation & { day: TripDayRecord }
-    const drafts: Draft[] = days.map((day) => {
-      const weekHasAbsenceOrLeave = deps.absenceLookup?.(claim.employeeId, weekStartOf(day.date))
-      return { day, ...computeDay(claim.header, day.entry, { calendar: deps.calendar, weekHasAbsenceOrLeave }) }
+    const drafts = computeClaimDays({
+      header: claim.header,
+      employeeId: claim.employeeId,
+      days: repo.listDays(claim.id),
+      calendar: deps.calendar,
+      absenceLookup: deps.absenceLookup,
+      findActiveDay: (employeeId, date) => repo.findActiveDay(employeeId, date, claim.id),
+      otherRequestLookup: deps.otherRequestLookup,
     })
-
-    // 다음 근무일로 넘어간 작업·이동 연결 (5-4, E7)
-    for (const d of drafts) {
-      const r = d.result
-      if (!r || !r.ok || (!r.nextDay && !r.nextDayTravel)) continue
-      const toDate = addDays(d.day.date, 1)
-      const sibling = drafts.find((x) => x.day.date === toDate)
-      const linked = sibling?.day ?? repo.findActiveDay(claim.employeeId, toDate, claim.id)
-      d.carryOut = { toDate, ...(r.nextDay ? { work: r.nextDay } : {}), travel: r.nextDayTravel ?? [], ...(linked ? { linkedDayId: linked.id } : {}) }
-      if (sibling) sibling.carryIn = { fromDate: d.day.date, ...(r.nextDay ? { work: r.nextDay } : {}), travel: r.nextDayTravel ?? [] }
-      if (!linked) {
-        d.classification = {
-          ...d.classification,
-          notices: [...d.classification.notices, {
-            code: 'NEXT_DAY_ENTRY_MISSING',
-            message: `${toDate} 근무 기록이 없습니다. 다음 날로 넘어간 작업·이동을 그날 기록에 넣어야 합니다`,
-          }],
-        }
-      }
-    }
 
     for (const d of drafts) {
       const prev = repo.latestCalc(d.day.id)
@@ -426,7 +401,10 @@ export function companionCopy(entry: DayEntry): DayEntry {
 }
 
 /** 분류 단계 안내 중 관리자가 반드시 처리해야 하는 것 */
-export const REVIEW_NOTICE_CODES: ReadonlySet<string> = new Set(['NEXT_DAY_ENTRY_MISSING', 'HOLIDAY_SOURCE_UNVERIFIED'])
+export const REVIEW_NOTICE_CODES: ReadonlySet<string> = new Set([
+  'NEXT_DAY_ENTRY_MISSING', 'HOLIDAY_SOURCE_UNVERIFIED',
+  'CARRY_IN_NOT_ENTERED', 'CARRY_IN_OVERLAP', 'CARRY_IN_GAP', 'OTHER_REQUEST_SAME_DAY',
+])
 
 /** 관리자가 승인 전에 확인해야 하는 항목: 엔진 확인 표시 전부 + 다음 날 기록 누락 + 달력 미검증 */
 export function reviewItems(c: TripCalcRecord): string[] {

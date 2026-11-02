@@ -71,6 +71,10 @@ export const FLAG_TITLE: Record<string, string> = {
   N2_LUNCH_DURING_TRAVEL: '이동 중 점심 (N2)',
   NEXT_DAY_ENTRY_MISSING: '다음 날 근무 기록 없음',
   HOLIDAY_SOURCE_UNVERIFIED: '공휴일 달력 미검증',
+  CARRY_IN_NOT_ENTERED: '전날에서 넘어온 작업이 이날 입력에 없음',
+  CARRY_IN_OVERLAP: '전날 계산과 겹치는 시간 (이중 계산 위험)',
+  CARRY_IN_GAP: '전날에서 넘어온 작업과 이날 입력 사이 빈틈',
+  OTHER_REQUEST_SAME_DAY: '같은 날 다른 신청 있음 (중복 지급 확인)',
 }
 
 export const flagTitle = (code: string): string => FLAG_TITLE[code] ?? code

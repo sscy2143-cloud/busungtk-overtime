@@ -23,7 +23,7 @@ function entryLines(e: DayEntry): string[] {
   if (e.assemblyAt) out.push(`집결 ${e.assemblyAt}`)
   if (e.delay) out.push(`경유·지연 ${e.delay.hours}시간 / 증빙 ${e.delay.evidenceFileIds.length}건`)
   if (e.earlyLeaveDirected) out.push('회사 지시 조기 퇴근')
-  if (e.actual) out.push(`실제 출발 ${e.actual.departAt ?? '—'} 도착 ${e.actual.arriveAt ?? '—'} (출처: ${e.actual.source})`)
+  if (e.actual) out.push(`실제 출발 ${e.actual.departAt ?? '—'} 도착 ${e.actual.arriveAt ?? '—'}${e.actual.arriveNextDay ? ' (다음 날)' : ''} (출처: ${e.actual.source})`)
   return out
 }
 
