@@ -145,3 +145,11 @@ select table_name, privilege_type from information_schema.role_table_grants
 select tablename, count(*) from pg_policies where schemaname = 'public'
  and tablename not like 'trip\_%' and tablename <> 'holidays' group by tablename order by 1;
 ```
+
+---
+
+## 보강 (2026-11-02, 보안 검토 후)
+
+**이 초안의 "클라이언트가 계산 결과를 보내는" 구조는 그대로 적용하지 않는다.** `../T5-보안검토_계산결과조작.md` 의 권장안(B: Vercel Function 이 DB 입력으로 다시 계산, `engine_source='server'`)으로 바꾼 뒤 적용한다. 바꿀 항목은 그 문서 3절. 계산 함수는 `src/features/trip/data/compute.ts` 의 `computeClaimDays` (저장소 의존 없음)로 이미 분리되어 있다.
+
+추가로 서버 조회가 필요해진 확인 항목: `OTHER_REQUEST_SAME_DAY`(같은 날 `overtime_requests`), `CARRY_IN_*`(전날에서 넘어온 작업과 다음 날 입력 대조 — compute 함수 안에서 처리), `HOLIDAY_SOURCE_UNVERIFIED`(`holidays.is_verified` 행이 0이면 모든 날).

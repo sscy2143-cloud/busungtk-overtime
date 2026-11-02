@@ -30,17 +30,27 @@
 | T0 | vitest 테스트 환경 | (선행) | 완료 | `0cc2d74` |
 | T1 | 계산 엔진 `engine/` (순수 함수, 검증 사례 19건 + 경계·무작위) | 1 | 완료 | `bfae455` |
 | T2 | 데이터 계층 `data/` — 자동 분류, **메모리 저장소**, 업무 흐름(작성·제출·동행·검토·정산 미리보기) | 1.5 (문서에 없던 단계) | 완료 | `7968367` |
-| T2-보강 | 서버 강제 게이트 `data/gate.ts` (기능 스위치·역할을 서버 값으로 강제), 공휴일 달력 출처 검증(`HolidayCalendar`) | 1.5 | 완료 | **미커밋** |
-| T3 | 직원 신청 화면 `screens/` (통합 입구, 양식, 미리보기, 동행, 목록) | 3 | 완료(메모리) | **미커밋** |
-| T4 | 관리자 검토 화면 `screens/admin/` (목록·필터, 상세, 확인 항목, 승인·반려·되돌림, 수정, 이력, 정산 미리보기) | 4 | 완료(메모리) | **미커밋** |
-| T5 | DB 테이블·RLS·RPC·기능 플래그·롤백 **SQL 초안** `docs/출장수당/T5-DB-초안/` | 2 | 초안 (실행 안 함) | 미커밋 |
+| T2-보강 | 서버 강제 게이트 `data/gate.ts` (기능 스위치·역할을 서버 값으로 강제), 공휴일 달력 출처 검증(`HolidayCalendar`) | 1.5 | 완료 | `1e30ea2` |
+| T3 | 직원 신청 화면 `screens/` (통합 입구, 양식, 미리보기, 동행, 목록) | 3 | 완료(메모리) | `1e30ea2` |
+| T4 | 관리자 검토 화면 `screens/admin/` (목록·필터, 상세, 확인 항목, 승인·반려·되돌림, 수정, 이력, 정산 미리보기) | 4 | 완료(메모리) | `1e30ea2` |
+| T2-보강 2차 | `computeClaimDays` 분리, 넘어온 작업 대조, 같은 날 다른 신청, 실제 도착 다음 날, 숙박 상한, 동시성·흐름 테스트, 샌드박스 | 1.5·3·4 | 완료 | 아래 git log 참조 |
+| T5 | DB 테이블·RLS·RPC·기능 플래그·롤백 **SQL 초안** `docs/출장수당/T5-DB-초안/` + **보안 검토(서버 재계산 구조로 변경 필요)** | 2 | 초안 (실행 안 함) | `79b2660` + 이후 docs 커밋 |
 | T6 | 실제 Supabase 연결 (RPC 구현체로 `GuardedTripService` 교체) | 2 | 미착수 — Supabase 재개·승인 후 | — |
 | T7 | 기존 앱 연결 (라우트·사이드바·승인 화면 탭) | 3·4 | **보류** (master 미커밋분과 충돌 위험, 4절·10절 참조) | — |
 | T8 | 정산·마감·명세서 | 5 | 미착수 | — |
 | T9 | 시범 운영·수기 병행 | 6 | 미착수 | — |
 | T10 | 통합 승인함 등 후속 | 7 | 미착수 | — |
 
-**검증 상태 (2026-11-02):** 테스트 232건 통과(엔진 108, 데이터 55, 화면 모델 23, 화면 렌더 12, 독립성 34), `tsc` 통과, `npm run build` 성공, 신규 코드 ESLint 0건.
+**검증 상태 (2026-11-02, 보강 후):** 테스트 259건 통과(엔진 108, 데이터 82, 화면 모델 23, 화면 렌더·흐름 18, 독립성 34 — 세부는 `npx vitest run`), `tsc` 통과, `npm run build` 성공, 신규 코드 ESLint 0건.
+
+**11-02 보강 (T2-보강 2차)**
+- `data/compute.ts`: `computeClaimDays` — 저장소에 기대지 않는 신청 단위 계산(다음 날 연결, 전날에서 넘어온 작업 대조 `CARRY_IN_NOT_ENTERED/OVERLAP/GAP`, 같은 날 다른 신청 `OTHER_REQUEST_SAME_DAY`). 메모리 서비스와 향후 서버 계산 함수가 같은 코드를 쓴다
+- `DayEntry.actual.arriveNextDay`: 자정 넘긴 실제 도착 기록 (계산 미사용)
+- `MAX_STAY_DAYS = 31` 임시 상한 (서비스·화면·SQL 초안 동일)
+- `isVerifiedCalendar`: `verified` 라도 출처가 비어 있거나 `none` 이면 미검증
+- 동시 요청·중복 제출·직원 간 접근 차단·날짜 경계·화면 흐름(저장→제출→되돌림→재제출→승인→정산) 테스트
+- `screens/sandbox/`: 브라우저 수동 시험 환경 (`npx vite --config src/features/trip/sandbox/vite.config.ts`, 메모리 저장소, 운영 아님)
+- **보안 검토** `docs/출장수당/T5-보안검토_계산결과조작.md`: T5 초안의 "클라이언트 계산 결과 저장" 구조는 조작에 취약 → **서버(Vercel Function) 재계산** 구조로 변경 권장. 적용 전 040 수정 항목은 그 문서 3절
 
 **안전장치 [확인]**
 - 화면 스위치 `ui/TRIP_FEATURE` 와 서버 게이트 `FEATURES_ALL_OFF` 모두 **employeeForm=false, adminReview=false, payrollApply=false**. `payrollApply` 는 코드상 어떤 인자로도 켜지지 않는다.
@@ -356,7 +366,8 @@
 기준: Downloads\근태전산_프롬프트_최종본.md (10.26 최종본). 10-20 docx·10-28 PDF는 참고자료.
 기준 사례: 대전(편도 2h) 현장 08~17, 점심 1h → 출장 4시간.
 코드: C:\Users\user\busungtk-overtime-trip (worktree, feature/trip-allowance). 출장 코드는 src/features/trip/ 안에서만.
-      T0 0cc2d74 · T1 bfae455 · T2 7968367. T2-보강·T3·T4·T5 초안은 미커밋(커밋은 사용자 승인 후).
+      T0 0cc2d74 · T1 bfae455 · T2 7968367 · T3·T4 1e30ea2 · docs 79b2660 · 이후는 git log 참조. 커밋은 로컬만, push 없음.
+      T5 는 docs/출장수당/T5-보안검토_계산결과조작.md 권장안(서버 재계산)으로 040 을 수정한 뒤 적용.
 보존: C:\Users\user\busungtk-overtime (master 06f610a, 미커밋 42개 — 보존)
       C:\Users\user\busungtk-overtime-secpatch (미커밋 38개 — 보존). 두 작업트리의 파일은 수정 금지.
 DB: 근태관리 Supabase(wvwbaqyxztgcrkiacvql)는 무료 플랜 2개 제한으로 사용자가 의도적으로 일시정지함(장애 아님).
