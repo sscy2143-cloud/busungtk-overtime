@@ -211,6 +211,7 @@ describe('A. 재현 — 운영 정책·함수 사본만 있을 때 (006·007 없
     expect(await restRun(MGR, 'select * from public.security_patch_backup')).toMatch(/permission denied/)
     // 재실행 → 사전 점검에서 중단, 아무것도 안 바뀜 (보존 행도 늘지 않음)
     expect(await codeOf(exec(sql('보안패치-006-007-적용.sql')))).toBe('ALREADY_APPLIED')
+    await exec('rollback')   // 배치가 begin 뒤 raise 로 중단되면 세션은 중단된 트랜잭션 상태 — SQL Editor 는 자동으로 끝내지만 여기서는 명시
     expect(await triggerCount()).toBe(1)
     expect(Number((await one<{ n: string }>("select count(*)::text as n from public.security_patch_backup")).n)).toBe(2)
     // 907 → 보존 원본과 바이트 단위로 같은 정의, 906 → 트리거 제거
@@ -224,6 +225,7 @@ describe('A. 재현 — 운영 정책·함수 사본만 있을 때 (006·007 없
     // 전제가 달라지면(with_check 생김) 중단
     await exec('alter policy "employees_update_manager_admin" on public.employees with check (true)')
     expect(await codeOf(exec(sql('보안패치-006-007-적용.sql')))).toBe('PRECONDITION_CHANGED')
+    await exec('rollback')
     expect(await triggerCount()).toBe(0)
     await exec('drop policy "employees_update_manager_admin" on public.employees; create policy "employees_update_manager_admin" on public.employees for update using (public.is_manager_or_admin())')
     await exec('drop table public.security_patch_backup')
