@@ -94,8 +94,9 @@ export function RequestPage() {
 
   useEffect(() => {
     async function fetchEmployees() {
+      // D14: 직원 선택 목록은 이름 목록 뷰(employees_directory, 008a)에서 읽는다 — base 표의 시급·인증 정보는 일반 직원에게 열리지 않는다
       const { data } = await supabase
-        .from('employees')
+        .from('employees_directory')
         .select('id, name, department')
         .eq('is_active', true)
         .neq('id', employee?.id ?? '')
