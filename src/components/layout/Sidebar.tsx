@@ -27,6 +27,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext'
 import { useUnseenCounts } from '../../hooks/useUnseenCounts'
 import { TRIP_FEATURE } from '../../features/trip/ui'
+import { useTripViewGrant } from '../../pages/trip/useTripViewGrant'
 
 interface NavItem {
   to: string
@@ -43,6 +44,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const { employee, signOut } = useAuth()
   const isAdmin = employee?.role === 'manager' || employee?.role === 'admin'
   const isSuperAdmin = employee?.role === 'admin'
+  // admin 이 지정한 "전체 출장 내역 조회" 권한 (서버 trip_view_grants). 코드 스위치가 꺼져 있으면 항상 false
+  const tripViewGranted = useTripViewGrant()
   const [workOpen, setWorkOpen] = useState(true)
   const [overtimeOpen, setOvertimeOpen] = useState(true)
   const [leaveOpen, setLeaveOpen] = useState(true)
@@ -153,6 +156,12 @@ const superAdminNav: NavItem[] = []
                 <NavLink to="/trip" className={subNavLinkClass}>
                   <Plane size={16} />
                   출장 신청
+                </NavLink>
+              )}
+              {TRIP_FEATURE.adminReview && tripViewGranted && !isSuperAdmin && (
+                <NavLink to="/trip/all" className={subNavLinkClass}>
+                  <Plane size={16} />
+                  출장 내역 조회
                 </NavLink>
               )}
             </div>

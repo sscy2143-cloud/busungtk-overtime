@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
-import { AdminTripReview } from '../../features/trip/screens'
+import { AdminTripReview, TripViewGrantsAdmin } from '../../features/trip/screens'
 import { TripClosedNotice, TripConnected } from './TripConnected'
 import { tripScreenOpen } from './trip-glue'
 
@@ -9,6 +10,7 @@ import { tripScreenOpen } from './trip-glue'
  */
 export function AdminTripPage() {
   const { employee } = useAuth()
+  const [tab, setTab] = useState<'review' | 'grants'>('review')
   if (!tripScreenOpen('adminReview')) return <TripClosedNotice title="출장 검토" />
   if (employee?.role !== 'admin') {
     return (
@@ -22,7 +24,12 @@ export function AdminTripPage() {
   }
   return (
     <TripConnected>
-      <AdminTripReview />
+      <div className="mx-auto flex max-w-2xl gap-1 border-b border-dark-200 px-4 pt-4">
+        {([['review', '출장 검토'], ['grants', '조회 권한']] as const).map(([k, label]) => (
+          <button key={k} type="button" onClick={() => setTab(k)} className={`min-h-11 px-3 text-sm ${tab === k ? 'border-b-2 border-primary-500 font-semibold text-primary-700' : 'text-dark-600'}`}>{label}</button>
+        ))}
+      </div>
+      {tab === 'review' ? <AdminTripReview /> : <TripViewGrantsAdmin />}
     </TripConnected>
   )
 }

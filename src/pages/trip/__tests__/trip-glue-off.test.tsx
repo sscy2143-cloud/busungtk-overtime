@@ -55,3 +55,12 @@ describe('글루 도우미', () => {
     expect(TRIP_ROUTES).toEqual({ employee: '/trip', admin: '/admin/trip' })
   })
 })
+
+describe('조회 권한자 화면 (코드 스위치 OFF)', () => {
+  it('/trip/all 도 안내만, 서버 호출 없음', async () => {
+    const { TripViewerPage } = await import('../TripViewerPage')
+    const html = renderToStaticMarkup(<TripViewerPage />)
+    expect(html).toContain('아직 열리지 않았습니다')
+    expect(from).not.toHaveBeenCalled()
+  })
+})

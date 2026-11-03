@@ -49,13 +49,18 @@ describe('출장 라우트·메뉴는 코드 스위치 뒤에 있다', () => {
   it('라우트 2개: 직원은 로그인 영역, 관리자는 AdminRoute 안', () => {
     expect(route('trip')).toBe('<TripEmployeePage />')
     expect(route('admin/trip')).toBe('<AdminRoute><AdminTripPage /></AdminRoute>')
+    expect(route('trip/all')).toBe('<TripViewerPage />')
+    expect(app.indexOf('path="trip/all"')).toBeGreaterThan(app.indexOf('<ProtectedRoute><ActiveEmployeeGuard><AppLayout />'))
     expect(app.indexOf('path="trip"')).toBeGreaterThan(app.indexOf('<ProtectedRoute><ActiveEmployeeGuard><AppLayout />'))
   })
   it('사이드바 항목은 TRIP_FEATURE 조건 안에만 있다', () => {
     expect(sidebar).toContain("import { TRIP_FEATURE } from '../../features/trip/ui'")
     expect(sidebar).toMatch(/\{TRIP_FEATURE\.employeeForm && \(\s*<NavLink to="\/trip"/)
     expect(sidebar).toMatch(/\{TRIP_FEATURE\.adminReview && isSuperAdmin && \(\s*<NavLink to="\/admin\/trip"/)
+    // 조회 권한자 메뉴는 코드 스위치 + 서버 권한(useTripViewGrant) + admin 제외 조건 안에만
+    expect(sidebar).toMatch(/\{TRIP_FEATURE\.adminReview && tripViewGranted && !isSuperAdmin && \(\s*<NavLink to="\/trip\/all"/)
     expect(sidebar.match(/to="\/trip"/g)).toHaveLength(1)
+    expect(sidebar.match(/to="\/trip\/all"/g)).toHaveLength(1)
     expect(sidebar.match(/to="\/admin\/trip"/g)).toHaveLength(1)
   })
   it('급여명세서 관리자 메뉴는 관리자 블록 안 그대로', () => {
