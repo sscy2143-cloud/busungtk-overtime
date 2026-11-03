@@ -91,6 +91,7 @@ drop function if exists public._trip_actor_id();
 --   trip_set_feature 는 trip_feature_flags 행을 반환하므로 테이블 삭제 전에 지운다.
 -- ============================================================
 drop function if exists public.trip_set_feature(text, boolean, text);
+drop function if exists public.trip_set_view_grant(uuid, boolean, text);   -- 11-03 조회 권한
 drop function if exists public.trip_require_feature(text);
 
 -- ============================================================
@@ -106,6 +107,9 @@ drop function if exists public.trip_require_feature(text);
 -- ============================================================
 drop table if exists public.trip_feature_flag_history;
 drop table if exists public.trip_feature_flags;
+-- 11-03 조회 권한 표 — 이력 트리거가 trip_append_only() 를 쓰므로 트리거 함수보다 먼저 지운다
+drop table if exists public.trip_view_grant_history;
+drop table if exists public.trip_view_grants;
 
 -- ============================================================
 -- 010 되돌리기: 테이블 (FK 역순). 트리거·인덱스·정책은 테이블과 함께 삭제됨
@@ -142,6 +146,9 @@ drop function if exists public.trip_clock_to_min(text, boolean);
 -- 정책이 참조하던 함수 (정책은 위 테이블 삭제로 이미 사라짐)
 drop function if exists public.trip_feature_enabled(text);
 drop function if exists public.trip_can_view_all();
+drop function if exists public.trip_has_view_grant();                      -- 11-03 조회 권한
+drop function if exists public.trip_view_grant_eligible(uuid);
+drop function if exists public.trip_is_admin();
 
 -- ============================================================
 -- 확인 (읽기 전용) — commit 전에 실행

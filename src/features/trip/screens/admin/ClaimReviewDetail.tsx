@@ -27,8 +27,11 @@ function entryLines(e: DayEntry): string[] {
   return out
 }
 
-/** 관리자 검토 상세 (T4). 승인은 화면에 보인 계산 결과 id 묶음에 고정된다 */
-export function ClaimReviewDetail({ claimId, onBack }: { claimId: string; onBack: () => void }) {
+/**
+ * 관리자 검토 상세 (T4). 승인은 화면에 보인 계산 결과 id 묶음에 고정된다.
+ * readOnly(조회 권한자): 조회 전용 서비스(viewerDetail)를 쓰고 확인 표시·수정·승인·반려 조작을 그리지 않는다 — 서버도 같은 사람의 쓰기를 거부한다.
+ */
+export function ClaimReviewDetail({ claimId, onBack, readOnly = false }: { claimId: string; onBack: () => void; readOnly?: boolean }) {
   const { service, actor, employees, bump, revision } = useTrip()
   const [tab, setTab] = useState<Tab>('calc')
   const [decisions, setDecisions] = useState<FlagDecision[]>([])
@@ -37,7 +40,7 @@ export function ClaimReviewDetail({ claimId, onBack }: { claimId: string; onBack
   const [error, setError] = useState<{ code: string; message: string } | undefined>()
   const [done, setDone] = useState<string | null>(null)
 
-  const r = service.claimDetail(actor, claimId)
+  const r = readOnly ? service.viewerDetail(actor, claimId) : service.claimDetail(actor, claimId)
   if (!r.ok) {
     return <div className="mx-auto max-w-2xl space-y-3 px-4 pt-4"><ErrorBanner error={{ code: r.code, message: r.message }} /><Button kind="ghost" onClick={onBack}>목록</Button></div>
   }
@@ -46,6 +49,7 @@ export function ClaimReviewDetail({ claimId, onBack }: { claimId: string; onBack
   const computeIssue = service.computeIssue(claimId)
   const { claim } = data
   const isSubmitted = claim.status === 'submitted'
+  const canAct = isSubmitted && !readOnly
 
   const toggle = (calcId: string, code: string, on: boolean) =>
     setDecisions((d) => on ? [...d, { calcId, code, decision: 'acknowledged' }] : d.filter((x) => !(x.calcId === calcId && x.code === code)))
@@ -92,7 +96,7 @@ export function ClaimReviewDetail({ claimId, onBack }: { claimId: string; onBack
               <p className="text-xs font-semibold text-amber-900">승인 전 확인 항목</p>
               {d.items.map((it) => (
                 <label key={it.code} className="flex items-start gap-2 text-sm text-dark-800">
-                  <input type="checkbox" className="mt-1 h-5 w-5" checked={it.acknowledged} disabled={!isSubmitted} onChange={(e) => toggle(it.calcId, it.code, e.target.checked)} />
+                  <input type="checkbox" className="mt-1 h-5 w-5" checked={it.acknowledged} disabled={!canAct} onChange={(e) => toggle(it.calcId, it.code, e.target.checked)} />
                   <span>
                     <span className="font-medium">{it.title}</span>{it.undecidedRule && <span className="ml-1 text-xs text-amber-800">미확정 규칙 · 제안값</span>}
                     <span className="block text-xs text-dark-600">{it.message}</span>
@@ -101,7 +105,7 @@ export function ClaimReviewDetail({ claimId, onBack }: { claimId: string; onBack
               ))}
             </div>
           )}
-          {isSubmitted && adjusting !== d.dayId && <div className="mt-3"><Button kind="secondary" onClick={() => setAdjusting(d.dayId)}>입력값 수정</Button></div>}
+          {canAct && adjusting !== d.dayId && <div className="mt-3"><Button kind="secondary" onClick={() => setAdjusting(d.dayId)}>입력값 수정</Button></div>}
           {adjusting === d.dayId && (
             <div className="mt-3">
               <AdjustDayForm
@@ -163,7 +167,8 @@ export function ClaimReviewDetail({ claimId, onBack }: { claimId: string; onBack
         </>
       )}
 
-      {isSubmitted && (
+      {readOnly && <p className="text-xs text-dark-500">조회 전용입니다. 승인·되돌림·반려·입력 수정은 대표(admin)만 할 수 있습니다.</p>}
+      {canAct && (
         <div className="fixed inset-x-0 bottom-0 border-t border-dark-200 bg-white/95 p-3 backdrop-blur">
           <div className="mx-auto max-w-2xl space-y-2">
             <input className="h-11 w-full rounded-lg border border-dark-300 px-3 text-sm" placeholder="되돌림·반려 사유 (승인에는 선택)" value={reason} onChange={(e) => setReason(e.target.value)} />

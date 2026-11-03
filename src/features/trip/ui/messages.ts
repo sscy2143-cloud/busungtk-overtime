@@ -46,6 +46,8 @@ const KNOWN: Record<string, { title: string; action: ErrorAction; hint?: string 
   UNKNOWN_USER: { title: '사용자를 확인할 수 없습니다', action: 'login' },
   UNAUTHENTICATED: { title: '로그인이 필요합니다', action: 'login' },
   ROLE_MISMATCH: { title: '권한 정보가 서버와 다릅니다', action: 'login' },
+  VIEW_NOT_GRANTED: { title: '전체 출장 내역 조회 권한이 없습니다', action: 'none', hint: '필요하면 대표(admin)에게 조회 권한을 요청하세요' },
+  INVALID_ARGUMENT: { title: '요청 값이 올바르지 않습니다', action: 'none' },
 }
 
 export function describeError(code: string, message: string): ErrorNotice {

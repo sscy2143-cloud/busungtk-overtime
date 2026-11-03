@@ -8,9 +8,13 @@ import { ClaimReviewDetail } from './ClaimReviewDetail'
 
 const FILTERS: (ClaimStatus | 'all')[] = ['submitted', 'returned', 'approved', 'rejected', 'draft', 'cancelled', 'all']
 
-/** 관리자 출장 검토 목록 (T4). 기존 승인 화면에 탭으로 붙이는 것은 보류 — 독립 화면 */
-export function AdminTripReview() {
+/**
+ * 관리자 출장 검토 목록 (T4). 기존 승인 화면에 탭으로 붙이는 것은 보류 — 독립 화면.
+ * mode='viewer': admin 이 조회 권한을 준 직원의 읽기 전용 목록 — 상세도 읽기 전용, 열기 전 계산 갱신도 하지 않는다.
+ */
+export function AdminTripReview({ mode = 'admin' }: { mode?: 'admin' | 'viewer' } = {}) {
   const { service, actor, employees, revision, bump } = useTrip()
+  const viewer = mode === 'viewer'
   const [filter, setFilter] = useState<ClaimStatus | 'all'>('submitted')
   const [selected, setSelected] = useState<string | null>(null)
   const [opening, setOpening] = useState<string | null>(null)
@@ -19,7 +23,7 @@ export function AdminTripReview() {
    *  제출 뒤 바뀌었을 수 있다. 실패해도 상세는 연다(사유는 상세 화면의 computeIssue 안내로). */
   const open = async (claimId: string, status: ClaimStatus) => {
     if (opening) return
-    if (status === 'submitted') {
+    if (status === 'submitted' && !viewer) {
       setOpening(claimId)
       await service.compute(actor, claimId)
       setOpening(null)
@@ -28,13 +32,14 @@ export function AdminTripReview() {
     setSelected(claimId)
   }
 
+  const title = viewer ? '출장 내역 조회' : '출장 검토'
   const feature = service.featureState('adminReview')
   if (!feature.enabled) {
-    return <div className="mx-auto max-w-2xl px-4 pt-4"><Card title="출장 검토"><NoticeList items={['출장 검토 기능은 아직 열리지 않았습니다']} /></Card></div>
+    return <div className="mx-auto max-w-2xl px-4 pt-4"><Card title={title}><NoticeList items={['출장 검토 기능은 아직 열리지 않았습니다']} /></Card></div>
   }
-  if (selected) return <ClaimReviewDetail key={`${selected}-${revision}`} claimId={selected} onBack={() => setSelected(null)} />
+  if (selected) return <ClaimReviewDetail key={`${selected}-${revision}`} claimId={selected} onBack={() => setSelected(null)} readOnly={viewer} />
 
-  const q = service.reviewQueue(actor, filter === 'all' ? undefined : filter)
+  const q = viewer ? service.viewerQueue(actor, filter === 'all' ? undefined : filter) : service.reviewQueue(actor, filter === 'all' ? undefined : filter)
   if (!q.ok) return <div className="mx-auto max-w-2xl px-4 pt-4"><ErrorBanner error={{ code: q.code, message: q.message }} /></div>
 
   const rows = q.value
@@ -47,7 +52,8 @@ export function AdminTripReview() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4 px-4 pb-8 pt-4">
-      <h2 className="text-lg font-bold text-dark-900">출장 검토</h2>
+      <h2 className="text-lg font-bold text-dark-900">{title}</h2>
+      {viewer && <p className="text-xs text-dark-500">대표(admin)가 부여한 조회 권한으로 보는 읽기 전용 목록입니다. 승인·수정은 할 수 없습니다.</p>}
       <div className="flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <button key={f} type="button" onClick={() => setFilter(f)} className={`min-h-9 rounded-full px-3 text-sm ${filter === f ? 'bg-dark-900 text-white' : 'bg-dark-100 text-dark-700'}`}>
@@ -80,7 +86,7 @@ export function AdminTripReview() {
               {row.hasError && <span className="mr-2 text-red-700">입력 부족·계산 오류</span>}
               {row.reviewCount > 0 ? `확인 항목 ${row.reviewCount}건` : '확인 항목 없음'}
             </p>
-            <Button kind="secondary" onClick={() => { void open(claim.id, claim.status) }} disabled={opening !== null}>{opening === claim.id ? '계산 갱신 중…' : '검토'}</Button>
+            <Button kind="secondary" onClick={() => { void open(claim.id, claim.status) }} disabled={opening !== null}>{opening === claim.id ? '계산 갱신 중…' : viewer ? '보기' : '검토'}</Button>
           </div>
         </Card>
       ))}

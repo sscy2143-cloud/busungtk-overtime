@@ -8,8 +8,26 @@ import { reviewItems, type Actor, type GuardedTripService, type Result } from '.
 import { fail, ok } from './backend'
 import type { ComputeSummary, TripClientService } from './types'
 
-export function fromMemoryService(svc: GuardedTripService, opts: { now?: () => string } = {}): TripClientService {
+export interface MemoryClientOptions {
+  now?: () => string
+  /** 전체 조회 권한을 받은 직원 id (메모리 시험용). 비우면 아무도 없음 */
+  viewGrants?: string[]
+  /** 조회 권한자의 읽기를 대신 수행할 admin actor (메모리 서비스는 역할로만 판단하므로) */
+  adminActor?: Actor
+}
+
+export function fromMemoryService(svc: GuardedTripService, opts: MemoryClientOptions = {}): TripClientService {
   const now = opts.now ?? (() => '1970-01-01T00:00:00Z')
+  const granted = new Set(opts.viewGrants ?? [])
+  const grantMeta = new Map<string, { grantedBy: string; grantedAt: string; note: string }>()
+  for (const id of granted) grantMeta.set(id, { grantedBy: opts.adminActor?.id ?? 'admin', grantedAt: now(), note: '메모리 시험' })
+  const viewerReader = (actor: Actor): Result<Actor> => {
+    if (!svc.featureState('adminReview').enabled) return fail('FEATURE_DISABLED', '출장수당 기능이 아직 열리지 않았습니다')
+    if (actor.role === 'admin') return ok(actor)
+    if (!granted.has(actor.id)) return fail('VIEW_NOT_GRANTED', '전체 출장 내역 조회 권한이 없습니다')
+    if (!opts.adminActor) return fail('VIEW_NOT_GRANTED', '메모리 시험에 adminActor 가 없습니다')
+    return ok(opts.adminActor)
+  }
   const compute = async (actor: Actor, claimId: string): Promise<Result<ComputeSummary>> => {
     const calcs = svc.latestCalcs(actor, claimId)
     if (!calcs.ok) return calcs
@@ -40,5 +58,17 @@ export function fromMemoryService(svc: GuardedTripService, opts: { now?: () => s
     compute,
     refresh: async () => ok({ actor: null, claims: 0, at: now() }),
     computeIssue: () => undefined,
+    viewGrantState: (actor) => ({ granted: actor.role !== 'admin' && granted.has(actor.id), source: 'memory' }),
+    viewerQueue: (actor, status) => { const r = viewerReader(actor); return r.ok ? svc.reviewQueue(r.value, status) : r },
+    viewerDetail: (actor, claimId) => { const r = viewerReader(actor); return r.ok ? svc.claimDetail(r.value, claimId) : r },
+    viewGrants: (actor) => ok([...granted].filter((id) => actor.role === 'admin' || id === actor.id).map((id) => ({ employeeId: id, ...grantMeta.get(id)! }))),
+    setViewGrant: async (actor, employeeId, enabled, note) => {
+      if (actor.role !== 'admin') return fail('FORBIDDEN', '관리자만 할 수 있습니다')
+      if (!note.trim()) return fail('REASON_REQUIRED', '부여·회수 사유를 입력하세요')
+      if (employeeId === actor.id) return fail('INVALID_ARGUMENT', '본인에게는 부여할 수 없습니다')
+      const changed = enabled ? !granted.has(employeeId) : granted.has(employeeId)
+      if (enabled) { granted.add(employeeId); grantMeta.set(employeeId, { grantedBy: actor.id, grantedAt: now(), note }) } else { granted.delete(employeeId); grantMeta.delete(employeeId) }
+      return ok({ employeeId, enabled, changed })
+    },
   }
 }

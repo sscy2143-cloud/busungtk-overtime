@@ -7,7 +7,7 @@
  *  - compute: 서버 재계산 (POST /api/trip-compute). 메모리 구현은 저장 때 이미 계산하므로 결과만 돌려준다.
  */
 
-import type { Actor, GuardedTripService, Result } from '../data'
+import type { Actor, ClaimDetailData, GuardedTripService, Result, TripClaimRecord } from '../data'
 
 export type TripReadKey =
   | 'myClaims' | 'myClaim' | 'latestCalcs' | 'weeklyCheck'
@@ -33,6 +33,14 @@ export interface ComputeSummary {
   reviewCodes: Record<string, string[]>
 }
 
+/** admin 이 지정한 "전체 출장 내역 조회" 권한 (trip_view_grants 행) */
+export interface ViewGrantRecord {
+  employeeId: string
+  grantedBy: string
+  grantedAt: string
+  note: string
+}
+
 export interface SyncInfo {
   /** 세션 사용자 (서버가 아는 값) */
   actor: Actor | null
@@ -47,4 +55,16 @@ export interface TripClientService extends TripReads, TripWrites {
   refresh(): Promise<Result<SyncInfo>>
   /** 마지막 저장 뒤 서버 계산이 실패했으면 그 사유 (입력은 저장돼 있음). 없으면 undefined */
   computeIssue(claimId: string): { code: string; message: string } | undefined
+
+  // ── 전체 출장 내역 조회 권한 (admin 지정, 읽기 전용) ──
+  /** 세션 사용자에게 유효한 조회 권한이 있는가 (서버 값). admin 은 권한 없이도 전체를 본다 */
+  viewGrantState(actor: Actor): { granted: boolean; source: string }
+  /** 조회 권한자(또는 admin)의 전체 목록 — 읽기 전용. 권한이 없으면 VIEW_NOT_GRANTED */
+  viewerQueue(actor: Actor, status?: TripClaimRecord['status']): Result<TripClaimRecord[]>
+  /** 조회 권한자(또는 admin)의 한 건 상세 — 읽기 전용 */
+  viewerDetail(actor: Actor, claimId: string): Result<ClaimDetailData>
+  /** 현재 부여된 권한 목록 (admin 만. 본인 행은 누구나) */
+  viewGrants(actor: Actor): Result<ViewGrantRecord[]>
+  /** 부여·회수 (admin 만, 사유 필수). 서버 RPC trip_set_view_grant */
+  setViewGrant(actor: Actor, employeeId: string, enabled: boolean, note: string): Promise<Result<{ employeeId: string; enabled: boolean; changed: boolean }>>
 }

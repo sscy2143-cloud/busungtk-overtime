@@ -79,7 +79,7 @@ describe('기능 스위치 OFF — 서버를 부르지 않고 거부한다', () 
     expect(rpcNames(server)).toEqual([])
     expect(computeCount(server)).toBe(0)
     // 스위치가 꺼져 있으면 자료 표도 읽지 않는다
-    expect(server.calls.filter((c) => c.kind === 'select').map((c) => c.name)).toEqual(['trip_feature_flags', 'employees', 'trip_feature_flags', 'employees'])
+    expect(server.calls.filter((c) => c.kind === 'select').map((c) => c.name)).toEqual(['trip_feature_flags', 'employees', 'trip_view_grants', 'trip_feature_flags', 'employees', 'trip_view_grants'])
   })
 
   it('급여 반영 스위치는 서버가 true 를 줘도 꺼진 채다', async () => {

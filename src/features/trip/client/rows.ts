@@ -68,6 +68,13 @@ export interface ReviewRow {
   created_at: string
 }
 
+export interface ViewGrantRow {
+  employee_id: string
+  granted_by: string
+  granted_at: string
+  note: string
+}
+
 export interface FeatureFlagRow {
   key: 'employee_form' | 'admin_review' | 'payroll_apply'
   enabled: boolean
@@ -85,6 +92,11 @@ export const CALC_COLUMNS = ['id', 'seq', 'claim_id', 'day_id', 'day_revision', 
 export const ADJUSTMENT_COLUMNS = ['id', 'day_id', 'claim_id', 'admin_id', 'before_entry', 'after_entry', 'reason', 'created_at']
 export const REVIEW_COLUMNS = ['id', 'claim_id', 'admin_id', 'action', 'calc_ids', 'flag_decisions', 'reason', 'created_at']
 export const EMPLOYEE_COLUMNS = ['id', 'role', 'is_active']
+export const VIEW_GRANT_COLUMNS = ['employee_id', 'granted_by', 'granted_at', 'note']
+
+export function toViewGrant(r: ViewGrantRow): import('./types').ViewGrantRecord {
+  return { employeeId: r.employee_id, grantedBy: r.granted_by, grantedAt: r.granted_at, note: r.note ?? '' }
+}
 
 export function toClaim(r: ClaimRow): TripClaimRecord {
   return {

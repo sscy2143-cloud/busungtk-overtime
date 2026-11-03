@@ -22,11 +22,11 @@ import {
 } from '../data'
 import { fail, ok, type TripBackend } from './backend'
 import {
-  ADJUSTMENT_COLUMNS, CALC_COLUMNS, CLAIM_COLUMNS, DAY_COLUMNS, EMPLOYEE_COLUMNS, REVIEW_COLUMNS,
-  toAdjustment, toCalc, toClaim, toDay, toReview, toRole,
-  type AdjustmentRow, type CalcRow, type ClaimRow, type DayRow, type EmployeeRow, type FeatureFlagRow, type ReviewRow,
+  ADJUSTMENT_COLUMNS, CALC_COLUMNS, CLAIM_COLUMNS, DAY_COLUMNS, EMPLOYEE_COLUMNS, REVIEW_COLUMNS, VIEW_GRANT_COLUMNS,
+  toAdjustment, toCalc, toClaim, toDay, toReview, toRole, toViewGrant,
+  type AdjustmentRow, type CalcRow, type ClaimRow, type DayRow, type EmployeeRow, type FeatureFlagRow, type ReviewRow, type ViewGrantRow,
 } from './rows'
-import type { ComputeSummary, SyncInfo, TripClientService } from './types'
+import type { ComputeSummary, SyncInfo, TripClientService, ViewGrantRecord } from './types'
 
 export interface TripClientOptions {
   /** 검증된 공휴일 달력. 거울 저장소의 읽기(주간 점검 등)에 쓴다. 계산 자체는 서버가 한다 */
@@ -55,19 +55,36 @@ export function createTripClient(backend: TripBackend, opts: TripClientOptions):
   let sessionActor: Actor | null = null
   let sessionUnknown = false
   let inner: GuardedTripService = emptyService()
+  /** 조회 권한자용 읽기 전용 서비스 — 같은 거울 위에서 세션 사용자를 '관리자 읽기' 로 본다. 쓰기는 노출하지 않는다 */
+  let viewerInner: GuardedTripService = emptyService()
+  let grants: ViewGrantRecord[] = []
+  let hasGrant = false
   const issues = new Map<string, { code: string; message: string }>()
 
   function emptyService(): GuardedTripService {
-    return buildService(createMemoryRepository())
+    return buildService(createMemoryRepository(), false)
   }
 
-  function buildService(repo: ReturnType<typeof createMemoryRepository>): GuardedTripService {
+  function buildService(repo: ReturnType<typeof createMemoryRepository>, asViewer: boolean): GuardedTripService {
     const deps: ServiceDeps = { repo, calendar: opts.calendar, now, newId: (p) => `${p}-local` }
     const gate: TripAccessGate = {
       feature: (key) => ({ enabled: key === 'payrollApply' ? false : flags[key], source: flagSource }),
-      resolveActor: (userId) => (sessionActor && sessionActor.id === userId ? sessionActor : null),
+      resolveActor: (userId) => {
+        if (!sessionActor || sessionActor.id !== userId) return null
+        return asViewer ? { id: sessionActor.id, role: 'admin' } : sessionActor
+      },
     }
     return createGuardedTripService(deps, gate)
+  }
+
+  /** 전체 조회 자격: admin 이거나 서버가 준 조회 권한이 있고 검토 스위치가 켜져 있다 (서버 RLS 와 같은 조건) */
+  function admitViewer(claimed: Actor): Result<Actor> {
+    if (sessionUnknown) return fail('UNAUTHENTICATED', '로그인이 필요합니다')
+    if (!sessionActor || sessionActor.id !== claimed.id) return fail('UNKNOWN_USER', '사용자를 확인할 수 없습니다. 다시 로그인하세요')
+    if (sessionActor.role !== claimed.role) return fail('ROLE_MISMATCH', '권한 정보가 서버와 다릅니다. 다시 로그인하세요')
+    if (!flags.adminReview) return fail('FEATURE_DISABLED', '출장수당 기능이 아직 열리지 않았습니다')
+    if (sessionActor.role !== 'admin' && !hasGrant) return fail('VIEW_NOT_GRANTED', '전체 출장 내역 조회 권한이 없습니다')
+    return ok(sessionActor)
   }
 
   /** 기능 스위치 + 서버 역할 확인 (gate.admit 과 같은 코드). 서버를 부르기 전에 거른다 */
@@ -108,9 +125,16 @@ export function createTripClient(backend: TripBackend, opts: TripClientOptions):
       return fail('UNKNOWN_USER', '직원 정보가 없습니다')
     }
 
+    // 조회 권한 (RLS: 본인 행 + admin 전체). 스위치와 무관하게 읽는다 — 메뉴 표시용
+    const grantRows = await backend.select<ViewGrantRow>('trip_view_grants', { columns: VIEW_GRANT_COLUMNS, order: 'granted_at.asc' })
+    if (!grantRows.ok) return grantRows
+    grants = grantRows.value.map(toViewGrant)
+    hasGrant = sessionActor.role !== 'admin' && grants.some((g) => g.employeeId === uid)
+
     // 어느 화면 스위치도 꺼져 있으면 읽을 것이 없다 (RLS 도 0행을 준다)
     if (!flags.employeeForm && !flags.adminReview) {
       inner = emptyService()
+      viewerInner = emptyService()
       return ok({ actor: sessionActor, claims: 0, at: now() })
     }
 
@@ -137,7 +161,8 @@ export function createTripClient(backend: TripBackend, opts: TripClientOptions):
     const dayIds = new Set(snapshot.days.map((d) => d.id))
     snapshot.calcs = snapshot.calcs.filter((c) => dayIds.has(c.dayId))
 
-    inner = buildService(createMemoryRepository(snapshot))
+    inner = buildService(createMemoryRepository(snapshot), false)
+    viewerInner = buildService(createMemoryRepository(snapshot), true)
     return ok({ actor: sessionActor, claims: ids.length, at: now() })
   }
 
@@ -277,6 +302,36 @@ export function createTripClient(backend: TripBackend, opts: TripClientOptions):
     return resync(() => ok(v))
   }
 
+  // ── 전체 조회 권한 (읽기 전용) ──
+  const asAdminReader = (a: Actor): Actor => ({ id: a.id, role: 'admin' })
+  const viewerQueue: TripClientService['viewerQueue'] = (actor, status) => {
+    const a = admitViewer(actor)
+    if (!a.ok) return a
+    return a.value.role === 'admin' ? inner.reviewQueue(a.value, status) : viewerInner.reviewQueue(asAdminReader(a.value), status)
+  }
+  const viewerDetail: TripClientService['viewerDetail'] = (actor, claimId) => {
+    const a = admitViewer(actor)
+    if (!a.ok) return a
+    return a.value.role === 'admin' ? inner.claimDetail(a.value, claimId) : viewerInner.claimDetail(asAdminReader(a.value), claimId)
+  }
+  const viewGrantsRead: TripClientService['viewGrants'] = (actor) => {
+    if (sessionUnknown) return fail('UNAUTHENTICATED', '로그인이 필요합니다')
+    if (!sessionActor || sessionActor.id !== actor.id) return fail('UNKNOWN_USER', '사용자를 확인할 수 없습니다. 다시 로그인하세요')
+    if (sessionActor.role !== actor.role) return fail('ROLE_MISMATCH', '권한 정보가 서버와 다릅니다. 다시 로그인하세요')
+    return ok(sessionActor.role === 'admin' ? grants : grants.filter((g) => g.employeeId === sessionActor!.id))
+  }
+  const setViewGrant: TripClientService['setViewGrant'] = async (actor, employeeId, enabled, note) => {
+    if (sessionUnknown) return fail('UNAUTHENTICATED', '로그인이 필요합니다')
+    if (!sessionActor || sessionActor.id !== actor.id) return fail('UNKNOWN_USER', '사용자를 확인할 수 없습니다. 다시 로그인하세요')
+    if (sessionActor.role !== actor.role) return fail('ROLE_MISMATCH', '권한 정보가 서버와 다릅니다. 다시 로그인하세요')
+    if (sessionActor.role !== 'admin') return fail('FORBIDDEN', '관리자만 할 수 있습니다')
+    if (!note.trim()) return fail('REASON_REQUIRED', '부여·회수 사유를 입력하세요')
+    const r = await backend.rpc<{ employeeId: string; enabled: boolean; changed: boolean }>('trip_set_view_grant', { p_employee_id: employeeId, p_enabled: enabled, p_note: note })
+    if (!r.ok) return r
+    const v = r.value
+    return resync(() => ok(v))
+  }
+
   // ── 읽기: 거울 저장소 위의 GuardedTripService 에 위임 ──
   const reads = {
     myClaims: (actor: Actor) => inner.myClaims(actor),
@@ -295,5 +350,7 @@ export function createTripClient(backend: TripBackend, opts: TripClientOptions):
     createClaim, updateDraft, submit, cancel, inviteCompanions, adminAdjustDay, review,
     compute, refresh,
     computeIssue: (claimId) => issues.get(claimId),
+    viewGrantState: (actor) => ({ granted: !!sessionActor && sessionActor.id === actor.id && hasGrant, source: flagSource }),
+    viewerQueue, viewerDetail, viewGrants: viewGrantsRead, setViewGrant,
   }
 }
