@@ -425,7 +425,8 @@ export function AdminEmployeeManagementPage() {
       }).eq('id', empId)
 
       if (updateError) {
-        setSaveError('저장 실패: ' + updateError.message)
+        // 005 트리거(D10): 회사 직급은 대표만 바꿀 수 있다 — 인사담당 화면은 선택을 막지만 서버가 최종 거부한다
+        setSaveError(updateError.message.includes('POSITION_ADMIN_ONLY') ? '저장 실패: 회사 직급은 대표(admin)만 바꿀 수 있습니다' : '저장 실패: ' + updateError.message)
         return
       }
 
