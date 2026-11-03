@@ -1,0 +1,65 @@
+/**
+ * 통합 불변식 — 기존 앱 파일을 문자열로 읽어 확인한다.
+ *  1) 급여명세서 최소 핫픽스(9f9fd1f)가 그대로인지
+ *  2) 기존 급여·야근 라우트와 게이트가 바뀌지 않았는지
+ *  3) 출장 라우트·메뉴가 코드 스위치 뒤에 있는지
+ * 글루 밖의 기존 파일은 건드리지 않는 것이 원칙이므로, 여기 적힌 것 외의 변경은 코드 리뷰에서 잡는다.
+ */
+import { describe, expect, it } from 'vitest'
+import app from '../App.tsx?raw'
+import sidebar from '../components/layout/Sidebar.tsx?raw'
+import dashboard from '../pages/DashboardPage.tsx?raw'
+
+const route = (path: string) => (app.match(new RegExp(`<Route path="${path}" element=\\{(.*)\\} />`)) || [])[1] ?? ''
+const code = (s: string) => s.replace(/\{\/\*[\s\S]*?\*\/\}/g, '').replace(/^\s*\/\/.*$/gm, '')
+
+describe('급여명세서 최소 핫픽스 유지', () => {
+  it('/payslips 는 대시보드 리다이렉트, PayslipListPage 는 import 되지 않는다', () => {
+    expect(route('payslips')).toBe('<Navigate to="/" replace />')
+    expect(code(app)).not.toMatch(/import .*PayslipListPage/)
+  })
+  it('직원 대시보드에 급여명세서 조회·카드가 없다', () => {
+    const src = code(dashboard)
+    expect(src).not.toMatch(/from\(['"]payslips['"]\)/)
+    expect(src).not.toMatch(/navigate\(['"]\/payslips['"]\)/)
+    expect(src).not.toContain('data-tour="payslips"')
+  })
+})
+
+describe('기존 급여·야근 라우트 원형 유지', () => {
+  it.each([
+    ['admin/payslips', '<AdminRoute><SecondAuthGate><PayPasswordGate><AdminPayslipPage /></PayPasswordGate></SecondAuthGate></AdminRoute>'],
+    ['admin/payroll', '<AdminRoute><SecondAuthGate><PayPasswordGate><AdminPayrollPage /></PayPasswordGate></SecondAuthGate></AdminRoute>'],
+    ['admin/overtime/pay', '<AdminRoute><SecondAuthGate><PayPasswordGate><AdminOvertimePayPage /></PayPasswordGate></SecondAuthGate></AdminRoute>'],
+    ['admin/overtime/leave-pay', '<AdminRoute><SecondAuthGate><PayPasswordGate><AdminLeavePayPage /></PayPasswordGate></SecondAuthGate></AdminRoute>'],
+    ['admin/approvals', '<AdminRoute><AdminApprovalsPage /></AdminRoute>'],
+    ['request', '<RequestPage />'],
+    ['requests', '<RequestListPage />'],
+  ])('%s', (path, element) => {
+    expect(route(path)).toBe(element)
+  })
+  it('급여 재인증·권한관리 코드(secpatch·master 미커밋)는 포함되지 않았다', () => {
+    expect(app).not.toContain('PayrollReauthGate')
+    expect(app).not.toContain('RequirePermission')
+    expect(app).not.toContain('adminPermissions')
+  })
+})
+
+describe('출장 라우트·메뉴는 코드 스위치 뒤에 있다', () => {
+  it('라우트 2개: 직원은 로그인 영역, 관리자는 AdminRoute 안', () => {
+    expect(route('trip')).toBe('<TripEmployeePage />')
+    expect(route('admin/trip')).toBe('<AdminRoute><AdminTripPage /></AdminRoute>')
+    expect(app.indexOf('path="trip"')).toBeGreaterThan(app.indexOf('<ProtectedRoute><ActiveEmployeeGuard><AppLayout />'))
+  })
+  it('사이드바 항목은 TRIP_FEATURE 조건 안에만 있다', () => {
+    expect(sidebar).toContain("import { TRIP_FEATURE } from '../../features/trip/ui'")
+    expect(sidebar).toMatch(/\{TRIP_FEATURE\.employeeForm && \(\s*<NavLink to="\/trip"/)
+    expect(sidebar).toMatch(/\{TRIP_FEATURE\.adminReview && isSuperAdmin && \(\s*<NavLink to="\/admin\/trip"/)
+    expect(sidebar.match(/to="\/trip"/g)).toHaveLength(1)
+    expect(sidebar.match(/to="\/admin\/trip"/g)).toHaveLength(1)
+  })
+  it('급여명세서 관리자 메뉴는 관리자 블록 안 그대로', () => {
+    expect(sidebar.indexOf('to="/admin/payslips"')).toBeGreaterThan(sidebar.indexOf('{isAdmin && ('))
+    expect(sidebar).not.toContain('to="/payslips"')
+  })
+})

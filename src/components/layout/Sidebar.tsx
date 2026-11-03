@@ -22,9 +22,11 @@ import {
   RefreshCw,
   PanelLeftClose,
   PanelLeftOpen,
+  Plane,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useUnseenCounts } from '../../hooks/useUnseenCounts'
+import { TRIP_FEATURE } from '../../features/trip/ui'
 
 interface NavItem {
   to: string
@@ -146,6 +148,13 @@ const superAdminNav: NavItem[] = []
                 <FilePlus size={16} />
                 연장근무 신청
               </NavLink>
+              {/* 출장 신청 — 코드 스위치가 켜진 뒤에만 보인다 (메뉴 숨김은 차단이 아니다. 차단은 서버 스위치가 한다) */}
+              {TRIP_FEATURE.employeeForm && (
+                <NavLink to="/trip" className={subNavLinkClass}>
+                  <Plane size={16} />
+                  출장 신청
+                </NavLink>
+              )}
             </div>
           )}
         </div>
@@ -221,6 +230,12 @@ const superAdminNav: NavItem[] = []
                     <Clock size={16} />
                     대시보드
                   </NavLink>
+                  {TRIP_FEATURE.adminReview && isSuperAdmin && (
+                    <NavLink to="/admin/trip" className={subNavLinkClass}>
+                      <Plane size={16} />
+                      출장 검토
+                    </NavLink>
+                  )}
                   <NavLink to="/admin/approvals" className={subNavLinkClass}>
                     <CheckSquare size={16} />
                     승인 관리
