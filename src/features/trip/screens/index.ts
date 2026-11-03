@@ -3,6 +3,7 @@
  * 띄우려면 TripScreenProvider 로 감싸고 EmployeeTripScreen / AdminTripReview 를 넣는다.
  */
 export { TripScreenProvider, type TripScreenProviderProps } from './TripScreenProvider'
+export { TripRemoteProvider, type TripRemoteProviderProps } from './TripRemoteProvider'
 export { useTrip, type EmployeeOption, type TripScreenContext } from './context'
 export { EmployeeTripScreen, WorkRequestEntry } from './EmployeeTripScreen'
 export { TripClaimForm } from './TripClaimForm'

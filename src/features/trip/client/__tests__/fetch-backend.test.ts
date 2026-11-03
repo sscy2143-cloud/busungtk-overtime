@@ -45,7 +45,7 @@ describe('요청 모양', () => {
   it('모든 호출에 anon apikey + 사용자 Bearer 를 싣고, 토큰이 없으면 부르지 않는다', async () => {
     const { f, calls } = fakeFetch(() => ({ status: 200, body: [] }))
     const token = jwt('user-1')
-    const be = createFetchBackend({ supabaseUrl: BASE + '/', anonKey: 'anon-key', getAccessToken: async () => token, fetchImpl: f })
+    const be = createFetchBackend({ baseUrl: BASE + '/', anonKey: 'anon-key', getAccessToken: async () => token, fetchImpl: f })
     expect(await be.sessionUserId()).toBe('user-1')
     expect(await be.select('trip_claims', { columns: ['id'] })).toEqual({ ok: true, value: [] })
     const h = calls[0].init.headers as Record<string, string>
@@ -53,7 +53,7 @@ describe('요청 모양', () => {
     expect(h.Authorization).toBe(`Bearer ${token}`)
     expect(calls[0].url).toBe(`${BASE}/rest/v1/trip_claims?select=id`)
 
-    const none = createFetchBackend({ supabaseUrl: BASE, anonKey: 'anon-key', getAccessToken: async () => null, fetchImpl: f })
+    const none = createFetchBackend({ baseUrl: BASE, anonKey: 'anon-key', getAccessToken: async () => null, fetchImpl: f })
     expect(await none.sessionUserId()).toBeNull()
     expect(await none.rpc('trip_submit', {})).toMatchObject({ ok: false, code: 'UNAUTHENTICATED' })
     expect(calls).toHaveLength(1)
@@ -63,7 +63,7 @@ describe('요청 모양', () => {
     const { f, calls } = fakeFetch((url) => url.endsWith('/rpc/trip_submit')
       ? { status: 409, body: { code: 'P0001', message: 'CALC_STALE_OR_UNTRUSTED', details: '다시 계산한 뒤 제출하세요' } }
       : { status: 200, body: { id: 'c1', version: 1 } })
-    const be = createFetchBackend({ supabaseUrl: BASE, anonKey: 'k', getAccessToken: async () => jwt('u'), fetchImpl: f })
+    const be = createFetchBackend({ baseUrl: BASE, anonKey: 'k', getAccessToken: async () => jwt('u'), fetchImpl: f })
     expect(await be.rpc('trip_create_claim', { p_header: { regions: ['대전'] }, p_entries: [] })).toEqual({ ok: true, value: { id: 'c1', version: 1 } })
     expect(JSON.parse(calls[0].init.body as string)).toEqual({ p_header: { regions: ['대전'] }, p_entries: [] })
     expect(await be.rpc('trip_submit', { p_claim_id: 'c1', p_expected_version: 1 })).toEqual({ ok: false, code: 'CALC_STALE_OR_UNTRUSTED', message: '다시 계산한 뒤 제출하세요' })
@@ -73,7 +73,7 @@ describe('요청 모양', () => {
     const { f, calls } = fakeFetch((url) => url === '/api/trip-compute'
       ? { status: 200, body: { ok: true, claimId: 'c1', ruleVersion: 'v', calcIds: { d1: 'k1' }, reviewCodes: { d1: [] } } }
       : { status: 500 })
-    const be = createFetchBackend({ supabaseUrl: BASE, anonKey: 'k', getAccessToken: async () => jwt('u'), fetchImpl: f })
+    const be = createFetchBackend({ baseUrl: BASE, anonKey: 'k', getAccessToken: async () => jwt('u'), fetchImpl: f })
     expect(await be.compute('c1')).toEqual({ ok: true, value: { claimId: 'c1', ruleVersion: 'v', calcIds: { d1: 'k1' }, reviewCodes: { d1: [] } } })
     expect(JSON.parse(calls[0].init.body as string)).toEqual({ claimId: 'c1' })
     const h = calls[0].init.headers as Record<string, string>
@@ -83,13 +83,13 @@ describe('요청 모양', () => {
 
   it('compute 실패 응답은 코드 그대로, 본문이 JSON 이 아니면 STORE_FAILED, 연결 실패는 NETWORK', async () => {
     const { f } = fakeFetch(() => ({ status: 403, body: { ok: false, code: 'FEATURE_DISABLED', message: '아직' } }))
-    const be = createFetchBackend({ supabaseUrl: BASE, anonKey: 'k', getAccessToken: async () => jwt('u'), fetchImpl: f })
+    const be = createFetchBackend({ baseUrl: BASE, anonKey: 'k', getAccessToken: async () => jwt('u'), fetchImpl: f })
     expect(await be.compute('c1')).toEqual({ ok: false, code: 'FEATURE_DISABLED', message: '아직' })
 
-    const broken = createFetchBackend({ supabaseUrl: BASE, anonKey: 'k', getAccessToken: async () => jwt('u'), fetchImpl: (async () => new Response('<html>', { status: 502 })) as unknown as typeof fetch })
+    const broken = createFetchBackend({ baseUrl: BASE, anonKey: 'k', getAccessToken: async () => jwt('u'), fetchImpl: (async () => new Response('<html>', { status: 502 })) as unknown as typeof fetch })
     expect(await broken.compute('c1')).toMatchObject({ ok: false, code: 'STORE_FAILED' })
 
-    const down = createFetchBackend({ supabaseUrl: BASE, anonKey: 'k', getAccessToken: async () => jwt('u'), fetchImpl: (async () => { throw new TypeError('fetch failed') }) as unknown as typeof fetch })
+    const down = createFetchBackend({ baseUrl: BASE, anonKey: 'k', getAccessToken: async () => jwt('u'), fetchImpl: (async () => { throw new TypeError('fetch failed') }) as unknown as typeof fetch })
     expect(await down.select('trip_claims')).toMatchObject({ ok: false, code: 'NETWORK' })
     expect(await down.compute('c1')).toMatchObject({ ok: false, code: 'NETWORK' })
   })

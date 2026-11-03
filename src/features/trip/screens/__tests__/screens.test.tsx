@@ -4,7 +4,7 @@ import {
   createMemoryRepository, createTripService, type Actor, type HolidayCalendar, type ServiceDeps, type TripRepository,
 } from '../../data'
 import { MON, TEST_CALENDAR, TUE, alice, bob, boss, dayHeader, siteEntry, stayHeader, unwrap } from '../../data/__tests__/fixtures'
-import { AdminTripReview, ClaimReviewDetail, EmployeeTripScreen, MyTripClaims, TripClaimForm, TripScreenProvider, WorkRequestEntry } from '..'
+import { AdminTripReview, ClaimReviewDetail, EmployeeTripScreen, MyTripClaims, TripClaimForm, TripRemoteProvider, TripScreenProvider, WorkRequestEntry } from '..'
 
 const EMPLOYEES = [
   { id: alice.id, name: '김직원', role: 'employee' as const },
@@ -132,5 +132,23 @@ describe('관리자 화면', () => {
     const { repo, submitted } = seeded({ holidays: new Set(), verified: false, source: 'none' })
     const html = render(<ClaimReviewDetail claimId={submitted.id} onBack={() => {}} />, { actor: boss, repo, flags: { adminReview: true } })
     expect(html).toContain('공휴일 달력 미검증')
+  })
+})
+
+describe('원격 제공자 (T7 글루)', () => {
+  it('첫 동기화가 끝나기 전에는 안내만 보여 주고 서버를 부르지 않는다 (정적 렌더에서는 효과가 돌지 않는다)', () => {
+    let fetched = 0
+    const html = renderToStaticMarkup(
+      <TripRemoteProvider
+        baseUrl="https://example.invalid" anonKey="anon"
+        getAccessToken={async () => { fetched++; return null }}
+        actor={alice} employees={EMPLOYEES} today={MON} calendar={TEST_CALENDAR}
+      >
+        <EmployeeTripScreen />
+      </TripRemoteProvider>,
+    )
+    expect(html).toContain('불러오는 중')
+    expect(html).not.toContain('근무 신청')
+    expect(fetched).toBe(0)
   })
 })

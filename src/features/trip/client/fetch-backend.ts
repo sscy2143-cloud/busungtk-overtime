@@ -14,8 +14,8 @@ import type { Result } from '../data'
 import { fail, ok, type SelectQuery, type TripBackend } from './backend'
 
 export interface FetchBackendOptions {
-  /** 예: https://<ref>.supabase.co */
-  supabaseUrl: string
+  /** DB REST 기본 주소. 예: https://<ref>.supabase.co */
+  baseUrl: string
   anonKey: string
   /** 현재 세션의 access_token. 없으면 null */
   getAccessToken: () => Promise<string | null>
@@ -56,7 +56,7 @@ export function buildSelectUrl(base: string, table: string, q: SelectQuery = {})
 
 export function createFetchBackend(o: FetchBackendOptions): TripBackend {
   const f = o.fetchImpl ?? fetch
-  const base = o.supabaseUrl.replace(/\/+$/, '')
+  const base = o.baseUrl.replace(/\/+$/, '')
   const computeUrl = o.computeUrl ?? '/api/trip-compute'
 
   async function headers(): Promise<Result<Record<string, string>>> {
