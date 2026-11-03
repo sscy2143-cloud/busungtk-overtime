@@ -31,7 +31,6 @@ import { AdminCompLeavePage } from './pages/AdminCompLeavePage'
 import { AdminLeaveBalancePage } from './pages/AdminLeaveBalancePage'
 import { AdminPayslipPage } from './pages/AdminPayslipPage'
 import { AdminNoticePage } from './pages/AdminNoticePage'
-import { PayslipListPage } from './pages/PayslipListPage'
 import { NoticeListPage } from './pages/NoticeListPage'
 import { UserGuidePage } from './pages/UserGuidePage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -78,7 +77,11 @@ export default function App() {
           <Route path="leave/request" element={<LeaveRequestPage />} />
           <Route path="notifications" element={<NotificationsPage />} />
           <Route path="expenses" element={<ExpensePage />} />
-          <Route path="payslips" element={<PayslipListPage />} />
+          {/* 직원용 급여명세서 화면은 열지 않는다 (2026-11-03 핫픽스).
+              직접 주소 입력·새로고침·뒤로가기 모두 대시보드로 보낸다.
+              PayslipListPage 를 import 하지 않으므로 그 조회 코드는 번들에 들어가지 않는다.
+              관리자 급여명세서(admin/payslips)는 그대로다. */}
+          <Route path="payslips" element={<Navigate to="/" replace />} />
           <Route path="notices" element={<NoticeListPage />} />
           <Route path="guide" element={<UserGuidePage />} />
           <Route path="settings" element={<SettingsPage />} />

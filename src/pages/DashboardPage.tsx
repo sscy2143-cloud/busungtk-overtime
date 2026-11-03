@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FilePlus, CalendarPlus, Clock, Download, X, Eye, Lock, ShieldCheck, Bell, HelpCircle, ChevronRight, TrendingUp, Calendar, Briefcase } from 'lucide-react'
+// Download·X·Eye·Lock·ShieldCheck 는 급여명세서 카드·팝업에서만 쓰던 아이콘이라 함께 뺐다.
+import { FilePlus, CalendarPlus, Clock, Bell, HelpCircle, ChevronRight, TrendingUp, Calendar, Briefcase } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { StatusBadge } from '../components/common/StatusBadge'
@@ -51,7 +52,8 @@ function WeeklyGauge({ hours, max }: { hours: number; max: number }) {
 }
 
 export function DashboardPage() {
-  const { employee, user } = useAuth()
+  // user 는 급여명세서 본인확인(이메일 대조)에만 쓰던 값이라 함께 뺐다.
+  const { employee } = useAuth()
   const navigate = useNavigate()
   const isAdmin = employee?.role === 'manager' || employee?.role === 'admin'
 
@@ -61,12 +63,8 @@ export function DashboardPage() {
   const [recentRequests, setRecentRequests] = useState<{ id: string; kind: 'overtime' | 'leave'; type: OvertimeType | LeaveType; date: string; status: RequestStatus; created_at: string }[]>([])
   const [leave, setLeave] = useState({ total: 0, used: 0, remaining: 0 })
   const [notices, setNotices] = useState<{ id: string; title: string; category: string; created_at: string }[]>([])
-  const [payslips, setPayslips] = useState<{ id: string; period: string; file_path: string; file_name: string; message: string | null; work_start: string | null; work_end: string | null }[]>([])
-  const [payslipModal, setPayslipModal] = useState<{ slip: typeof payslips[number]; signedUrl: string } | null>(null)
-  const [payslipVerified, setPayslipVerified] = useState(false)
-  const [payslipVerifyModal, setPayslipVerifyModal] = useState<typeof payslips[number] | null>(null)
-  const [verifyEmail, setVerifyEmail] = useState('')
-  const [verifyError, setVerifyError] = useState('')
+  // 급여명세서 상태(payslips·모달·본인확인)는 제거했다.
+  // 이 화면은 더 이상 명세서를 다루지 않는다.
   const [unconfirmedExpenses, setUnconfirmedExpenses] = useState<{ id: string; amount: number; paid_at: string }[]>([])
   const [showConfirmAlert, setShowConfirmAlert] = useState(false)
 
@@ -137,13 +135,9 @@ export function DashboardPage() {
         setLeave({ total: bal.total_days, used: bal.used_days, remaining: bal.remaining_days })
       }
 
-      const { data: slipData } = await supabase
-        .from('payslips')
-        .select('id, period, file_path, file_name, message, work_start, work_end')
-        .eq('employee_id', employee!.id)
-        .order('period', { ascending: false })
-        .limit(12)
-      if (slipData) setPayslips(slipData)
+      // 급여명세서는 조회하지 않는다 (2026-11-03 핫픽스).
+      // 화면에서 감추는 것만으로는 부족하다 — 응답이 오면 네트워크 탭에 남는다.
+      // 그래서 요청 자체를 보내지 않는다. 서버(RLS) 쪽 차단은 별도 범위다.
 
       const { data: noticeData } = await supabase
         .from('notices')
@@ -403,117 +397,13 @@ export function DashboardPage() {
           )}
         </div>
 
-        {/* 급여명세서 */}
-        <div data-tour="payslips" className="bg-white rounded-2xl border border-dark-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-dark-50">
-            <h2 className="text-sm font-bold text-dark-700">급여명세서</h2>
-            {payslips.length > 0 && (
-              <button onClick={() => navigate('/payslips')} className="text-xs font-medium text-primary-500 hover:text-primary-600 transition-colors">
-                전체보기
-              </button>
-            )}
-          </div>
-          {payslips.length === 0 ? (
-            <p className="text-sm text-dark-300 text-center py-10">등록된 급여명세서가 없습니다.</p>
-          ) : (
-            <ul>
-              {payslips.slice(0, 3).map((slip, i) => {
-                const [y, m] = slip.period.split('-')
-                return (
-                  <li key={slip.id} className={`flex items-center justify-between px-6 py-3.5 hover:bg-dark-50/50 transition-colors ${i < Math.min(payslips.length, 3) - 1 ? 'border-b border-dark-50' : ''}`}>
-                    <div>
-                      <p className="text-sm font-semibold text-dark-800">{y}년 {parseInt(m)}월</p>
-                      <p className="text-xs text-dark-400 mt-0.5">{slip.file_name}</p>
-                    </div>
-                    <button
-                      onClick={async () => {
-                        if (!payslipVerified) {
-                          setPayslipVerifyModal(slip)
-                          return
-                        }
-                        const { data } = await supabase.storage.from('payslips').createSignedUrl(slip.file_path, 300)
-                        if (data?.signedUrl) setPayslipModal({ slip, signedUrl: data.signedUrl })
-                      }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-primary-500 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
-                    >
-                      <Eye size={12} />
-                      보기
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </div>
+        {/* 급여명세서 카드는 제거했다 (2026-11-03 핫픽스).
+            공용 PC·공용계정 환경이라, 로그인만 되어 있으면 남의 명세서가 열리는 상태가 된다.
+            그래서 근태 시스템 안에서는 직원에게 명세서를 보여주지 않는다.
+            위의 조회도 함께 지웠으므로 이 화면은 payslips 를 서버에 요청하지 않는다. */}
       </div>
 
-      {/* ── 급여명세서 상세 팝업 ── */}
-      {payslipModal && (() => {
-        const { slip, signedUrl } = payslipModal
-        const [y, m] = slip.period.split('-')
-        const isPdf = slip.file_name.toLowerCase().endsWith('.pdf')
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setPayslipModal(null)} />
-            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-              <div className="flex items-center justify-between px-6 py-4 border-b border-dark-100">
-                <h3 className="text-base font-bold text-dark-900">급여명세서 상세</h3>
-                <button onClick={() => setPayslipModal(null)} className="p-1.5 hover:bg-dark-100 rounded-lg transition-colors">
-                  <X size={18} className="text-dark-400" />
-                </button>
-              </div>
-
-              <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
-                <div className="w-full md:w-72 flex-shrink-0 p-6 border-b md:border-b-0 md:border-r border-dark-100 space-y-4 overflow-y-auto">
-                  <div>
-                    <p className="text-xs font-medium text-dark-400 mb-1">지급월</p>
-                    <p className="text-lg font-bold text-dark-900">{y}년 {parseInt(m)}월</p>
-                  </div>
-                  {slip.work_start && slip.work_end && (
-                    <div>
-                      <p className="text-xs font-medium text-dark-400 mb-1">실근로일</p>
-                      <p className="text-sm text-dark-700">{slip.work_start} ~ {slip.work_end}</p>
-                    </div>
-                  )}
-                  <div>
-                    <p className="text-xs font-medium text-dark-400 mb-1">파일명</p>
-                    <p className="text-sm text-dark-700">{slip.file_name}</p>
-                  </div>
-                  {slip.message && (
-                    <div>
-                      <p className="text-xs font-medium text-dark-400 mb-1">전달 문구</p>
-                      <p className="text-sm text-primary-700 bg-primary-50 rounded-lg p-3">{slip.message}</p>
-                    </div>
-                  )}
-                  <button
-                    onClick={() => window.open(signedUrl, '_blank', 'noopener,noreferrer')}
-                    className="flex items-center justify-center gap-2 w-full py-2.5 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-500 transition-colors"
-                  >
-                    <Download size={14} />
-                    다운로드
-                  </button>
-                </div>
-
-                <div className="flex-1 bg-dark-50 flex items-center justify-center p-4 min-h-[400px]">
-                  {isPdf ? (
-                    <iframe
-                      src={signedUrl}
-                      className="w-full h-full min-h-[500px] rounded-lg border border-dark-200"
-                      title="PDF 미리보기"
-                    />
-                  ) : (
-                    <img
-                      src={signedUrl}
-                      alt="급여명세서"
-                      className="max-w-full max-h-[70vh] rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.04)] object-contain"
-                    />
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )
-      })()}
+      {/* 급여명세서 상세 팝업 제거 — 위와 같은 이유. */}
 
       {/* ── 경비 수령확인 알림 팝업 ── */}
       {showConfirmAlert && (
@@ -548,58 +438,7 @@ export function DashboardPage() {
         </div>
       )}
 
-      {/* ── 급여명세서 본인 확인 팝업 ── */}
-      {payslipVerifyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => { setPayslipVerifyModal(null); setVerifyEmail(''); setVerifyError('') }} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8 text-center">
-            <div className="flex justify-center mb-5">
-              <div className="w-16 h-16 bg-dark-100 rounded-2xl flex items-center justify-center">
-                <Lock size={28} className="text-dark-600" />
-              </div>
-            </div>
-            <h3 className="text-lg font-bold text-dark-900 mb-1">본인 확인</h3>
-            <p className="text-sm text-dark-400 mb-6">
-              급여명세서 열람을 위해<br />로그인 이메일을 입력해주세요.
-            </p>
-            <form onSubmit={async (e) => {
-              e.preventDefault()
-              const userEmail = user?.email?.toLowerCase().trim()
-              if (!userEmail) return
-              if (verifyEmail.toLowerCase().trim() === userEmail) {
-                setPayslipVerified(true)
-                setVerifyError('')
-                const slip = payslipVerifyModal
-                setPayslipVerifyModal(null)
-                setVerifyEmail('')
-                const { data } = await supabase.storage.from('payslips').createSignedUrl(slip.file_path, 300)
-                if (data?.signedUrl) setPayslipModal({ slip, signedUrl: data.signedUrl })
-              } else {
-                setVerifyError('이메일이 일치하지 않습니다.')
-              }
-            }} className="space-y-3">
-              <input
-                type="email"
-                value={verifyEmail}
-                onChange={e => { setVerifyEmail(e.target.value); setVerifyError('') }}
-                placeholder="example@gmail.com"
-                className="w-full px-4 py-3 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400 text-center"
-                autoFocus
-              />
-              {verifyError && (
-                <p className="text-xs text-danger-500 font-medium">{verifyError}</p>
-              )}
-              <button
-                type="submit"
-                className="w-full flex items-center justify-center gap-2 py-3 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-500 transition-colors"
-              >
-                <ShieldCheck size={16} />
-                확인
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* 급여명세서 본인확인 팝업 제거 — 카드가 없어져 도달할 수 없다. */}
     </div>
   )
 }
