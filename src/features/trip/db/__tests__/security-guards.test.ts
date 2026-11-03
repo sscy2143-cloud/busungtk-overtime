@@ -303,6 +303,54 @@ describe('B. 006 — 트랜잭션 ROLLBACK 가능, 단독 적용으로 role 경�
   })
 })
 
+describe('E. D13 — payslips 관리자 정책: 009 로 비활성 manager 차단, 활성 관리자·본인 조회 유지 (금액 없음, 행 수만)', () => {
+  const payslipRows = (uid: string) => countAs(uid, 'select id from public.payslips')
+  it('재현(007 적용 상태에서도): 비활성 manager 세션이 급여명세서 전체를 읽고 지울 수 있다', async () => {
+    await exec(sql('007_active_admin_functions.sql'))
+    await asUser(null)
+    await exec(`insert into public.payslips (employee_id, period, file_path, file_name) values ('${ALICE}', '2026-10', 'p/a', 'a.pdf'), ('${MGR}', '2026-10', 'p/m', 'm.pdf') on conflict do nothing`)
+    expect(await payslipRows(GONE_MGR)).toBe(2)                                             // 비활성 manager: 전체
+    expect(await restRun(GONE_MGR, `delete from public.payslips where employee_id = '${MGR}'`)).toBe('OK')
+    expect(Number((await one<{ n: string }>('select count(*)::text as n from public.payslips')).n)).toBe(1)   // 실제로 지워졌다
+    await asUser(null)
+    await exec(`insert into public.payslips (employee_id, period, file_path, file_name) values ('${MGR}', '2026-10', 'p/m', 'm.pdf')`)
+    expect(await payslipRows(ALICE)).toBe(1)                                                // 직원: 본인만
+    expect(await payslipRows(MGR)).toBe(2)
+    expect(await payslipRows(BOSS)).toBe(2)
+  })
+  it('009 적용: 비활성 manager 0행·삭제 0행, 활성 인사담당·대표 전체, 직원 본인만 (정책 2개 유지)', async () => {
+    await exec(sql('009_payslips_active_staff_policy.sql'))
+    expect(await payslipRows(GONE_MGR)).toBe(0)
+    expect(await payslipRows(GONE_ADM)).toBe(0)
+    expect(await restRun(GONE_MGR, 'delete from public.payslips')).toBe('OK')               // 오류 없이 0행
+    expect(Number((await one<{ n: string }>('select count(*)::text as n from public.payslips')).n)).toBe(2)
+    expect(await payslipRows(ALICE)).toBe(1)
+    expect(await payslipRows(MGR)).toBe(2)
+    expect(await payslipRows(BOSS)).toBe(2)
+    expect(await restRun(MGR, "update public.payslips set file_name = 'x.pdf' where period = '2026-10'")).toBe('OK')
+    expect(Number((await one<{ n: string }>("select count(*)::text as n from public.payslips where file_name = 'x.pdf'")).n)).toBe(2)   // 활성 인사담당 쓰기 유지
+    const pol = await rows<{ policyname: string; qual: string }>("select policyname, qual from pg_policies where tablename = 'payslips' order by 1")
+    expect(pol.map((p) => p.policyname)).toEqual(['admin_manage_payslips', 'employees_see_own_payslips'])
+    expect(pol[0].qual).toBe('is_manager_or_admin()')
+    expect(pol[1].qual).toBe('(employee_id = auth.uid())')                                  // 본인 조회 정책은 그대로
+    // 재실행은 그대로 통과(멱등), 907 로 007 을 되돌리면 사전 점검이 막는다
+    await exec(sql('009_payslips_active_staff_policy.sql'))
+    await exec(sql('907_rollback_active_admin_functions.sql'))
+    expect(await codeOf(exec(sql('009_payslips_active_staff_policy.sql')))).toBe('PRECONDITION_CHANGED')
+    await exec('rollback')
+    await exec(sql('007_active_admin_functions.sql'))
+  })
+  it('909: 원래 정책으로 복원되면 비활성 manager 접근이 다시 열린다 (되돌리기 동작 확인) → 009 재적용', async () => {
+    await exec(sql('909_rollback_payslips_policy.sql'))
+    expect(await payslipRows(GONE_MGR)).toBe(2)
+    await exec(sql('009_payslips_active_staff_policy.sql'))
+    expect(await payslipRows(GONE_MGR)).toBe(0)
+    await asUser(null)
+    await exec('delete from public.payslips')
+    await exec(sql('907_rollback_active_admin_functions.sql'))   // 이후 섹션(C)은 007 미적용 상태를 전제로 한다
+  })
+})
+
 describe('C. 007 — 관리자 판정 함수에 is_active', () => {
   it('적용 후 비활성 인사담당은 0행, 비활성 admin 의 RPC 는 Unauthorized, 활성 계정은 그대로', async () => {
     await exec(sql('007_active_admin_functions.sql'))

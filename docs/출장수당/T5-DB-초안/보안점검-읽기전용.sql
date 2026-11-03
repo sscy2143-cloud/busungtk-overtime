@@ -196,6 +196,26 @@ select
 union all
 
 select
+  'S-8 payslips policies + storage',
+  jsonb_build_object(
+    'payslips_policies', (
+      select coalesce(jsonb_agg(jsonb_build_object('name', policyname, 'cmd', cmd, 'qual', qual, 'with_check', with_check) order by policyname), '[]'::jsonb)
+      from pg_policies where schemaname = 'public' and tablename = 'payslips'
+    ),
+    'payslips_rls', (select relrowsecurity from pg_class where oid = to_regclass('public.payslips')),
+    'storage_objects_policies', (
+      select coalesce(jsonb_agg(jsonb_build_object('name', policyname, 'cmd', cmd, 'qual', qual, 'with_check', with_check) order by policyname), '[]'::jsonb)
+      from pg_policies where schemaname = 'storage' and tablename = 'objects'
+    ),
+    'buckets', (
+      select coalesce(jsonb_agg(jsonb_build_object('id', id, 'public', public) order by id), '[]'::jsonb)
+      from storage.buckets
+    )
+  )
+
+union all
+
+select
   'S-7 default privileges (public schema)',
   (
     select coalesce(
