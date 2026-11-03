@@ -1,7 +1,7 @@
 # 출장수당 전산 도입 — 인수인계
 
-- 최초 작성 2026-10-29 · 개정 2026-10-30 · **개정 2026-11-02 (개발 현황 반영)**
-- 상태: **T0~T4 개발 완료(메모리 저장소) · T5 DB 초안 작성 · 운영 미연결 · 기능 OFF · 노무 검토 대기**
+- 최초 작성 2026-10-29 · 개정 2026-10-30 · 개정 2026-11-02 · **개정 2026-11-03 (T6 연결 계층 완료)**
+- 상태: **T0~T6 로컬 개발 완료 · T5 DB 초안(미실행) · 운영 미연결 · 기능 OFF · 노무 검토 대기 · T7 통합 계획 작성(`T7-통합계획.md`)**
 - 범위: 인정시간 산정과 화면·데이터·승인 설계 및 구현 (금액·단가 제외)
 - 이전 판 백업: `HANDOFF.2026-10-30.backup.md` (같은 폴더)
 - 도입 목표일: **2026-11-09(월)** 준비. 그날 자동 도입이 아니며, 직원 공지 후 사용자가 "출장수당 도입해줘"라고 명시 승인하기 전까지 기능 OFF 유지
@@ -36,7 +36,7 @@
 | T2-보강 2차 | `computeClaimDays` 분리, 넘어온 작업 대조, 같은 날 다른 신청, 실제 도착 다음 날, 숙박 상한, 동시성·흐름 테스트, 샌드박스 | 1.5·3·4 | 완료 | 아래 git log 참조 |
 | T5 | DB 테이블·RLS·RPC·기능 플래그·롤백 **SQL 초안 v2 (서버 재계산)** `docs/출장수당/T5-DB-초안/`. v1(클라이언트 계산)은 `T5-DB-초안_v1_클라이언트계산_백업/`. TS↔SQL 계약은 `T5-DB-초안/계약-서버계산.md` | 2 | 초안 (실행 안 함) | `79b2660` → v2는 이후 docs 커밋 |
 | T5-서버 | `server/trip-compute.ts`(핵심 로직, 테스트 17건) + `api/trip-compute.ts`(Vercel 핸들러) + 저장소 잠금·정합성 | 2 | 코드 완료, **배포 안 함** | `232bc1d` |
-| T6 | 실제 Supabase 연결 (RPC 구현체로 `GuardedTripService` 교체) | 2 | 미착수 — Supabase 재개·승인 후 | — |
+| T6 | 실제 연결 계층 `client/` — RPC·RLS 조회·서버 계산 호출을 묶은 `TripClientService`(거울 저장소), fetch 백엔드, 화면의 쓰기 비동기화. 테스트 40건(가짜 서버·fetch) | 2 | **코드 완료(11-03)** — 실제 DB 호출은 T5 적용 후 | 11-03 커밋 |
 | T7 | 기존 앱 연결 (라우트·사이드바·승인 화면 탭) | 3·4 | **보류** (master 미커밋분과 충돌 위험, 4절·10절 참조) | — |
 | T8 | 정산·마감·명세서 | 5 | 미착수 | — |
 | T9 | 시범 운영·수기 병행 | 6 | 미착수 | — |
@@ -49,6 +49,16 @@
 - 본문의 계산 결과·규칙 버전·지역·역할은 읽지 않는다(테스트로 고정). DB 활성 규칙 버전 ≠ 서버 번들 `RULE_VERSION` 이면 거부.
 - 계산-저장 경쟁(함수가 입력을 읽은 뒤 저장 전에 입력이 바뀌는 경우)은 저장 RPC 에 신청 version·근무일 revision 을 같이 보내 `VERSION_CONFLICT` 로 막는다 (계약 2-2 검사 7·8).
 - 아직 안 한 것: Vercel 배포, RPC 기반 클라이언트 어댑터(T6), 실제 DB 시험, 관리자 검토 화면을 열 때 계산 1회 호출(외부 조건 변경 반영). 순서는 `운영적용_필요사항.md`.
+
+**11-03 T6 — 실제 연결 계층 (`src/features/trip/client/`)**
+- `TripClientService`(`client/types.ts`): 화면이 쓰는 서비스 모양. **읽기는 동기, 쓰기는 비동기.** 메모리 구현(`fromMemoryService`)과 원격 구현(`createTripClient`)이 같은 모양이라 화면·테스트는 그대로 쓴다.
+- `createTripClient(backend, {calendar})`: `refresh()` 가 `trip_feature_flags`·`employees`(본인 행)·`trip_claims`·`trip_claim_days`·`trip_day_calcs`·`trip_adjustments`·`trip_reviews` 를 RLS 로 읽어 **거울 저장소**(`createMemoryRepository(snapshot)`)에 담고, 그 위에서 기존 `createGuardedTripService` 로 읽는다(읽기 규칙을 두 벌 만들지 않음). 쓰기는 040 RPC 를 입력 원본만으로 부르고(`trip_create_claim`·`trip_update_draft`·`trip_submit`·`trip_cancel`·`trip_invite_companions`·`trip_admin_adjust_day`·`trip_review`), 저장·수정 뒤 `POST /api/trip-compute` 를 불러 서버 계산을 만든 다음 거울을 갱신한다. 제출이 `CALC_STALE_OR_UNTRUSTED` 면 한 번 재계산 후 재시도. 계산 실패는 `computeIssue(claimId)` 로 남고 입력은 보존된다.
+- 스위치·역할: 서버 값(`trip_feature_flags`, `employees.role`)만 믿는다. 꺼져 있으면 RPC·계산을 부르지 않고 `FEATURE_DISABLED`, 세션 사용자와 다른 actor 는 `UNKNOWN_USER`/`ROLE_MISMATCH`, 미로그인은 `UNAUTHENTICATED`. `payrollApply` 는 서버가 true 를 줘도 false. manager 는 직원으로 취급(api/trip-compute 와 동일).
+- `createFetchBackend({supabaseUrl, anonKey, getAccessToken})`: PostgREST(`/rest/v1/<table>`, `/rest/v1/rpc/<fn>`)와 `/api/trip-compute` 를 fetch 로. 모든 요청에 사용자 JWT(Bearer). RPC 의 `raise exception '<코드>' using detail` → `Result.code/message`. service_role 키는 어디에도 없다.
+- 화면 변경: `TripScreenProvider` 가 `TripClientService` 를 주입(`service` prop 에 원격 클라이언트를 넣고 `refresh()` 를 먼저 끝낼 것). `TripClaimForm`(저장·제출·취소, 요청 중 버튼 잠금) · `MyTripClaims` · `CompanionInvite` · `AdjustDayForm` · `ClaimReviewDetail` 의 쓰기가 `await`.
+- 테스트: `client/__tests__/` — 가짜 서버(`fake-backend.ts`, 메모리 서비스로 040 규칙 흉내)로 범위·스위치·인증·역할·version/revision 충돌·재계산 재시도·중복 날짜·같은 날 야근·승인 고정·동기화 실패 36건 + fetch 백엔드(URL·헤더·오류 매핑·compute 본문) 8건 + 메모리 어댑터 2건. 독립성 테스트에 `client/` 추가(supabase-js·react·브라우저 저장소 금지, fetch 는 `fetch-backend.ts` 만).
+- 운영 DB 대조(11-03, anon 읽기 전용): `trip_*`·`holidays` 표와 `trip_*` RPC 전부 **없음**(T5 미적용 확인, `holidays` 이름 충돌 없음). `overtime_requests(date, planned_start, planned_end, status)`·`employees(id, role, is_active)` 칼럼 존재.
+- 아직 안 한 것: 기존 앱의 세션 토큰을 `getAccessToken` 으로 넘기는 T7 글루(`src/features/trip` 밖), 실제 DB 를 상대로 한 통합 시험(빈 DB 시험 환경 필요), 관리자 상세를 열 때 계산 1회 호출.
 
 **11-02 보강 (T2-보강 2차)**
 - `data/compute.ts`: `computeClaimDays` — 저장소에 기대지 않는 신청 단위 계산(다음 날 연결, 전날에서 넘어온 작업 대조 `CARRY_IN_NOT_ENTERED/OVERLAP/GAP`, 같은 날 다른 신청 `OTHER_REQUEST_SAME_DAY`). 메모리 서비스와 향후 서버 계산 함수가 같은 코드를 쓴다
