@@ -10,9 +10,23 @@ const FILTERS: (ClaimStatus | 'all')[] = ['submitted', 'returned', 'approved', '
 
 /** 관리자 출장 검토 목록 (T4). 기존 승인 화면에 탭으로 붙이는 것은 보류 — 독립 화면 */
 export function AdminTripReview() {
-  const { service, actor, employees, revision } = useTrip()
+  const { service, actor, employees, revision, bump } = useTrip()
   const [filter, setFilter] = useState<ClaimStatus | 'all'>('submitted')
   const [selected, setSelected] = useState<string | null>(null)
+  const [opening, setOpening] = useState<string | null>(null)
+
+  /** 상세를 열기 전에 제출된 건은 서버 계산을 한 번 갱신한다 — 공휴일 검증·같은 날 야근 같은 외부 조건이
+   *  제출 뒤 바뀌었을 수 있다. 실패해도 상세는 연다(사유는 상세 화면의 computeIssue 안내로). */
+  const open = async (claimId: string, status: ClaimStatus) => {
+    if (opening) return
+    if (status === 'submitted') {
+      setOpening(claimId)
+      await service.compute(actor, claimId)
+      setOpening(null)
+      bump()
+    }
+    setSelected(claimId)
+  }
 
   const feature = service.featureState('adminReview')
   if (!feature.enabled) {
@@ -66,7 +80,7 @@ export function AdminTripReview() {
               {row.hasError && <span className="mr-2 text-red-700">입력 부족·계산 오류</span>}
               {row.reviewCount > 0 ? `확인 항목 ${row.reviewCount}건` : '확인 항목 없음'}
             </p>
-            <Button kind="secondary" onClick={() => setSelected(claim.id)}>검토</Button>
+            <Button kind="secondary" onClick={() => { void open(claim.id, claim.status) }} disabled={opening !== null}>{opening === claim.id ? '계산 갱신 중…' : '검토'}</Button>
           </div>
         </Card>
       ))}

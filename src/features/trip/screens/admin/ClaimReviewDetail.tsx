@@ -43,6 +43,7 @@ export function ClaimReviewDetail({ claimId, onBack }: { claimId: string; onBack
   }
   const data = r.value
   const view = buildClaimDetail(data, decisions)
+  const computeIssue = service.computeIssue(claimId)
   const { claim } = data
   const isSubmitted = claim.status === 'submitted'
 
@@ -71,6 +72,7 @@ export function ClaimReviewDetail({ claimId, onBack }: { claimId: string; onBack
 
       <ErrorBanner error={error} onAction={(a) => a === 'reload' && (setDecisions([]), setError(undefined), bump())} onDismiss={() => setError(undefined)} />
       {done && <NoticeList items={[done]} />}
+      {computeIssue && <NoticeList tone="warn" items={[`서버 계산을 갱신하지 못했습니다 (${computeIssue.code}): ${computeIssue.message}. 화면의 계산 결과는 마지막으로 저장된 값입니다`]} />}
       {view.warnings.length > 0 && <NoticeList tone="warn" items={view.warnings} />}
       {view.proposedNote && <NoticeList tone="warn" items={[view.proposedNote]} />}
 
