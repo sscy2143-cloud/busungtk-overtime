@@ -6,8 +6,7 @@
 -- 기존 테이블 무영향
 --   - 010~040 은 기존 테이블에 칼럼·제약·트리거·정책을 추가하지 않았다.
 --     따라서 이 롤백은 trip_* 객체와 holidays 만 지운다.
---   - 기존 함수 update_updated_at_column(), is_manager_or_admin(), is_admin(), get_my_role(),
---     has_admin_permission() 은 출장 객체가 "사용"만 했으므로 지우지 않는다.
+--   - 기존 함수 is_admin(), get_my_role() 등은 출장 객체가 쓰지 않는다 (11-03 부터 update_updated_at_column·is_manager_or_admin 의존도 제거). 지우는 것은 trip_* 와 holidays 뿐.
 --   - cascade 를 쓰지 않는다. 예상하지 못한 의존 객체(다른 기능이 출장 테이블을 참조 등)가 있으면
 --     조용히 같이 지우지 않고 오류로 멈추게 하기 위함이다.
 --
@@ -21,6 +20,10 @@
 --   - trip_day_calcs 의 수정·삭제 금지 트리거는 DROP TABLE 을 막지 않는다 (DELETE/TRUNCATE 만 막음).
 --
 -- 사용: begin; \i 900_rollback.sql; (아래 확인 쿼리 결과 점검) commit;   — 문제가 있으면 rollback;
+--
+-- 자료 보호 (11-03): trip_claims 에 행이 하나라도 있으면 ROLLBACK_BLOCKED_DATA_EXISTS 로 멈춘다.
+--   내보내기(CSV·pg_dump)를 마친 뒤 같은 세션에서  select set_config('trip.confirm_drop', 'yes', false);  를 실행하고 다시 돌린다.
+--   운영에서 "기능을 끄는 것" 은 이 파일이 아니라 trip_set_feature(…, false) 다 — 표·자료는 그대로 두고 화면·RPC·조회가 전부 막힌다.
 -- ============================================================
 
 -- ------------------------------------------------------------
@@ -47,6 +50,17 @@
 -- ============================================================
 --   v2(서버 재계산) 시그니처. v1 의 _trip_store_calc / _trip_apply_calcs 는 040 에서 삭제되어 여기서도 뺐다.
 --   (v1 은 어떤 DB 에도 적용된 적 없음. v1 롤백은 ../T5-DB-초안_v1_클라이언트계산_백업/900_rollback.sql)
+do $$
+begin
+  if to_regclass('public.trip_claims') is not null
+     and exists (select 1 from public.trip_claims)
+     and coalesce(current_setting('trip.confirm_drop', true), '') <> 'yes' then
+    raise exception 'ROLLBACK_BLOCKED_DATA_EXISTS'
+      using detail = '출장 신청 자료가 있습니다. 내보내기를 마친 뒤 set_config(''trip.confirm_drop'', ''yes'', false) 로 확인하고 다시 실행하세요';
+  end if;
+end
+$$;
+
 drop function if exists public.trip_review(uuid, text, uuid[], jsonb, text);
 drop function if exists public.trip_admin_adjust_day(uuid, uuid, integer, jsonb, text);
 drop function if exists public.trip_invite_companions(uuid, uuid[]);
@@ -122,6 +136,7 @@ drop function if exists public.trip_claims_sync_day_status();
 drop function if exists public.trip_claim_days_lock_guard();   -- v2
 drop function if exists public.trip_claim_days_before_insert();
 drop function if exists public.trip_rule_versions_guard();
+drop function if exists public.trip_touch_updated_at();         -- 11-03
 drop function if exists public.trip_clock_to_min(text, boolean);
 
 -- 정책이 참조하던 함수 (정책은 위 테이블 삭제로 이미 사라짐)

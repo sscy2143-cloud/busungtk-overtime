@@ -112,12 +112,18 @@ describe('1. 적용 — 010 → 020 → 030 → 040', () => {
     for (const f of ['trip_create_claim', 'trip_update_draft', 'trip_submit', 'trip_cancel', 'trip_invite_companions', 'trip_admin_adjust_day', 'trip_review', 'trip_store_server_calcs', 'trip_active_rule_version', 'trip_feature_enabled', 'trip_set_feature']) expect(fns).toContain(f)
     const policies = (await rows<{ policyname: string }>("select policyname from pg_policies where schemaname = 'public' and (tablename like 'trip\\_%' or tablename = 'holidays')")).map((x) => x.policyname)
     expect(policies.length).toBe(19)   // 030 의 정책 수. 바뀌면 030 과 같이 고친다
-    expect(policies).toEqual(expect.arrayContaining(['trip_claims_select_self', 'trip_claims_select_manager', 'trip_day_calcs_select_self', 'trip_day_calcs_select_manager', 'holidays_select_authenticated']))
+    expect(policies).toEqual(expect.arrayContaining(['trip_claims_select_self', 'trip_claims_select_admin', 'trip_day_calcs_select_self', 'trip_day_calcs_select_admin', 'holidays_select_authenticated']))
     // 쓰기 정책은 하나도 없다 — 쓰기는 전부 SECURITY DEFINER RPC 로만
     const writes = await one<{ n: string }>("select count(*)::text as n from pg_policies where schemaname = 'public' and tablename like 'trip\\_%' and cmd <> 'SELECT'")
     expect(writes.n).toBe('0')
     const triggers = (await rows<{ tgname: string }>("select tgname from pg_trigger where not tgisinternal and tgname like 'trip%' order by tgname")).map((x) => x.tgname)
-    expect(triggers).toEqual(expect.arrayContaining(['trip_day_calcs_no_update', 'trip_day_calcs_no_delete', 'trip_reviews_calc_guard']))
+    expect(triggers).toEqual(expect.arrayContaining(['trip_day_calcs_no_update', 'trip_day_calcs_no_delete', 'trip_reviews_calc_guard', 'trip_claims_updated_at']))
+    // 기존 운영 함수에 기대지 않는다 (11-03): 출장 표의 트리거 함수는 전부 trip_*, 관리자 판정은 is_manager_or_admin 을 쓰지 않는다
+    const deps = await rows<{ proname: string }>("select distinct p.proname from pg_trigger t join pg_proc p on p.oid = t.tgfoid join pg_class c on c.oid = t.tgrelid where not t.tgisinternal and c.relnamespace = 'public'::regnamespace and (c.relname like 'trip\\_%' or c.relname = 'holidays')")
+    expect(deps.length).toBeGreaterThan(0)
+    expect(deps.every((d) => d.proname.startsWith('trip_'))).toBe(true)
+    const viewAll = await one<{ src: string }>("select pg_get_functiondef('public.trip_can_view_all()'::regprocedure) as src")
+    expect(viewAll.src).not.toContain('is_manager_or_admin')
   })
 
   it('활성 규칙 버전 = 서버 번들 RULE_VERSION, 지역 코드가 엔진과 맞는다', async () => {
@@ -387,24 +393,29 @@ describe('5. 관리자 흐름 — 수정·재계산·승인 고정', () => {
   })
 })
 
-describe('6. RLS — 직원은 본인 건, manager·admin 은 전부, 스위치 OFF 면 0행', () => {
+describe('6. RLS — 직원·manager 는 본인 건, admin 만 전부, 스위치 OFF 면 0행', () => {
   const countAs = async (uid: string, table: string) => {
     await asUser(uid)
     await exec('set role authenticated')
     try { return Number((await one<{ n: string }>(`select count(*)::text as n from public.${table}`)).n) } finally { await exec('reset role') }
   }
 
-  it('본인 건만 / 관리자는 전부', async () => {
+  it('직원·manager 는 본인 건만 / admin 은 전부 (REST 직접 조회로 남의 기록이 보이지 않는다)', async () => {
     const all = Number((await one<{ n: string }>('select count(*)::text as n from public.trip_claims')).n)
     const alice = Number((await one<{ n: string }>('select count(*)::text as n from public.trip_claims where employee_id = $1', [ALICE])).n)
     expect(all).toBeGreaterThan(alice)
     expect(await countAs(ALICE, 'trip_claims')).toBe(alice)
     expect(await countAs(BOB, 'trip_claims')).toBeLessThan(all)
-    expect(await countAs(MGR, 'trip_claims')).toBe(all)
+    expect(await countAs(MGR, 'trip_claims')).toBe(0)          // manager 는 본인 건만 — 신청이 없으니 0
     expect(await countAs(BOSS, 'trip_claims')).toBe(all)
     expect(await countAs(ALICE, 'trip_day_calcs')).toBeGreaterThan(0)
     expect(await countAs(BOB, 'trip_adjustments')).toBe(0)
-    expect(await countAs(MGR, 'trip_adjustments')).toBe(1)
+    expect(await countAs(MGR, 'trip_adjustments')).toBe(0)
+    expect(await countAs(MGR, 'trip_day_calcs')).toBe(0)
+    expect(await countAs(MGR, 'trip_reviews')).toBe(0)
+    expect(await countAs(MGR, 'trip_feature_flag_history')).toBe(0)
+    expect(await countAs(BOSS, 'trip_adjustments')).toBe(1)
+    expect(await countAs(BOSS, 'trip_feature_flag_history')).toBeGreaterThan(0)
   })
 
   it('anon 은 아무것도 못 본다', async () => {
@@ -432,8 +443,16 @@ describe('6. RLS — 직원은 본인 건, manager·admin 은 전부, 스위치 
 })
 
 describe('7. 900 롤백 → 재적용', () => {
+  it('자료가 있으면 명시 확인 없이는 롤백이 멈춘다 (ROLLBACK_BLOCKED_DATA_EXISTS)', async () => {
+    expect(Number((await one<{ n: string }>('select count(*)::text as n from public.trip_claims')).n)).toBeGreaterThan(0)
+    expect(await codeOf(exec(sql('900_rollback.sql')))).toBe('ROLLBACK_BLOCKED_DATA_EXISTS')
+    expect((await one<{ v: string }>('select public.trip_active_rule_version() as v')).v).toBe(RULE_VERSION)   // 아무것도 지워지지 않았다
+  })
+
   it('롤백하면 trip_* 객체와 holidays 가 전부 사라지고 shim(기존 운영 객체)은 남는다', async () => {
+    await exec("select set_config('trip.confirm_drop', 'yes', false)")
     await exec(sql('900_rollback.sql'))
+    await exec("select set_config('trip.confirm_drop', '', false)")
     const left = await rows<{ kind: string; name: string }>(`
       select 'table' as kind, relname as name from pg_class where relnamespace = 'public'::regnamespace and relkind in ('r','v','S') and (relname like 'trip%' or relname = 'holidays')
       union all select 'function', proname from pg_proc where pronamespace = 'public'::regnamespace and (proname like 'trip%' or proname like '\\_trip%')

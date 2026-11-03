@@ -24,6 +24,18 @@
 -- 0. 보조 함수: 'HH:MM' + 다음날 여부 → 근무일 0시 기준 분
 --    types.ts ClockTime('HH:MM', 00:00~24:00), TimeRangeInput.startNextDay/endNextDay
 -- ------------------------------------------------------------
+-- updated_at 자동 갱신 트리거 함수 (11-03: 기존 update_updated_at_column() 에 의존하지 않도록 출장 전용으로 둔다. 900 에서 제거)
+create or replace function public.trip_touch_updated_at()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
 create or replace function public.trip_clock_to_min(p_clock text, p_next_day boolean default false)
 returns integer
 language plpgsql immutable
@@ -222,7 +234,7 @@ create table public.holidays (
 
 create trigger holidays_updated_at
   before update on public.holidays
-  for each row execute function update_updated_at_column();
+  for each row execute function public.trip_touch_updated_at();
 
 -- ============================================================
 -- 4. trip_claims — 출장 1건 (직원 1명). types.ts TripClaimRecord
@@ -276,10 +288,10 @@ create index idx_trip_claims_group    on public.trip_claims(group_id);
 create index idx_trip_claims_status   on public.trip_claims(status);
 create index idx_trip_claims_dates    on public.trip_claims(start_date, end_date);
 
--- updated_at 은 RPC 가 명시적으로 넣지만, 누락 방지용으로 기존 공통 트리거 함수를 재사용한다.
+-- updated_at 은 RPC 가 명시적으로 넣지만, 누락 방지용 트리거를 둔다 (함수는 파일 앞부분의 trip_touch_updated_at).
 create trigger trip_claims_updated_at
   before update on public.trip_claims
-  for each row execute function update_updated_at_column();
+  for each row execute function public.trip_touch_updated_at();
 
 -- ============================================================
 -- 5. trip_claim_days — 근무일별 입력. types.ts TripDayRecord
@@ -336,7 +348,7 @@ create index idx_trip_claim_days_claim on public.trip_claim_days(claim_id);
 
 create trigger trip_claim_days_updated_at
   before update on public.trip_claim_days
-  for each row execute function update_updated_at_column();
+  for each row execute function public.trip_touch_updated_at();
 
 -- 근무일 INSERT 시: 직원 일치 검사 + claim_status 를 신청 상태에서 복사
 create or replace function public.trip_claim_days_before_insert()
