@@ -49,8 +49,8 @@ export function ClaimReviewDetail({ claimId, onBack }: { claimId: string; onBack
   const toggle = (calcId: string, code: string, on: boolean) =>
     setDecisions((d) => on ? [...d, { calcId, code, decision: 'acknowledged' }] : d.filter((x) => !(x.calcId === calcId && x.code === code)))
 
-  const act = (action: 'approve' | 'reject' | 'return') => {
-    const x = service.review(actor, claimId, { action, expectedCalcIds: view.expectedCalcIds, flagDecisions: decisions, ...(reason.trim() ? { reason } : {}) })
+  const act = async (action: 'approve' | 'reject' | 'return') => {
+    const x = await service.review(actor, claimId, { action, expectedCalcIds: view.expectedCalcIds, flagDecisions: decisions, ...(reason.trim() ? { reason } : {}) })
     if (!x.ok) { setError({ code: x.code, message: x.message }); return }
     setError(undefined)
     setDone(action === 'approve' ? '승인했습니다. 승인은 지금 화면의 계산 결과에 묶였습니다' : action === 'return' ? '직원에게 되돌렸습니다' : '반려했습니다')

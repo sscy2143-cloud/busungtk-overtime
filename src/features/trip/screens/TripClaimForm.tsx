@@ -32,6 +32,8 @@ export function TripClaimForm({ claimId, onSubmitted, onBack }: Props) {
     return formReducer(initialFormState(today), { type: 'loaded', claim: r.value.claim, entries: r.value.days.map((d) => d.entry) })
   })
   const [submittedNote, setSubmittedNote] = useState<string | null>(null)
+  /** 서버 요청 중 — 같은 버튼을 두 번 누르지 못하게 */
+  const [busy, setBusy] = useState(false)
 
   const computed = previewDays(state, calendar)
   const blockers = submitBlockers(state, computed)
@@ -46,28 +48,35 @@ export function TripClaimForm({ claimId, onSubmitted, onBack }: Props) {
     else dispatch({ type: 'failed', code: r.code, message: r.message })
   }
 
-  const save = () => {
-    const r = state.saved
-      ? service.updateDraft(actor, state.saved.id, state.saved.version, { header: state.header, entries: state.entries })
-      : service.createClaim(actor, { header: state.header, entries: state.entries })
-    if (r.ok) { dispatch({ type: 'saved', claim: r.value }); bump() } else dispatch({ type: 'failed', code: r.code, message: r.message })
+  /** 서버 쓰기 한 번 — 요청 중에는 다른 쓰기를 막는다 */
+  const run = async (op: () => Promise<{ ok: true; value: import('../data').TripClaimRecord } | { ok: false; code: string; message: string }>, after?: () => void) => {
+    if (busy) return
+    setBusy(true)
+    try {
+      const r = await op()
+      if (r.ok) { dispatch({ type: 'saved', claim: r.value }); bump(); after?.() } else dispatch({ type: 'failed', code: r.code, message: r.message })
+    } finally {
+      setBusy(false)
+    }
   }
+
+  const save = () => run(() => state.saved
+    ? service.updateDraft(actor, state.saved.id, state.saved.version, { header: state.header, entries: state.entries })
+    : service.createClaim(actor, { header: state.header, entries: state.entries }))
 
   const submit = () => {
     if (!state.saved) return
-    const r = service.submit(actor, state.saved.id, state.saved.version)
-    if (r.ok) {
-      dispatch({ type: 'saved', claim: r.value })
+    const saved = state.saved
+    void run(() => service.submit(actor, saved.id, saved.version), () => {
       setSubmittedNote('제출했습니다. 관리자가 검토한 뒤 승인·되돌림·반려 중 하나로 답합니다')
-      bump()
       onSubmitted?.()
-    } else dispatch({ type: 'failed', code: r.code, message: r.message })
+    })
   }
 
   const cancel = () => {
     if (!state.saved) return
-    const r = service.cancel(actor, state.saved.id, state.saved.version)
-    if (r.ok) { dispatch({ type: 'saved', claim: r.value }); bump() } else dispatch({ type: 'failed', code: r.code, message: r.message })
+    const saved = state.saved
+    void run(() => service.cancel(actor, saved.id, saved.version))
   }
 
   const setSchedule = (s: Schedule) => dispatch({ type: 'setSchedule', schedule: s })
@@ -148,9 +157,9 @@ export function TripClaimForm({ claimId, onSubmitted, onBack }: Props) {
             <p className="text-xs text-dark-500">{blockers.join(' · ')}</p>
           )}
           <div className="flex gap-2">
-            {editable && <Button kind="secondary" onClick={save} disabled={state.saved ? !state.dirty : false}>{state.saved ? '저장' : '저장하고 계속'}</Button>}
-            {editable && <Button onClick={submit} disabled={blockers.length > 0}>제출</Button>}
-            {state.saved && ['draft', 'submitted', 'returned'].includes(state.saved.status) && <Button kind="danger" onClick={cancel}>신청 취소</Button>}
+            {editable && <Button kind="secondary" onClick={save} disabled={busy || (state.saved ? !state.dirty : false)}>{state.saved ? '저장' : '저장하고 계속'}</Button>}
+            {editable && <Button onClick={submit} disabled={busy || blockers.length > 0}>제출</Button>}
+            {state.saved && ['draft', 'submitted', 'returned'].includes(state.saved.status) && <Button kind="danger" onClick={cancel} disabled={busy}>신청 취소</Button>}
           </div>
         </div>
       </div>

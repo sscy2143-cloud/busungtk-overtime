@@ -53,13 +53,33 @@ function deepFreeze<T>(v: T): T {
   return v
 }
 
-export function createMemoryRepository(): TripRepository {
+/**
+ * 서버에서 읽어 온 기록 묶음 (T6 클라이언트의 거울 저장소 초기값).
+ * 서버(RLS·RPC)가 이미 규칙을 강제한 자료이므로 쓰기 검사 없이 그대로 담는다. 계산 결과는 seq(저장 순) 오름차순이어야 한다.
+ */
+export interface RepositorySnapshot {
+  claims: TripClaimRecord[]
+  days: TripDayRecord[]
+  calcs: TripCalcRecord[]
+  adjustments: TripAdjustmentRecord[]
+  reviews: TripReviewRecord[]
+}
+
+export function createMemoryRepository(seed?: RepositorySnapshot): TripRepository {
   const claims = new Map<string, TripClaimRecord>()
   const days = new Map<string, TripDayRecord>()
   const calcs = new Map<string, TripCalcRecord>()
   const calcOrder: string[] = []
   const adjustments: TripAdjustmentRecord[] = []
   const reviews: TripReviewRecord[] = []
+
+  if (seed) {
+    for (const c of seed.claims) claims.set(c.id, clone(c))
+    for (const d of seed.days) days.set(d.id, clone(d))
+    for (const c of seed.calcs) { calcs.set(c.id, deepFreeze(clone(c))); calcOrder.push(c.id) }
+    for (const a of seed.adjustments) adjustments.push(clone(a))
+    for (const r of seed.reviews) reviews.push(clone(r))
+  }
 
   const isActive = (claimId: string) => {
     const c = claims.get(claimId)

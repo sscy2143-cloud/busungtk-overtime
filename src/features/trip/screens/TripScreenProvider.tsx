@@ -1,8 +1,9 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import {
   createGuardedTripService, createMemoryRepository, createStaticGate, NO_CALENDAR,
-  type Actor, type FeatureKey, type GuardedTripService, type HolidayCalendar, type IsoDate, type ServiceDeps, type TripRepository,
+  type Actor, type FeatureKey, type HolidayCalendar, type IsoDate, type ServiceDeps, type TripRepository,
 } from '../data'
+import { fromMemoryService, type TripClientService } from '../client'
 import { TripContext, type EmployeeOption } from './context'
 
 export interface TripScreenProviderProps {
@@ -15,8 +16,8 @@ export interface TripScreenProviderProps {
   flags?: Partial<Record<FeatureKey, boolean>>
   /** 테스트·시연에서 같은 저장소를 여러 화면이 공유할 때 */
   repo?: TripRepository
-  /** 실제 연결용: 서비스를 직접 주입하면 메모리 저장소를 만들지 않는다 */
-  service?: GuardedTripService
+  /** 실제 연결용(T6): createTripClient 로 만든 서비스를 넣으면 메모리 저장소를 만들지 않는다. 먼저 refresh() 를 끝내 둘 것 */
+  service?: TripClientService
   children: ReactNode
 }
 
@@ -40,7 +41,7 @@ export function TripScreenProvider(props: TripScreenProviderProps) {
   const { actor, employees, today, calendar = NO_CALENDAR, flags = NO_FLAGS, repo, service, children } = props
   const [revision, setRevision] = useState(0)
 
-  const svc = useMemo<GuardedTripService>(() => {
+  const svc = useMemo<TripClientService>(() => {
     if (service) return service
     let seq = 0
     let tick = 0
@@ -51,7 +52,7 @@ export function TripScreenProvider(props: TripScreenProviderProps) {
       newId: (prefix) => `${prefix}-${++seq}`,
     }
     const directory = Object.fromEntries(employees.map((e) => [e.id, e.role]))
-    return createGuardedTripService(deps, createStaticGate(flags, directory))
+    return fromMemoryService(createGuardedTripService(deps, createStaticGate(flags, directory)), { now: deps.now })
   }, [service, repo, calendar, today, flags, employees])
 
   const value = useMemo(() => ({

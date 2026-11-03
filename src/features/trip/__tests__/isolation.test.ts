@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 
 // 출장 기능 소스(테스트 제외)를 문자열로 읽어 기존 앱 코드·DB·브라우저 저장소·현재 시각에 기대지 않는지 확인한다
 const pure = import.meta.glob<string>(['../data/*.ts', '../ui/*.ts', '../server/*.ts'], { query: '?raw', import: 'default', eager: true })
+// T6 연결 계층: DB SDK·브라우저 저장소·현재 시각에 기대지 않는다. 네트워크는 fetch-backend.ts 한 곳에서만
+const client = import.meta.glob<string>(['../client/*.ts'], { query: '?raw', import: 'default', eager: true })
 const screens = import.meta.glob<string>(['../screens/*.ts', '../screens/*.tsx', '../screens/admin/*.tsx'], { query: '?raw', import: 'default', eager: true })
 
 const importsOf = (src: string) => [...src.matchAll(/from\s+['"]([^'"]+)['"]/g)].map((m) => m[1])
@@ -20,6 +22,20 @@ describe('출장 데이터·화면 모델은 독립 모듈이다 (기존 근태 
   })
 })
 
+describe('출장 연결 계층(client/)은 supabase-js·react·브라우저 저장소를 쓰지 않는다', () => {
+  it('검사할 파일을 찾았다', () => {
+    expect(Object.keys(client).length).toBeGreaterThanOrEqual(6)
+  })
+
+  it.each(Object.entries(client))('%s', (file, src) => {
+    for (const spec of importsOf(src)) expect(spec).toMatch(/^(\.\/[a-z-]+|\.\.\/(engine|data|server))$/)
+    for (const banned of ['supabase-js', 'react', 'localStorage', 'sessionStorage', 'Date.now', 'Math.random', 'import.meta.env', 'SERVICE_ROLE', 'service_role_key']) {
+      expect(src).not.toContain(banned)
+    }
+    if (!file.endsWith('fetch-backend.ts')) expect(src).not.toContain('fetch(')
+  })
+})
+
 describe('출장 화면은 기존 앱의 컨텍스트·supabase·라우터를 쓰지 않는다', () => {
   it('검사할 화면 파일을 찾았다', () => {
     expect(Object.keys(screens).length).toBeGreaterThanOrEqual(10)
@@ -28,7 +44,7 @@ describe('출장 화면은 기존 앱의 컨텍스트·supabase·라우터를 �
   it.each(Object.entries(screens))('%s', (_file, src) => {
     for (const spec of importsOf(src)) {
       // 출장 기능 안 + react + 아이콘만. 기존 앱 모듈(contexts, lib, pages, components)은 금지
-      expect(spec).toMatch(/^(\.\/(admin\/)?[A-Za-z-]+|\.\.\/[A-Za-z-]+|\.\.\/(engine|data|ui)|\.\.\/\.\.\/(engine|data|ui)|react|lucide-react)$/)
+      expect(spec).toMatch(/^(\.\/(admin\/)?[A-Za-z-]+|\.\.\/[A-Za-z-]+|\.\.\/(engine|data|ui|client)|\.\.\/\.\.\/(engine|data|ui|client)|react|lucide-react)$/)
     }
     for (const banned of ['supabase', 'react-router', 'contexts/', 'lib/', 'fetch(', 'localStorage', 'sessionStorage', 'Date.now', 'new Date(', 'Math.random', 'import.meta.env', 'window.', 'document.']) {
       expect(src).not.toContain(banned)

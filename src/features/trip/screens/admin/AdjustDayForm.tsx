@@ -19,8 +19,8 @@ export function AdjustDayForm({ claimId, header, day, onDone, onCancel }: {
   const [error, setError] = useState<{ code: string; message: string } | undefined>()
   const cls = computeDay(header, entry, { calendar }).classification
 
-  const apply = () => {
-    const r = service.adminAdjustDay(actor, claimId, day.id, day.revision, entry, reason)
+  const apply = async () => {
+    const r = await service.adminAdjustDay(actor, claimId, day.id, day.revision, entry, reason)
     if (r.ok) onDone()
     else setError({ code: r.code, message: r.message })
   }
@@ -39,7 +39,7 @@ export function AdjustDayForm({ claimId, header, day, onDone, onCancel }: {
       <Field label="수정 사유 (필수)"><input className={inputClass} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="예: 채널톡 완료보고 기준 07시 시작" /></Field>
       <ErrorBanner error={error} onDismiss={() => setError(undefined)} />
       <div className="flex gap-2">
-        <Button onClick={apply} disabled={!reason.trim()}>수정하고 다시 계산</Button>
+        <Button onClick={() => { void apply() }} disabled={!reason.trim()}>수정하고 다시 계산</Button>
         <Button kind="ghost" onClick={onCancel}>취소</Button>
       </div>
     </div>

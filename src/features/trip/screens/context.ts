@@ -1,10 +1,11 @@
 /**
  * 화면이 쓰는 서비스·사용자·달력. 기존 앱의 인증 컨텍스트·DB 클라이언트를 쓰지 않고 바깥에서 주입받는다.
- * 실제 연결 단계에서는 서버 RPC 로 만든 GuardedTripService 를 같은 모양으로 넣는다.
+ * 실제 연결(T6)에서는 client/createTripClient 로 만든 TripClientService 를 넣는다.
  */
 
 import { createContext, useContext } from 'react'
-import type { Actor, GuardedTripService, HolidayCalendar, IsoDate } from '../data'
+import type { Actor, HolidayCalendar, IsoDate } from '../data'
+import type { TripClientService } from '../client'
 
 export interface EmployeeOption {
   id: string
@@ -12,7 +13,8 @@ export interface EmployeeOption {
 }
 
 export interface TripScreenContext {
-  service: GuardedTripService
+  /** 읽기는 동기(거울 저장소), 쓰기는 비동기(서버 RPC). 메모리·원격 구현이 같은 모양 */
+  service: TripClientService
   /** 세션 사용자. 역할은 서버가 다시 확인한다 */
   actor: Actor
   employees: EmployeeOption[]

@@ -20,8 +20,8 @@ export function MyTripClaims({ onOpen, onNew }: { onOpen: (claimId: string) => v
   }
   const claims = [...r.value].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 
-  const cancel = (c: TripClaimRecord) => {
-    const x = service.cancel(actor, c.id, c.version)
+  const cancel = async (c: TripClaimRecord) => {
+    const x = await service.cancel(actor, c.id, c.version)
     if (!x.ok) setError({ code: x.code, message: x.message })
     else { setError(undefined); bump() }
   }
@@ -61,7 +61,7 @@ export function MyTripClaims({ onOpen, onNew }: { onOpen: (claimId: string) => v
             )}
             <div className="mt-3 flex gap-2">
               <Button kind="secondary" onClick={() => onOpen(c.id)}>{editable ? '열어서 고치기' : '보기'}</Button>
-              {['draft', 'submitted', 'returned'].includes(c.status) && <Button kind="danger" onClick={() => cancel(c)}>취소</Button>}
+              {['draft', 'submitted', 'returned'].includes(c.status) && <Button kind="danger" onClick={() => { void cancel(c) }}>취소</Button>}
             </div>
           </Card>
         )

@@ -10,8 +10,8 @@ export function CompanionInvite({ claimId }: { claimId: string }) {
   const [error, setError] = useState<{ code: string; message: string } | undefined>()
   const others = employees.filter((e) => e.id !== actor.id)
 
-  const send = () => {
-    const r = service.inviteCompanions(actor, claimId, picked)
+  const send = async () => {
+    const r = await service.inviteCompanions(actor, claimId, picked)
     if (!r.ok) { setError({ code: r.code, message: r.message }); return }
     setResult(r.value)
     setPicked([])
@@ -32,7 +32,7 @@ export function CompanionInvite({ claimId }: { claimId: string }) {
           </li>
         ))}
       </ul>
-      <div className="mt-2"><Button kind="secondary" disabled={picked.length === 0} onClick={send}>초안 보내기</Button></div>
+      <div className="mt-2"><Button kind="secondary" disabled={picked.length === 0} onClick={() => { void send() }}>초안 보내기</Button></div>
       {result && (
         <div className="mt-3 space-y-2">
           {result.created.length > 0 && <NoticeList items={[`초안 ${result.created.length}건을 보냈습니다. 동행자가 각자 확인·제출합니다`]} />}
