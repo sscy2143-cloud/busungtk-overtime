@@ -13,6 +13,7 @@ import tripConnected from '../pages/trip/TripConnected.tsx?raw'
 import tripViewerPage from '../pages/trip/TripViewerPage.tsx?raw'
 import useTripViewGrant from '../pages/trip/useTripViewGrant.ts?raw'
 import employeePage from '../pages/AdminEmployeeManagementPage.tsx?raw'
+import requestPage from '../pages/RequestPage.tsx?raw'
 
 const route = (path: string) => (app.match(new RegExp(`<Route path="${path}" element=\\{(.*)\\} />`)) || [])[1] ?? ''
 const code = (s: string) => s.replace(/\{\/\*[\s\S]*?\*\/\}/g, '').replace(/^\s*\/\/.*$/gm, '')
@@ -83,6 +84,14 @@ describe('출장 라우트·메뉴는 코드 스위치 뒤에 있다', () => {
     expect(employeePage).toMatch(/value=\{editPanel\.form\.position\}\s*disabled=\{!isAdmin\}/)
     // 역할(role) 저장 규칙은 그대로
     expect(employeePage).toContain('const safeRole = isAdmin ? role : editPanel.employee.role')
+  })
+  it('일반 직원이 쓰는 직원 목록(야근 그룹 선택·출장 동행자)은 employees_directory 뷰만 읽고 시급을 요청하지 않는다', () => {
+    expect(requestPage).toContain("from('employees_directory')")
+    expect(requestPage).not.toContain("from('employees')")
+    expect(tripConnected).toContain("from('employees_directory')")
+    expect(tripConnected).not.toContain("from('employees')")
+    expect(requestPage).not.toContain('hourly_wage')
+    expect(tripConnected).not.toContain('hourly_wage')
   })
   it('급여명세서 관리자 메뉴는 관리자 블록 안 그대로', () => {
     expect(sidebar.indexOf('to="/admin/payslips"')).toBeGreaterThan(sidebar.indexOf('{isAdmin && ('))

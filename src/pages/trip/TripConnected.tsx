@@ -28,7 +28,7 @@ export function TripClosedNotice({ title }: { title: string }) {
  * 기존 앱의 세션·DB 설정을 출장 모듈의 TripRemoteProvider 에 넘긴다.
  *  - actor 는 기존 employees 행에서 (역할은 서버가 다시 확인). key={employee.id} 라 계정이 바뀌면 거울째 새로 만든다
  *  - revalidateKey 가 바뀌면 거울을 서버 값으로 다시 채운다 (조회 권한자 화면: 복귀·주기)
- *  - employees 목록은 동행자 선택·이름 표시용 (활성 직원의 id·이름·역할만)
+ *  - employees 목록은 동행자 선택·이름 표시용 (활성 직원의 id·이름·역할만, employees_directory 뷰)
  *  - 공휴일 달력은 서버 계산이 holidays 표로 판단한다. 화면 미리보기는 검증된 달력이 없으면 전부 "관리자 확인" 으로 표시 (NO_CALENDAR)
  */
 export function TripConnected({ children, revalidateKey }: { children: ReactNode; revalidateKey?: number }) {
@@ -39,7 +39,8 @@ export function TripConnected({ children, revalidateKey }: { children: ReactNode
   useEffect(() => {
     if (isDemoMode || !employee?.id) return
     let alive = true
-    supabase.from('employees').select('id, name, role').eq('is_active', true).order('name')
+    // 이름·역할만 필요하므로 이름 목록 뷰(employees_directory, 008a)를 읽는다 — base 표는 일반 직원에게 본인 행만 열린다
+    supabase.from('employees_directory').select('id, name, role').eq('is_active', true).order('name')
       .then(({ data, error }) => {
         if (!alive) return
         if (error) { setLoadError(error.message); setEmployees([]) }
