@@ -17,6 +17,9 @@ const ROLE_COLOR: Record<UserRole, string> = {
   admin: 'bg-purple-50 text-purple-700',
 }
 
+/** 회사 직급 선택지. 시스템 역할(ROLE_LABEL)과 별개이며 '팀장' 만 출장 내역 조회 권한 후보가 된다 (trip_view_grant_eligible) */
+const POSITION_OPTIONS = ['팀장']
+
 const EMP_TYPE_LABEL: Record<EmployeeType, string> = {
   office: '사무직',
   field: '현장직',
@@ -44,6 +47,8 @@ interface FormState {
   employeeType: EmployeeType
   hourlyWage: string
   hireDate: string
+  /** 회사 직급. '' = 미지정(NULL) */
+  position: string
   isActive: boolean
 }
 
@@ -200,6 +205,7 @@ function makeEmptyForm(emp: Employee): FormState {
     employeeType: emp.employee_type,
     hourlyWage: emp.hourly_wage > 0 ? String(emp.hourly_wage) : '',
     hireDate: emp.hire_date ?? '',
+    position: emp.position ?? '',
     isActive: emp.is_active,
   }
 }
@@ -219,6 +225,7 @@ function formsEqual(a: FormState, b: FormState): boolean {
     a.employeeType === b.employeeType &&
     a.hourlyWage === b.hourlyWage &&
     a.hireDate === b.hireDate &&
+    a.position === b.position &&
     a.isActive === b.isActive
   )
 }
@@ -245,8 +252,8 @@ export function AdminEmployeeManagementPage() {
   const [editPanel, setEditPanel] = useState<EditPanel>({
     open: false,
     employee: null,
-    form: { name: '', department: '', role: 'employee', employeeType: 'office', hourlyWage: '', hireDate: '', isActive: true },
-    originalForm: { name: '', department: '', role: 'employee', employeeType: 'office', hourlyWage: '', hireDate: '', isActive: true },
+    form: { name: '', department: '', role: 'employee', employeeType: 'office', hourlyWage: '', hireDate: '', position: '', isActive: true },
+    originalForm: { name: '', department: '', role: 'employee', employeeType: 'office', hourlyWage: '', hireDate: '', position: '', isActive: true },
     adminPassword: '',
     newPassword: '',
     accountError: '',
@@ -396,12 +403,14 @@ export function AdminEmployeeManagementPage() {
     setSaveError('')
     try {
       const empId = editPanel.employee.id
-      const { name, department, role, employeeType, hourlyWage, isActive } = editPanel.form
+      const { name, department, role, employeeType, hourlyWage, isActive, position } = editPanel.form
       const wage = parseInt(hourlyWage.replace(/,/g, ''), 10)
 
       // 모든 필드를 직접 테이블 UPDATE로 통합 (RPC 오버로드 충돌 우회)
       // manager는 role 변경 불가 — 원본 role 유지
       const safeRole = isAdmin ? role : editPanel.employee.role
+      // 회사 직급은 대표만 바꾼다 — 인사담당은 원본 유지. 빈 값은 NULL(미지정)
+      const safePosition = isAdmin ? (position.trim() || null) : (editPanel.employee.position ?? null)
       const { hireDate } = editPanel.form
       const { error: updateError } = await supabase.from('employees').update({
         name,
@@ -411,6 +420,7 @@ export function AdminEmployeeManagementPage() {
         employee_type: employeeType,
         hourly_wage: isNaN(wage) ? 0 : wage,
         hire_date: hireDate || null,
+        position: safePosition,
         updated_at: new Date().toISOString(),
       }).eq('id', empId)
 
@@ -427,6 +437,7 @@ export function AdminEmployeeManagementPage() {
         employee_type: employeeType,
         hourly_wage: isNaN(wage) ? 0 : wage,
         hire_date: hireDate || null,
+        position: safePosition,
         is_active: isActive,
       } : e))
 
@@ -877,6 +888,22 @@ export function AdminEmployeeManagementPage() {
                         </button>
                       ))}
                     </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-dark-600 mb-1">회사 직급</label>
+                    <select
+                      value={editPanel.form.position}
+                      disabled={!isAdmin}
+                      onChange={e => setEditPanel(p => ({ ...p, form: { ...p.form, position: e.target.value } }))}
+                      className="w-full px-3 py-2 text-sm border border-dark-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <option value="">미지정</option>
+                      {POSITION_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                      {editPanel.form.position && !POSITION_OPTIONS.includes(editPanel.form.position) && (
+                        <option value={editPanel.form.position}>{editPanel.form.position}</option>
+                      )}
+                    </select>
+                    <p className="text-xs text-dark-400 mt-1">위 권한(시스템 역할)과 별개인 회사 직급입니다. '팀장'만 출장 내역 조회 권한 후보가 되며, 직급이 바뀌면 그 권한은 자동 회수됩니다{!isAdmin ? ' (대표만 변경)' : ''}</p>
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-dark-600 mb-1">시급 (원)</label>

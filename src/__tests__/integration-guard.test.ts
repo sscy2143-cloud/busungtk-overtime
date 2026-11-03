@@ -12,6 +12,7 @@ import dashboard from '../pages/DashboardPage.tsx?raw'
 import tripConnected from '../pages/trip/TripConnected.tsx?raw'
 import tripViewerPage from '../pages/trip/TripViewerPage.tsx?raw'
 import useTripViewGrant from '../pages/trip/useTripViewGrant.ts?raw'
+import employeePage from '../pages/AdminEmployeeManagementPage.tsx?raw'
 
 const route = (path: string) => (app.match(new RegExp(`<Route path="${path}" element=\\{(.*)\\} />`)) || [])[1] ?? ''
 const code = (s: string) => s.replace(/\{\/\*[\s\S]*?\*\/\}/g, '').replace(/^\s*\/\/.*$/gm, '')
@@ -74,6 +75,14 @@ describe('출장 라우트·메뉴는 코드 스위치 뒤에 있다', () => {
     expect(useTripViewGrant).toContain("addEventListener('visibilitychange'")
     expect(useTripViewGrant).toContain('state?.id === id && state.granted')
     expect(useTripViewGrant).toContain("role !== 'admin'")
+  })
+  it('직원관리: 회사 직급(position)은 시스템 역할과 별개 필드이고 대표만 바꾸며, 빈 값은 NULL', () => {
+    expect(employeePage).toContain("const POSITION_OPTIONS = ['팀장']")
+    expect(employeePage).toContain('const safePosition = isAdmin ? (position.trim() || null) : (editPanel.employee.position ?? null)')
+    expect(employeePage).toMatch(/hire_date: hireDate \|\| null,\s*position: safePosition,\s*updated_at:/)
+    expect(employeePage).toMatch(/value=\{editPanel\.form\.position\}\s*disabled=\{!isAdmin\}/)
+    // 역할(role) 저장 규칙은 그대로
+    expect(employeePage).toContain('const safeRole = isAdmin ? role : editPanel.employee.role')
   })
   it('급여명세서 관리자 메뉴는 관리자 블록 안 그대로', () => {
     expect(sidebar.indexOf('to="/admin/payslips"')).toBeGreaterThan(sidebar.indexOf('{isAdmin && ('))

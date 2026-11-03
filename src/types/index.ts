@@ -16,6 +16,8 @@ export interface Employee {
   employee_type: EmployeeType
   hourly_wage: number
   manager_id: string | null
+  /** 회사 직급 (예: 팀장). 시스템 역할 role 과 별개. 005_employees_position.sql 적용 전에는 칼럼이 없어 undefined */
+  position?: string | null
   hire_date: string | null
   is_active: boolean
   force_password_change?: boolean
