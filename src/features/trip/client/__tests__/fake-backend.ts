@@ -143,7 +143,8 @@ export function createFakeServer(o: FakeServerOptions): FakeServer {
   function visibleClaims(me: FakeEmployee | undefined): TripClaimRecord[] {
     if (!me) return []
     const all = repo.listClaims()
-    if (me.role === 'admin' || me.role === 'manager') return flags.admin_review ? all : []
+    // 11-03: manager 는 출장 기능에서 직원과 같다 (RLS trip_can_view_all 은 admin 만)
+    if (me.role === 'admin') return flags.admin_review ? all : []
     return flags.employee_form ? all.filter((c) => c.employeeId === me.id) : []
   }
 

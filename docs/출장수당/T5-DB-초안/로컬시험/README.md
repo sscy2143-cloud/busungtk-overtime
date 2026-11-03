@@ -18,7 +18,7 @@
 - `src/features/trip/db/__tests__/t5-sql.test.ts` — shim → 010 → 020 → 030 → 040 적용 → 시나리오 → 900 롤백 → 재적용. 서버 계산은 `api/trip-compute` 와 같은 함수(`computeClaimDays`)로 만들어 `trip_store_server_calcs` 에 넣는다.
 - 역할 흉내: `set role authenticated` + 세션 설정으로 RLS·EXECUTE 권한을 직접 평가. service_role 은 `request.jwt.claims` 의 `role` 값으로.
 
-## 3. 결과 — 33건 통과 (11-03)
+## 3. 결과 — 34건 통과 (11-03, 2차: 권한·롤백 보강 뒤)
 
 | 구분 | 확인한 것 | 결과 |
 |---|---|---|
@@ -39,7 +39,16 @@
 | `040_trip_rpc.sql` `trip_store_server_calcs` 2곳 | `if case when … then … else true end then` → `if (case … end) then` | plpgsql 의 `IF` 는 괄호 밖 첫 `THEN` 에서 조건식을 끝내므로 CASE 의 THEN 에서 잘려 "syntax error at end of input". **운영에서도 같은 오류로 040 전체가 실패했을 것** |
 | `000_local_shim.sql` | `is_manager_or_admin()` 추가(표 뒤에 배치), pgcrypto 제거 | 030 `trip_can_view_all()` 이 부른다; `gen_random_uuid` 는 내장 |
 
-010·020·030·900 은 수정 없이 통과했다.
+**11-03 2차(운영 대조 뒤) 변경**
+
+| 파일 | 변경 | 이유 |
+|---|---|---|
+| `030_trip_rls.sql` | `trip_can_view_all()` = `employees.role='admin'` 활성 사용자 (기존 `is_manager_or_admin()` 미사용), 정책 `*_select_manager` → `*_select_admin` | manager 는 본인 건만 (사용자 기준). REST 직접 조회로 다른 직원 기록이 manager 에게 보이던 문제 제거 |
+| `010_trip_tables.sql` | updated_at 트리거 함수 `trip_touch_updated_at()` 신설(파일 앞부분), 기존 `update_updated_at_column()` 미사용 | 운영 함수 정의·존재에 의존하지 않기 위해 |
+| `900_rollback.sql` | 자료 존재 시 `ROLLBACK_BLOCKED_DATA_EXISTS`; `trip_touch_updated_at()` 제거 추가 | 신청 자료 손실 방지 |
+| 테스트 | 정책 이름, manager 0행(claims·calcs·reviews·adjustments·flag_history), 트리거 함수가 전부 `trip_*`, `trip_can_view_all` 본문에 `is_manager_or_admin` 없음, 롤백 가드 | — |
+
+020·040(1차 수정 뒤) 은 추가 수정 없이 통과했다.
 
 ## 4. 미검증 (PGlite 로는 볼 수 없음 — 운영 적용 전 별도 확인)
 

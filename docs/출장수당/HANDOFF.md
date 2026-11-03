@@ -75,6 +75,10 @@
 - 공휴일은 코드에 고정하지 않는다. `HolidayCalendar.verified=false` 이면 모든 날에 `HOLIDAY_SOURCE_UNVERIFIED` 확인 항목이 붙어 관리자가 확인하기 전 승인할 수 없다.
 - `PAYROLL_APPLICATION_ENABLED = false` — 승인되어도 급여대장·명세서에 아무것도 쓰지 않는다. 미확정 규칙 값은 정산 미리보기에서 `held` 로 분리.
 
+**11-03 운영 대조·권한 정리 [확인]**
+- 운영 DB 읽기 전용 대조(REST OpenAPI·함수 행동): trip_*·holidays 없음, 20260916 권한 체계 미적용, 20260921 급여 재인증 표 있음, `overtime_requests`·`employees` 구조 일치. SQL Editor 가 필요한 항목(C-1·C-3·C-7·C-8·C-9·C-11)은 `T5-DB-초안/운영조회-읽기전용.sql` 로 닫는다. 세부는 `대조-체크리스트.md` 머리 표.
+- **manager 는 출장 기능에서 직원과 같다**: `trip_can_view_all()` 을 `employees.role='admin'` 활성 사용자로 고정(기존 `is_manager_or_admin()` 미사용), 정책 이름 `*_select_admin`. 010 의 updated_at 트리거도 출장 전용 `trip_touch_updated_at()` 로 바꿔 기존 함수 의존을 없앴다. 900 은 자료가 있으면 `ROLLBACK_BLOCKED_DATA_EXISTS` 로 멈춘다.
+
 **이 문서에서 유지되는 미확정 사항:** 3절 E3~E7, N1, N2, C-0 전부 그대로. 코드는 `engine/rules.ts` 에서 `undecided` 로 표시하며, 상태 변경은 회사·노무 결정 후에만 한다.
 
 ---
