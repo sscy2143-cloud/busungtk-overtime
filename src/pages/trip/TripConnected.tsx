@@ -26,11 +26,12 @@ export function TripClosedNotice({ title }: { title: string }) {
 
 /**
  * 기존 앱의 세션·DB 설정을 출장 모듈의 TripRemoteProvider 에 넘긴다.
- *  - actor 는 기존 employees 행에서 (역할은 서버가 다시 확인)
+ *  - actor 는 기존 employees 행에서 (역할은 서버가 다시 확인). key={employee.id} 라 계정이 바뀌면 거울째 새로 만든다
+ *  - revalidateKey 가 바뀌면 거울을 서버 값으로 다시 채운다 (조회 권한자 화면: 복귀·주기)
  *  - employees 목록은 동행자 선택·이름 표시용 (활성 직원의 id·이름·역할만)
  *  - 공휴일 달력은 서버 계산이 holidays 표로 판단한다. 화면 미리보기는 검증된 달력이 없으면 전부 "관리자 확인" 으로 표시 (NO_CALENDAR)
  */
-export function TripConnected({ children }: { children: ReactNode }) {
+export function TripConnected({ children, revalidateKey }: { children: ReactNode; revalidateKey?: number }) {
   const { employee } = useAuth()
   const [employees, setEmployees] = useState<EmployeeRow[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -61,6 +62,8 @@ export function TripConnected({ children }: { children: ReactNode }) {
     <>
       {loadError && <p className="mx-auto max-w-lg px-4 pt-2 text-xs text-amber-800">직원 목록을 불러오지 못했습니다 — 동행자 선택이 제한됩니다</p>}
       <TripRemoteProvider
+        key={employee.id}
+        revalidateKey={revalidateKey}
         baseUrl={import.meta.env.VITE_SUPABASE_URL}
         anonKey={import.meta.env.VITE_SUPABASE_ANON_KEY}
         getAccessToken={getAccessToken}

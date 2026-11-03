@@ -9,6 +9,9 @@ import { describe, expect, it } from 'vitest'
 import app from '../App.tsx?raw'
 import sidebar from '../components/layout/Sidebar.tsx?raw'
 import dashboard from '../pages/DashboardPage.tsx?raw'
+import tripConnected from '../pages/trip/TripConnected.tsx?raw'
+import tripViewerPage from '../pages/trip/TripViewerPage.tsx?raw'
+import useTripViewGrant from '../pages/trip/useTripViewGrant.ts?raw'
 
 const route = (path: string) => (app.match(new RegExp(`<Route path="${path}" element=\\{(.*)\\} />`)) || [])[1] ?? ''
 const code = (s: string) => s.replace(/\{\/\*[\s\S]*?\*\/\}/g, '').replace(/^\s*\/\/.*$/gm, '')
@@ -62,6 +65,15 @@ describe('출장 라우트·메뉴는 코드 스위치 뒤에 있다', () => {
     expect(sidebar.match(/to="\/trip"/g)).toHaveLength(1)
     expect(sidebar.match(/to="\/trip\/all"/g)).toHaveLength(1)
     expect(sidebar.match(/to="\/admin\/trip"/g)).toHaveLength(1)
+  })
+  it('조회 권한 화면은 계정 전환 시 새로 만들고, 복귀·주기마다 서버 값으로 다시 채우며, 메뉴 권한은 사용자 id 에 묶인다', () => {
+    expect(tripConnected).toMatch(/<TripRemoteProvider\s+key=\{employee\.id\}/)
+    expect(tripConnected).toContain('revalidateKey={revalidateKey}')
+    expect(tripViewerPage).toContain('useRevalidateKey()')
+    expect(tripViewerPage).toContain('<TripConnected revalidateKey={revalidateKey}>')
+    expect(useTripViewGrant).toContain("addEventListener('visibilitychange'")
+    expect(useTripViewGrant).toContain('state?.id === id && state.granted')
+    expect(useTripViewGrant).toContain("role !== 'admin'")
   })
   it('급여명세서 관리자 메뉴는 관리자 블록 안 그대로', () => {
     expect(sidebar.indexOf('to="/admin/payslips"')).toBeGreaterThan(sidebar.indexOf('{isAdmin && ('))
