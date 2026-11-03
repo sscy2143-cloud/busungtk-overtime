@@ -480,9 +480,9 @@ export function AdminEmployeeManagementPage() {
 
   async function confirmDeleteAccount() {
     if (!deleteConfirm) return
-    await supabase.rpc('update_employee_admin', {
-      p_id: deleteConfirm.id, p_is_active: false,
-    })
+    // "계정 삭제" 도 실제로는 비활성화 — 서버에서 인증 차단까지 함께 (D15)
+    const r = await setActiveViaApi(deleteConfirm.id, false)
+    if (!r.ok) { alert(r.message); return }
     setEmployees(prev => prev.filter(e => e.id !== deleteConfirm.id))
     setDeleteConfirm(null)
     closePanel()
@@ -490,8 +490,33 @@ export function AdminEmployeeManagementPage() {
 
   // --- Resign / reinstate ---
 
+  /**
+   * 퇴사·복직은 서버(api/admin-user, action=set_active)가 employees.is_active 와 Auth 차단(ban)을 함께 바꾼다 (D15).
+   * 실패하면 화면 상태를 바꾸지 않고 사유를 보여 준다. 같은 요청을 다시 보내면 이어서 처리된다(멱등).
+   */
+  async function setActiveViaApi(id: string, active: boolean): Promise<{ ok: boolean; message: string }> {
+    try {
+      const res = await fetch('/api/admin-user', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({ action: 'set_active', userId: id, active }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || data?.success !== true) {
+        return { ok: false, message: data?.error || (active ? '복직 처리에 실패했습니다' : '퇴사 처리에 실패했습니다') }
+      }
+      return { ok: true, message: '' }
+    } catch {
+      return { ok: false, message: '서버와 통신할 수 없습니다' }
+    }
+  }
+
   async function handleResign(id: string) {
-    await supabase.from('employees').update({ is_active: false }).eq('id', id)
+    const r = await setActiveViaApi(id, false)
+    if (!r.ok) { alert(r.message); setResignConfirm(null); return }
     setEmployees(prev => prev.map(e => e.id === id ? { ...e, is_active: false } : e))
     if (editPanel.employee?.id === id) {
       setEditPanel(p => ({
@@ -505,7 +530,8 @@ export function AdminEmployeeManagementPage() {
   }
 
   async function handleReinstate(id: string) {
-    await supabase.from('employees').update({ is_active: true }).eq('id', id)
+    const r = await setActiveViaApi(id, true)
+    if (!r.ok) { alert(r.message); setReinstateConfirm(null); return }
     setEmployees(prev => prev.map(e => e.id === id ? { ...e, is_active: true } : e))
     if (editPanel.employee?.id === id) {
       setEditPanel(p => ({

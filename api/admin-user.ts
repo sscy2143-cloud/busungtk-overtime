@@ -39,11 +39,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   )
   const { data: caller } = await supabaseService
     .from('employees')
-    .select('role')
+    .select('role, is_active')
     .eq('id', authResult.data.user.id)
     .single()
 
-  if (!caller || (caller.role !== 'admin' && caller.role !== 'manager')) {
+  // 비활성(퇴사) 계정의 남은 세션은 관리 API 를 쓸 수 없다 (D15 — DB 의 is_admin()/is_manager_or_admin() 과 같은 기준)
+  if (!caller || caller.is_active === false || (caller.role !== 'admin' && caller.role !== 'manager')) {
     return res.status(403).json({ error: '관리자 권한이 필요합니다' })
   }
 
@@ -164,6 +165,63 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .eq('id', userId)
 
     return res.status(200).json({ success: true })
+  }
+
+  // PATCH(action=set_active): 퇴사(비활성화)·복직(재활성화)와 인증 차단을 한 번에 (D15)
+  //   퇴사: employees.is_active=false → Auth ban(장기). 차단이 실패해도 비활성은 유지하고 207 로 재시도를 안내한다.
+  //   복직: Auth ban 해제 → is_active=true. 해제가 실패하면 활성화하지 않는다(로그인 불가인 "활성" 상태를 남기지 않기 위해).
+  //   둘 다 멱등이라 실패 시 같은 요청을 다시 보내면 된다. 이미 발급된 액세스 토큰은 만료(기본 1시간)까지 유효하다.
+  if (req.method === 'PATCH' && req.body?.action === 'set_active') {
+    const { userId, active } = req.body as { userId?: string; active?: boolean }
+    if (!userId || typeof active !== 'boolean') {
+      return res.status(400).json({ error: '사용자 ID와 활성 여부가 필요합니다' })
+    }
+    if (userId === authResult.data.user.id) {
+      return res.status(400).json({ error: '본인 계정은 퇴사 처리할 수 없습니다' })
+    }
+    const { data: target } = await supabaseAdmin
+      .from('employees')
+      .select('id, role, is_active')
+      .eq('id', userId)
+      .single()
+    if (!target) {
+      return res.status(404).json({ error: '직원을 찾을 수 없습니다' })
+    }
+    if (caller.role === 'manager' && target.role === 'admin') {
+      return res.status(403).json({ error: '관리자 계정은 다른 관리자만 처리할 수 있습니다' })
+    }
+
+    const steps: { employee: 'ok' | 'failed' | 'skipped'; auth: 'ok' | 'failed' | 'skipped' } = { employee: 'skipped', auth: 'skipped' }
+
+    if (active) {
+      const { error: unbanErr } = await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: 'none' })
+      if (unbanErr) {
+        steps.auth = 'failed'
+        return res.status(500).json({ error: '인증 차단 해제에 실패했습니다. 다시 시도하세요', steps })
+      }
+      steps.auth = 'ok'
+      const { error: actErr } = await supabaseAdmin.from('employees').update({ is_active: true }).eq('id', userId)
+      if (actErr) {
+        steps.employee = 'failed'
+        return res.status(500).json({ error: '복직 처리(활성화)에 실패했습니다. 인증 차단은 해제됐으니 다시 시도하세요', steps })
+      }
+      steps.employee = 'ok'
+      return res.status(200).json({ success: true, steps })
+    }
+
+    const { error: deactErr } = await supabaseAdmin.from('employees').update({ is_active: false }).eq('id', userId)
+    if (deactErr) {
+      steps.employee = 'failed'
+      return res.status(500).json({ error: '퇴사 처리(비활성화)에 실패했습니다', steps })
+    }
+    steps.employee = 'ok'
+    const { error: banErr } = await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: '876000h' })
+    if (banErr) {
+      steps.auth = 'failed'
+      return res.status(207).json({ success: false, error: '비활성화는 됐지만 인증 차단에 실패했습니다. 다시 시도하세요', steps })
+    }
+    steps.auth = 'ok'
+    return res.status(200).json({ success: true, steps })
   }
 
   // PATCH: 사번 변경 (Auth 이메일 + employees.email 동시 변경)
