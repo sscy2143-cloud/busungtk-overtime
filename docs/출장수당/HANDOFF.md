@@ -37,7 +37,7 @@
 | T5 | DB 테이블·RLS·RPC·기능 플래그·롤백 **SQL 초안 v2 (서버 재계산)** `docs/출장수당/T5-DB-초안/`. v1(클라이언트 계산)은 `T5-DB-초안_v1_클라이언트계산_백업/`. TS↔SQL 계약은 `T5-DB-초안/계약-서버계산.md` | 2 | 초안 (실행 안 함) | `79b2660` → v2는 이후 docs 커밋 |
 | T5-서버 | `server/trip-compute.ts`(핵심 로직, 테스트 17건) + `api/trip-compute.ts`(Vercel 핸들러) + 저장소 잠금·정합성 | 2 | 코드 완료, **배포 안 함** | `232bc1d` |
 | T6 | 실제 연결 계층 `client/` — RPC·RLS 조회·서버 계산 호출을 묶은 `TripClientService`(거울 저장소), fetch 백엔드, 화면의 쓰기 비동기화. 테스트 40건(가짜 서버·fetch) | 2 | **코드 완료(11-03)** — 실제 DB 호출은 T5 적용 후 | 11-03 커밋 |
-| T7 | 기존 앱 연결 (라우트·사이드바·승인 화면 탭) | 3·4 | **보류** (master 미커밋분과 충돌 위험, 4절·10절 참조) | — |
+| T7 | 기존 앱 최소 연결 — 통합 작업트리 `busungtk-overtime-integration`(브랜치 `integration/trip-on-hotfix` = 급여명세서 핫픽스 `9f9fd1f` + 이 브랜치 + 글루 `src/pages/trip/*`, 라우트 `/trip`·`/admin/trip`, 사이드바 2항목). secpatch·master 미커밋 미포함. 계획·충돌 분석은 `T7-통합계획.md` | 3·4 | **로컬 완료(11-03)**, 배포 안 함, 코드 스위치 OFF | integration `c048910` |
 | T8 | 정산·마감·명세서 | 5 | 미착수 | — |
 | T9 | 시범 운영·수기 병행 | 6 | 미착수 | — |
 | T10 | 통합 승인함 등 후속 | 7 | 미착수 | — |
