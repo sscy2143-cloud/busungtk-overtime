@@ -630,7 +630,7 @@ describe('5-3. D10 — 회사 직급(position)은 admin 만 바꾼다. 기존 �
     await asUser(ALICE)
     expect(await codeOf(rows('select * from public.list_all_employees()'))).toBe('Unauthorized')
     await asUser(MGR)
-    expect(await codeOf(rows('select * from public.list_all_employees()'))).toBe('Unauthorized')
+    expect(await codeOf(rows('select * from public.list_all_employees()'))).toBe('OK')   // 운영 정의: 인사담당도 목록 조회(is_manager_or_admin)
   })
 })
 

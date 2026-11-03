@@ -116,13 +116,13 @@ as $$
   select exists (select 1 from public.employees where id = auth.uid() and role = 'admin')
 $$;
 
--- 운영 RPC list_all_employees() (20260323000000 사본): returns setof employees + select * → 칼럼이 늘어도 그대로 따라간다
-create or replace function public.list_all_employees(p_admin_key text default null)
+-- 운영 RPC list_all_employees() (운영 S-3 원문 기준, 11-03: 인자 없음·is_manager_or_admin 판정 — 마이그레이션 사본과 다름): returns setof employees + select *
+create or replace function public.list_all_employees()
 returns setof public.employees
 language plpgsql security definer
 as $$
 begin
-  if public.is_admin() then
+  if public.is_manager_or_admin() then
     return query select * from public.employees order by created_at asc;
   else
     raise exception 'Unauthorized';
