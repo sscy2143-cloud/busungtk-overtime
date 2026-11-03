@@ -169,6 +169,25 @@ create policy "employees_update_manager_admin" on public.employees for update us
 -- 본인 자동 등록 (사본): role 을 제한하지 않는다
 drop policy if exists "employees_insert_self" on public.employees;
 create policy "employees_insert_self" on public.employees for insert with check (auth.uid() = id);
+-- 운영 payslips (20260306000006 사본, D13 시험용): 파일 경로만, 금액 없음
+create table if not exists public.payslips (
+  id          uuid primary key default gen_random_uuid(),
+  employee_id uuid not null references public.employees(id) on delete cascade,
+  period      text not null,
+  file_path   text not null,
+  file_name   text not null,
+  uploaded_by uuid references public.employees(id),
+  created_at  timestamptz not null default now(),
+  unique (employee_id, period)
+);
+alter table public.payslips enable row level security;
+grant select, insert, update, delete on public.payslips to authenticated, service_role;
+drop policy if exists "employees_see_own_payslips" on public.payslips;
+create policy "employees_see_own_payslips" on public.payslips for select using (employee_id = auth.uid());
+drop policy if exists "admin_manage_payslips" on public.payslips;
+create policy "admin_manage_payslips" on public.payslips
+  for all using (exists (select 1 from public.employees where id = auth.uid() and role in ('admin', 'manager')));
+
 -- 운영 S-1 (11-03): 마이그레이션에 없는 정책 — 등록된 직원이면 활성 직원 전원의 행(시급·2차인증 해시 포함)을 읽는다
 drop policy if exists "employees_select_active_for_group" on public.employees;
 create policy "employees_select_active_for_group" on public.employees for select using ((is_active = true) and public.is_employee());
