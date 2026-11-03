@@ -18,7 +18,9 @@
 - `src/features/trip/db/__tests__/t5-sql.test.ts` — shim → 010 → 020 → 030 → 040 적용 → 시나리오 → 900 롤백 → 재적용. 서버 계산은 `api/trip-compute` 와 같은 함수(`computeClaimDays`)로 만들어 `trip_store_server_calcs` 에 넣는다.
 - 역할 흉내: `set role authenticated` + 세션 설정으로 RLS·EXECUTE 권한을 직접 평가. service_role 은 `request.jwt.claims` 의 `role` 값으로.
 
-## 3. 결과 — 49건 통과 (11-03, 6차: D10 직급 변경 admin 전용 트리거 + list_all_employees 호환 확인)
+## 3. 결과 — 53건 통과 (11-03, 7차: 기존 role 권한 상승 재현 + 006 차단)
+
+**11-03 7차 — D11 role 권한 상승.** shim 에 `update_employee_admin` 사본 추가. 운영 정책 사본(`employees_update_manager_admin`, with check 없음)에서 인사담당이 REST 로 자기·남의 role 을 admin 으로 바꿀 수 있음을 재현(트리거 끈 상태)하고, 상승 직후 출장 스위치·후보 조회·직급 변경·직원 목록 RPC 가 열림을 확인. `006_employees_role_guard.sql`(BEFORE UPDATE OF role, 활성 admin 아니면 `ROLE_ADMIN_ONLY`)로 차단, 직원은 RLS 0행, 이름·활성 등 다른 수정과 같은 값 저장은 통과, admin 의 REST·RPC 정상, `906` 단독 되돌리기. 운영조회 SQL C-3 에 employees 정책 with_check·트리거·표/칼럼 권한, C-7 에 `update_employee_admin`·`list_all_employees` 정의를 추가(읽기 전용).
 
 **11-03 6차 — D10.** shim 에 운영 employees 정책·`is_admin()`·`list_all_employees()` 사본(레포 마이그레이션 기준, 운영 정의는 C-7 미검증)을 추가해 PostgREST 직접 UPDATE 를 `set role authenticated` 로 흉내 냈다. 005 에 `employees_position_guard()` BEFORE UPDATE OF position 트리거: 세션 사용자가 활성 admin 이 아니면 `POSITION_ADMIN_ONLY`(42501). 직원은 RLS 로 0행, 인사담당은 트리거로 거부, 같은 값 저장·다른 칼럼 수정은 통과, admin 정상. `list_all_employees()` 는 `returns setof employees` + `select *` 라 005 전후 모두 동작(칼럼 자동 포함). 905 가 트리거·함수도 지운다.
 

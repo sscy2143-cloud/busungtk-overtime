@@ -92,6 +92,7 @@ beforeAll(async () => {
   db = new PGlite()
   await exec(sql('로컬시험/000_local_shim.sql'))
   await exec(sql('005_employees_position.sql'))
+  await exec(sql('006_employees_role_guard.sql'))
   await exec(`insert into public.employees (id, name, role, position) values ('${MGR}', '인사담당', 'manager', '팀장'), ('${LEAD}', '최팀장', 'employee', '팀장') on conflict (id) do nothing`)
   await exec(`insert into public.employees (id, name, role, is_active, position) values ('${GONE}', '퇴사자', 'manager', false, '팀장') on conflict (id) do nothing`)
 }, 60_000)
@@ -555,6 +556,7 @@ describe('5-2. 전체 조회 권한 — 직급이 팀장인 활성 직원 중 ad
     await asUser(BOSS)
     expect(await setGrant(MGR, true, '복직 재부여')).toMatchObject({ changed: true })
     expect(await countAs(MGR, 'trip_claims')).toBe(all)
+    await asUser(BOSS)   // role 변경은 006 가드 때문에 admin 세션으로
     await exec(`update public.employees set role = 'admin' where id = '${LEAD}'`)
     expect(await grantRows(LEAD)).toBe(0)
     await exec(`update public.employees set role = 'employee' where id = '${LEAD}'`)
@@ -628,6 +630,71 @@ describe('5-3. D10 — 회사 직급(position)은 admin 만 바꾼다. 기존 �
     expect(await codeOf(rows('select * from public.list_all_employees()'))).toBe('Unauthorized')
     await asUser(MGR)
     expect(await codeOf(rows('select * from public.list_all_employees()'))).toBe('Unauthorized')
+  })
+})
+
+describe('5-4. 기존 role 권한 상승 — 운영 정책 사본에서는 가능(재현), 006 트리거로 차단', () => {
+  const roleOf = async (id: string) => (await one<{ r: string }>('select role as r from public.employees where id = $1', [id])).r
+  const restUpdate = async (uid: string, setClause: string, target: string) => {
+    await asUser(uid)
+    await exec('set role authenticated')
+    try { return await codeOf(exec(`update public.employees set ${setClause} where id = '${target}'`)) } finally { await exec('reset role') }
+  }
+  const rpcUpdate = (id: string, role: string) => codeOf(one('select public.update_employee_admin(p_id => $1::uuid, p_role => $2) as r', [id, role]))
+
+  it('재현: 006 트리거가 없으면 인사담당이 REST 로 자기·남의 role 을 admin 으로 바꾸고, 그 즉시 출장 관리자 기능·직급 변경이 열린다', async () => {
+    await exec('alter table public.employees disable trigger employees_role_admin_only')
+    expect(await restUpdate(MGR, "role = 'admin'", MGR)).toBe('OK')
+    expect(await roleOf(MGR)).toBe('admin')
+    expect(await restUpdate(MGR, "role = 'admin'", ALICE)).toBe('OK')
+    expect(await roleOf(ALICE)).toBe('admin')
+    // 상승된 권한: 출장 스위치·조회 권한 부여·직급 변경·직원 목록 RPC 가 전부 열린다
+    await asUser(MGR)
+    expect(await codeOf(exec("select public.trip_set_feature('admin_review', true, '권한 상승 시험')"))).toBe('OK')
+    expect(await codeOf(rows('select * from public.trip_view_grant_candidates()'))).toBe('OK')
+    expect(await codeOf(rows('select * from public.list_all_employees()'))).toBe('OK')
+    expect(await restUpdate(MGR, "position = '팀장'", BOB)).toBe('OK')
+    expect(await restUpdate(MGR, "position = null", BOB)).toBe('OK')
+    // 되돌림 (세션 없는 운영자 경로)
+    await asUser(null)
+    await exec(`update public.employees set role = 'manager' where id = '${MGR}'`)
+    await exec(`update public.employees set role = 'employee' where id = '${ALICE}'`)
+    await exec('alter table public.employees enable trigger employees_role_admin_only')
+    expect(await roleOf(MGR)).toBe('manager')
+    expect(await roleOf(ALICE)).toBe('employee')
+  })
+
+  it('006 적용: 인사담당은 자기·남의 role 변경 불가(ROLE_ADMIN_ONLY), 대표 강등 불가, 직원은 0행, 이름 등 다른 수정은 그대로', async () => {
+    expect(await restUpdate(MGR, "role = 'admin'", MGR)).toBe('ROLE_ADMIN_ONLY')
+    expect(await roleOf(MGR)).toBe('manager')
+    expect(await restUpdate(MGR, "role = 'admin'", ALICE)).toBe('ROLE_ADMIN_ONLY')
+    expect(await restUpdate(MGR, "role = 'manager'", ALICE)).toBe('ROLE_ADMIN_ONLY')
+    expect(await restUpdate(MGR, "role = 'employee'", BOSS)).toBe('ROLE_ADMIN_ONLY')
+    expect(await roleOf(BOSS)).toBe('admin')
+    expect(await restUpdate(MGR, "role = 'admin', position = '팀장'", MGR)).toMatch(/ADMIN_ONLY$/)   // 두 가드 중 하나가 먼저 막는다
+    expect(await roleOf(MGR)).toBe('manager')
+    expect(await restUpdate(ALICE, "role = 'admin'", ALICE)).toBe('OK')   // RLS 0행
+    expect(await roleOf(ALICE)).toBe('employee')
+    expect(await restUpdate(MGR, "name = '김직원', role = 'employee', is_active = true", ALICE)).toBe('OK')   // 직원관리 저장 경로(값 그대로)
+    expect(await restUpdate(MGR, "name = '김직원1'", ALICE)).toBe('OK')
+    await asUser(null)
+    await exec(`update public.employees set name = '김직원' where id = '${ALICE}'`)
+  })
+
+  it('admin 은 REST·RPC(update_employee_admin) 모두 role 변경 정상, 인사담당의 RPC 는 Unauthorized, 세션 없는 경로는 통과', async () => {
+    expect(await restUpdate(BOSS, "role = 'manager'", ALICE)).toBe('OK')
+    expect(await roleOf(ALICE)).toBe('manager')
+    await asUser(BOSS)
+    expect(await rpcUpdate(ALICE, 'employee')).toBe('OK')
+    expect(await roleOf(ALICE)).toBe('employee')
+    await asUser(MGR)
+    expect(await rpcUpdate(ALICE, 'admin')).toBe('Unauthorized')
+    expect(await rpcUpdate(MGR, 'admin')).toBe('Unauthorized')
+    expect(await roleOf(ALICE)).toBe('employee')
+    await asUser(null)
+    expect(await codeOf(exec(`update public.employees set role = 'manager' where id = '${ALICE}'`))).toBe('OK')
+    await exec(`update public.employees set role = 'employee' where id = '${ALICE}'`)
+    expect(await roleOf(ALICE)).toBe('employee')
   })
 })
 
@@ -738,5 +805,14 @@ describe('8. 905 — employees.position 되돌리기', () => {
     await exec(sql('005_employees_position.sql'))
     expect(await hasPosition()).toBe(true)
     expect(await codeOf(exec("update public.employees set position = ' 팀장' where id = '" + LEAD + "'"))).toMatch(/employees_position_trim_chk/)
+  }, 60_000)
+
+  it('906 은 단독으로 role 가드만 지우고, 006 은 다시 적용(멱등)된다', async () => {
+    await exec(sql('906_rollback_role_guard.sql'))
+    expect((await one<{ n: string }>("select count(*)::text as n from pg_trigger where tgname = 'employees_role_admin_only'")).n).toBe('0')
+    expect((await one<{ ok: boolean }>("select to_regprocedure('public.employees_role_guard()') is null as ok")).ok).toBe(true)
+    await exec(sql('006_employees_role_guard.sql'))
+    await exec(sql('006_employees_role_guard.sql'))
+    expect((await one<{ n: string }>("select count(*)::text as n from pg_trigger where tgname = 'employees_role_admin_only'")).n).toBe('1')
   }, 60_000)
 })

@@ -90,6 +90,29 @@ begin
 end;
 $$;
 
+-- 운영 RPC update_employee_admin (20260323000000 사본): admin 만, role 등 변경. 트리거(005·006)를 같이 지난다
+create or replace function public.update_employee_admin(
+  p_admin_key text default null, p_id uuid default null, p_name text default null, p_role text default null,
+  p_department text default null, p_is_active boolean default null
+)
+returns public.employees
+language plpgsql security definer
+as $$
+declare v_result public.employees;
+begin
+  if public.is_admin() then
+    update public.employees
+    set name = coalesce(p_name, name), role = coalesce(p_role, role), is_active = coalesce(p_is_active, is_active)
+    where id = p_id
+    returning * into v_result;
+    if not found then raise exception 'Employee not found'; end if;
+    return v_result;
+  else
+    raise exception 'Unauthorized';
+  end if;
+end;
+$$;
+
 grant usage on schema public to anon, authenticated, service_role;
 grant select on public.employees, public.overtime_requests to authenticated, service_role;
 grant update on public.employees to authenticated;

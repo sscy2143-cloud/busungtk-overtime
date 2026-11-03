@@ -22,7 +22,10 @@ select 'C-2 permission system (expect none)', jsonb_build_object(
 union all
 select 'C-3 policy baseline', jsonb_build_object(
   'count_by_table', (select jsonb_object_agg(tablename, n) from (select tablename, count(*) as n from pg_policies where schemaname = 'public' group by tablename) t),
-  'employees_policies', (select jsonb_agg(jsonb_build_object('name', policyname, 'cmd', cmd, 'roles', roles::text[], 'qual', qual) order by policyname) from pg_policies where schemaname = 'public' and tablename = 'employees'))
+  'employees_policies', (select jsonb_agg(jsonb_build_object('name', policyname, 'cmd', cmd, 'roles', roles::text[], 'qual', qual, 'with_check', with_check) order by policyname) from pg_policies where schemaname = 'public' and tablename = 'employees'),
+  'employees_triggers', (select coalesce(jsonb_agg(jsonb_build_object('name', tgname, 'enabled', tgenabled::text, 'def', pg_get_triggerdef(oid)) order by tgname), '[]'::jsonb) from pg_trigger where tgrelid = 'public.employees'::regclass and not tgisinternal),
+  'employees_grants', (select jsonb_agg(jsonb_build_object('grantee', grantee, 'priv', privilege_type) order by grantee, privilege_type) from information_schema.role_table_grants where table_schema = 'public' and table_name = 'employees' and grantee in ('anon', 'authenticated', 'service_role')),
+  'employees_column_grants', (select coalesce(jsonb_agg(jsonb_build_object('grantee', grantee, 'col', column_name, 'priv', privilege_type) order by grantee, column_name), '[]'::jsonb) from information_schema.column_privileges where table_schema = 'public' and table_name = 'employees' and grantee in ('anon', 'authenticated') and column_name in ('role', 'position', 'is_active', 'hourly_wage')))
 union all
 select 'C-5 name conflicts (expect empty)', coalesce((select jsonb_agg(x) from (
   select 'table:' || table_name as x from information_schema.tables where table_schema = 'public' and (table_name like 'trip\_%' or table_name = 'holidays')
@@ -33,7 +36,7 @@ select 'C-6 employees', jsonb_build_object(
   'id_fk', (select pg_get_constraintdef(oid) from pg_constraint where conrelid = 'public.employees'::regclass and contype = 'f' and conname ilike '%id_fkey%' limit 1),
   'rls_enabled', (select relrowsecurity from pg_class where oid = 'public.employees'::regclass))
 union all
-select 'C-7 existing functions', (select jsonb_agg(jsonb_build_object('fn', p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')', 'secdef', p.prosecdef, 'acl', array_to_string(p.proacl, ','), 'def', case when p.proname in ('is_manager_or_admin', 'is_admin', 'update_updated_at_column') then pg_get_functiondef(p.oid) end) order by p.proname)
+select 'C-7 existing functions', (select jsonb_agg(jsonb_build_object('fn', p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')', 'secdef', p.prosecdef, 'acl', array_to_string(p.proacl, ','), 'def', case when p.proname in ('is_manager_or_admin', 'is_admin', 'update_updated_at_column', 'update_employee_admin', 'list_all_employees') then pg_get_functiondef(p.oid) end) order by p.proname)
   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public' and p.proname in ('update_updated_at_column', 'is_manager_or_admin', 'is_admin', 'get_my_role'))
 union all
