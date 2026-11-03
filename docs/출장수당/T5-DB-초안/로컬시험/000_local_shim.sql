@@ -49,9 +49,14 @@ create table if not exists public.employees (
   role          text not null default 'employee' check (role in ('employee', 'manager', 'admin')),
   employee_type text not null default 'office',
   hourly_wage   integer not null default 0,
+  second_auth_hash text,
   is_active     boolean not null default true,
-  created_at    timestamptz not null default now()
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
 );
+-- 운영 S-2: employees 의 기존 트리거는 employees_updated_at 하나
+drop trigger if exists employees_updated_at on public.employees;
+create trigger employees_updated_at before update on public.employees for each row execute function public.update_updated_at_column();
 
 create table if not exists public.overtime_requests (
   id             uuid primary key default gen_random_uuid(),
@@ -70,6 +75,14 @@ returns boolean
 language sql stable security definer
 as $$
   select exists (select 1 from public.employees where id = auth.uid() and role in ('manager', 'admin'))
+$$;
+
+-- 운영 함수 is_employee() — 마이그레이션에 없고 운영에만 있음 (secpatch 메모: "등록된 직원이면 참"). 정확한 본문은 S-3 결과 기준
+create or replace function public.is_employee()
+returns boolean
+language sql stable security definer
+as $$
+  select exists (select 1 from public.employees where id = auth.uid())
 $$;
 
 -- 운영 RPC register_employee (20260225220000 사본): 첫 직원만 admin, 이후는 employee·비활성
@@ -151,6 +164,9 @@ create policy "employees_update_manager_admin" on public.employees for update us
 -- 본인 자동 등록 (사본): role 을 제한하지 않는다
 drop policy if exists "employees_insert_self" on public.employees;
 create policy "employees_insert_self" on public.employees for insert with check (auth.uid() = id);
+-- 운영 S-1 (11-03): 마이그레이션에 없는 정책 — 등록된 직원이면 활성 직원 전원의 행(시급·2차인증 해시 포함)을 읽는다
+drop policy if exists "employees_select_active_for_group" on public.employees;
+create policy "employees_select_active_for_group" on public.employees for select using ((is_active = true) and public.is_employee());
 
 -- 시험용 직원 (id 고정 — 시험 스크립트가 같은 값을 쓴다)
 insert into public.employees (id, name, role) values

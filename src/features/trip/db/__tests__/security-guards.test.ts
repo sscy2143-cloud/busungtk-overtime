@@ -43,6 +43,11 @@ const nameOf = async (id: string) => (await one<{ n: string }>('select name as n
 const rpcUpdate = (id: string, role: string) => codeOf(one('select public.update_employee_admin(p_id => $1::uuid, p_role => $2) as r', [id, role]))
 const listAll = () => codeOf(rows('select * from public.list_all_employees()'))
 const triggerCount = async () => Number((await one<{ n: string }>("select count(*)::text as n from pg_trigger where tgname = 'employees_role_admin_only'")).n)
+const countAs = async (uid: string, q: string) => {
+  await asUser(uid)
+  await exec('set role authenticated')
+  try { return Number((await one<{ n: string }>(`select count(*)::text as n from (${q}) s`)).n) } finally { await exec('reset role') }
+}
 const isAdminChecksActive = async () => (await one<{ ok: boolean }>("select pg_get_functiondef('public.is_admin()'::regprocedure) like '%is_active%' as ok")).ok
 
 beforeAll(async () => {
@@ -52,6 +57,51 @@ beforeAll(async () => {
     ('${MGR}', '인사담당', 'manager', true), ('${GONE_MGR}', '퇴사인사', 'manager', false), ('${GONE_ADM}', '전대표', 'admin', false) on conflict (id) do nothing`)
 }, 60_000)
 afterAll(async () => { await db?.close() })
+
+describe('D. 시급·2차 인증 해시 노출 — employees_select_active_for_group 재현과 008 차단 (금액은 읽지 않고 행 수만)', () => {
+  it('재현: 일반 직원이 다른 활성 직원 전원의 행을 읽고, 그 행에 hourly_wage·second_auth_hash 가 포함된다', async () => {
+    await asUser(null)
+    await exec(`update public.employees set hourly_wage = 12345, second_auth_hash = 'hash' where id = '${BOSS}'`)
+    expect(await countAs(ALICE, `select id from public.employees where id <> '${ALICE}'`)).toBeGreaterThanOrEqual(3)   // BOSS·MGR·BOB…
+    expect(await countAs(ALICE, `select 1 from public.employees where id = '${BOSS}' and hourly_wage is not null and second_auth_hash is not null`)).toBe(1)
+    expect(await countAs(ALICE, `select id from public.employees where id = '${GONE_MGR}'`)).toBe(0)   // 비활성은 안 보인다
+  })
+
+  it('008a: 뷰는 활성 직원의 비민감 칼럼만 — 민감 칼럼은 아예 없고, anon 은 못 읽는다', async () => {
+    await exec(sql('008a_employees_directory_view.sql'))
+    expect(await countAs(ALICE, 'select id from public.employees_directory')).toBe(4)   // ALICE·BOB·BOSS·MGR (비활성 2명 제외)
+    await asUser(ALICE); await exec('set role authenticated')
+    expect(await codeOf(one('select hourly_wage from public.employees_directory'))).toMatch(/column "hourly_wage" does not exist/)
+    expect(await codeOf(one('select second_auth_hash from public.employees_directory'))).toMatch(/does not exist/)
+    await exec('reset role')
+    await asUser(null); await exec('set role anon')
+    expect(await codeOf(one('select id from public.employees_directory'))).toMatch(/permission denied/)
+    await exec('reset role')
+    // 정책을 아직 안 지웠으므로 base 표 노출은 그대로 (앱 배포 전 단계)
+    expect(await countAs(ALICE, `select 1 from public.employees where id = '${BOSS}' and hourly_wage is not null`)).toBe(1)
+  })
+
+  it('008b: 정책 제거 후 일반 직원은 base 표에서 본인 행만, 인사담당·대표는 전원(시급 포함) 그대로', async () => {
+    await exec(sql('008b_drop_group_select_policy.sql'))
+    expect(await countAs(ALICE, 'select id from public.employees')).toBe(1)
+    expect(await countAs(ALICE, `select 1 from public.employees where id = '${BOSS}'`)).toBe(0)
+    expect(await countAs(ALICE, `select 1 from public.employees where id = '${ALICE}' and hourly_wage is not null`)).toBe(1)   // 본인 시급은 본인 행
+    expect(await countAs(ALICE, 'select id from public.employees_directory')).toBe(4)                                 // 이름 목록은 그대로
+    expect(await countAs(MGR, 'select hourly_wage from public.employees')).toBe(6)
+    expect(await countAs(BOSS, 'select hourly_wage from public.employees')).toBe(6)
+  })
+
+  it('908: 정책 복원·뷰 제거 → 다시 전원 노출 (되돌리기 동작 확인), 008a·008b 재적용', async () => {
+    await exec(sql('908_rollback_wage_protection.sql'))
+    expect(await countAs(ALICE, `select 1 from public.employees where id = '${BOSS}' and hourly_wage is not null`)).toBe(1)
+    expect((await one<{ ok: boolean }>("select to_regclass('public.employees_directory') is null as ok")).ok).toBe(true)
+    await exec(sql('008a_employees_directory_view.sql'))
+    await exec(sql('008b_drop_group_select_policy.sql'))
+    expect(await countAs(ALICE, 'select id from public.employees')).toBe(1)
+    await asUser(null)
+    await exec(`update public.employees set hourly_wage = 0, second_auth_hash = null where id = '${BOSS}'`)
+  })
+})
 
 describe('A. 재현 — 운영 정책·함수 사본만 있을 때 (006·007 없음)', () => {
   it('인사담당이 REST 로 자기·남의 role 을 admin 으로 바꿀 수 있다', async () => {
@@ -89,6 +139,16 @@ describe('A. 재현 — 운영 정책·함수 사본만 있을 때 (006·007 없
     expect(await roleOf(NEWBIE)).toBe('admin')
     await asUser(null)
     await exec(`delete from public.employees where id = '${NEWBIE}'`)
+  })
+
+  it('006·007 적용 스크립트(보안패치-006-007-적용.sql)는 한 배치로 적용되고 확인 행을 돌려준다; 906·907 로 되돌린다', async () => {
+    await exec(sql('보안패치-006-007-적용.sql'))
+    expect(await triggerCount()).toBe(1)
+    expect(await isAdminChecksActive()).toBe(true)
+    await exec(sql('906_rollback_role_guard.sql'))
+    await exec(sql('907_rollback_active_admin_functions.sql'))
+    expect(await triggerCount()).toBe(0)
+    expect(await isAdminChecksActive()).toBe(false)
   })
 
   it('직원(employee)은 처음부터 0행 — UPDATE 정책이 없다', async () => {
