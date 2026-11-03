@@ -48,6 +48,7 @@ const KNOWN: Record<string, { title: string; action: ErrorAction; hint?: string 
   ROLE_MISMATCH: { title: '권한 정보가 서버와 다릅니다', action: 'login' },
   VIEW_NOT_GRANTED: { title: '전체 출장 내역 조회 권한이 없습니다', action: 'none', hint: '필요하면 대표(admin)에게 조회 권한을 요청하세요' },
   INVALID_ARGUMENT: { title: '요청 값이 올바르지 않습니다', action: 'none' },
+  NOT_ELIGIBLE: { title: '조회 권한 부여 대상이 아닙니다', action: 'none', hint: '역할이 manager 인 활성 직원만 전체 출장 내역 조회 권한을 받을 수 있습니다' },
 }
 
 export function describeError(code: string, message: string): ErrorNotice {

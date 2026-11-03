@@ -59,6 +59,8 @@ export function createTripClient(backend: TripBackend, opts: TripClientOptions):
   let viewerInner: GuardedTripService = emptyService()
   let grants: ViewGrantRecord[] = []
   let hasGrant = false
+  /** 부여 후보 (admin 세션일 때만 서버에서 받는다) */
+  let candidates: string[] = []
   const issues = new Map<string, { code: string; message: string }>()
 
   function emptyService(): GuardedTripService {
@@ -129,7 +131,14 @@ export function createTripClient(backend: TripBackend, opts: TripClientOptions):
     const grantRows = await backend.select<ViewGrantRow>('trip_view_grants', { columns: VIEW_GRANT_COLUMNS, order: 'granted_at.asc' })
     if (!grantRows.ok) return grantRows
     grants = grantRows.value.map(toViewGrant)
+    // 본인 행은 RLS 가 "유효할 때(활성 manager)" 만 돌려주므로, 행이 보이면 곧 유효한 권한이다
     hasGrant = sessionActor.role !== 'admin' && grants.some((g) => g.employeeId === uid)
+    candidates = []
+    if (sessionActor.role === 'admin') {
+      const cand = await backend.rpc<{ employee_id: string }[]>('trip_view_grant_candidates', {})
+      if (!cand.ok) return cand
+      candidates = (cand.value ?? []).map((r) => r.employee_id)
+    }
 
     // 어느 화면 스위치도 꺼져 있으면 읽을 것이 없다 (RLS 도 0행을 준다)
     if (!flags.employeeForm && !flags.adminReview) {
@@ -320,6 +329,13 @@ export function createTripClient(backend: TripBackend, opts: TripClientOptions):
     if (sessionActor.role !== actor.role) return fail('ROLE_MISMATCH', '권한 정보가 서버와 다릅니다. 다시 로그인하세요')
     return ok(sessionActor.role === 'admin' ? grants : grants.filter((g) => g.employeeId === sessionActor!.id))
   }
+  const viewGrantCandidates: TripClientService['viewGrantCandidates'] = (actor) => {
+    if (sessionUnknown) return fail('UNAUTHENTICATED', '로그인이 필요합니다')
+    if (!sessionActor || sessionActor.id !== actor.id) return fail('UNKNOWN_USER', '사용자를 확인할 수 없습니다. 다시 로그인하세요')
+    if (sessionActor.role !== actor.role) return fail('ROLE_MISMATCH', '권한 정보가 서버와 다릅니다. 다시 로그인하세요')
+    if (sessionActor.role !== 'admin') return fail('FORBIDDEN', '관리자만 할 수 있습니다')
+    return ok([...candidates])
+  }
   const setViewGrant: TripClientService['setViewGrant'] = async (actor, employeeId, enabled, note) => {
     if (sessionUnknown) return fail('UNAUTHENTICATED', '로그인이 필요합니다')
     if (!sessionActor || sessionActor.id !== actor.id) return fail('UNKNOWN_USER', '사용자를 확인할 수 없습니다. 다시 로그인하세요')
@@ -351,6 +367,6 @@ export function createTripClient(backend: TripBackend, opts: TripClientOptions):
     compute, refresh,
     computeIssue: (claimId) => issues.get(claimId),
     viewGrantState: (actor) => ({ granted: !!sessionActor && sessionActor.id === actor.id && hasGrant, source: flagSource }),
-    viewerQueue, viewerDetail, viewGrants: viewGrantsRead, setViewGrant,
+    viewerQueue, viewerDetail, viewGrants: viewGrantsRead, viewGrantCandidates, setViewGrant,
   }
 }

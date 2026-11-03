@@ -3,7 +3,8 @@ import { Card, NoticeList } from '../parts'
 import { AdminTripReview } from './AdminTripReview'
 
 /**
- * 조회 권한자(팀장) 화면 — admin 이 trip_set_view_grant 로 지정한 직원만 전체 출장 내역을 읽기 전용으로 본다.
+ * 조회 권한자 화면 — admin 이 trip_set_view_grant 로 지정한 활성 manager 만 전체 출장 내역을 읽기 전용으로 본다.
+ * 거울 자료의 재검증(권한 회수·로그아웃 뒤 남지 않게)은 원격 제공자의 revalidateKey 로 글루가 올린다.
  * 권한 여부는 서버 값(trip_view_grants, RLS)으로 판단하며, 없으면 안내만 보여 준다. 쓰기·승인은 어디서도 열리지 않는다.
  */
 export function TripViewerScreen() {

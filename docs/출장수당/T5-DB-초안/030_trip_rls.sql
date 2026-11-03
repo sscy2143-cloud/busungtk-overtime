@@ -121,10 +121,10 @@ create policy "trip_feature_flag_history_select_admin"
   on public.trip_feature_flag_history for select to authenticated
   using (public.trip_is_admin());
 
--- 조회 권한 지정: 본인 행(메뉴 표시용) + admin 전체. 이력은 admin 만. 쓰기 정책 없음 (trip_set_view_grant 로만)
+-- 조회 권한 지정: 본인 행(메뉴 표시용, 유효할 때만 = 활성 manager) + admin 전체. 이력은 admin 만. 쓰기 정책 없음 (trip_set_view_grant 로만)
 create policy "trip_view_grants_select_self"
   on public.trip_view_grants for select to authenticated
-  using (employee_id = auth.uid());
+  using (employee_id = auth.uid() and public.trip_view_grant_eligible(auth.uid()));
 
 create policy "trip_view_grants_select_admin"
   on public.trip_view_grants for select to authenticated

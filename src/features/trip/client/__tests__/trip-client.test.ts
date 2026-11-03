@@ -76,7 +76,8 @@ describe('기능 스위치 OFF — 서버를 부르지 않고 거부한다', () 
     server.session = boss.id
     await client.refresh()
     expect(await client.review(boss, 'claim-1', { action: 'approve', expectedCalcIds: [] })).toMatchObject({ ok: false, code: 'FEATURE_DISABLED' })
-    expect(rpcNames(server)).toEqual([])
+    // 쓰기 RPC 는 0건. admin 세션의 조회 권한 후보 읽기(trip_view_grant_candidates)만 스위치와 무관하게 한 번
+    expect(rpcNames(server)).toEqual(['trip_view_grant_candidates'])
     expect(computeCount(server)).toBe(0)
     // 스위치가 꺼져 있으면 자료 표도 읽지 않는다
     expect(server.calls.filter((c) => c.kind === 'select').map((c) => c.name)).toEqual(['trip_feature_flags', 'employees', 'trip_view_grants', 'trip_feature_flags', 'employees', 'trip_view_grants'])

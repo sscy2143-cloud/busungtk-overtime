@@ -200,20 +200,45 @@ describe('전체 출장 내역 조회 (admin 지정 권한)', () => {
     expect(html).not.toContain('김직원')
   })
 
-  it('권한 관리 화면: admin 에게는 직원 목록과 부여/회수 버튼, 직원에게는 안내만', () => {
+  it('권한 관리 화면: admin 에게는 후보(활성 manager)만 부여/회수 버튼으로, 직원에게는 안내만', () => {
     const { repo } = seeded()
     const adminHtml = renderToStaticMarkup(
-      <TripScreenProvider actor={boss} employees={WITH_LEAD} today={MON} repo={repo} flags={{ adminReview: true }} viewGrants={[LEAD]}>
+      <TripScreenProvider actor={boss} employees={WITH_LEAD} today={MON} repo={repo} flags={{ adminReview: true }} viewGrants={[LEAD]} grantEligible={[LEAD, bob.id]}>
         <TripViewGrantsAdmin />
       </TripScreenProvider>,
     )
     expect(adminHtml).toContain('최팀장')
     expect(adminHtml).toContain('조회 권한 있음')
-    expect(adminHtml).toContain('회수')
-    expect(adminHtml).toContain('김직원')
-    expect(adminHtml).toContain('부여')
+    expect(adminHtml).toContain('>회수<')
+    expect(adminHtml).toContain('이동행')          // 후보(manager) 인 직원은 부여 버튼
+    expect(adminHtml).toContain('>부여<')
+    expect(adminHtml).not.toContain('김직원')     // role=employee 는 목록에 없다
     expect(adminHtml).not.toContain('박관리</p>')   // 본인은 목록에 없음
+    expect(adminHtml).not.toContain('유효하지 않은 권한')
     const empHtml = renderLead(<TripViewGrantsAdmin />, [])
     expect(empHtml).toContain('대표(admin)만')
+  })
+
+  it('권한 관리 화면: 역할이 바뀌어 후보에서 빠진 권한은 "유효하지 않은 권한" 으로 회수만 가능', () => {
+    const { repo } = seeded()
+    const html = renderToStaticMarkup(
+      <TripScreenProvider actor={boss} employees={WITH_LEAD} today={MON} repo={repo} flags={{ adminReview: true }} viewGrants={[LEAD]} grantEligible={[bob.id]}>
+        <TripViewGrantsAdmin />
+      </TripScreenProvider>,
+    )
+    expect(html).toContain('최팀장')
+    expect(html).toContain('유효하지 않은 권한')
+    expect(html).not.toContain('조회 권한 있음')
+  })
+
+  it('조회 화면: 권한 행이 있어도 후보(활성 manager)가 아니면 안내만', () => {
+    const { repo } = seeded()
+    const html = renderToStaticMarkup(
+      <TripScreenProvider actor={lead} employees={WITH_LEAD} today={MON} repo={repo} flags={{ employeeForm: true, adminReview: true }} viewGrants={[LEAD]} grantEligible={[bob.id]}>
+        <TripViewerScreen />
+      </TripScreenProvider>,
+    )
+    expect(html).toContain('조회 권한이 없습니다')
+    expect(html).not.toContain('김직원')
   })
 })

@@ -65,6 +65,8 @@ export interface TripClientService extends TripReads, TripWrites {
   viewerDetail(actor: Actor, claimId: string): Result<ClaimDetailData>
   /** 현재 부여된 권한 목록 (admin 만. 본인 행은 누구나) */
   viewGrants(actor: Actor): Result<ViewGrantRecord[]>
-  /** 부여·회수 (admin 만, 사유 필수). 서버 RPC trip_set_view_grant */
+  /** 부여 후보 id (admin 만). 서버 trip_view_grant_candidates() — DB 판정(trip_view_grant_eligible: 활성 manager)과 같은 명단 */
+  viewGrantCandidates(actor: Actor): Result<string[]>
+  /** 부여·회수 (admin 만, 사유 필수, 대상은 후보만 — 아니면 NOT_ELIGIBLE). 서버 RPC trip_set_view_grant */
   setViewGrant(actor: Actor, employeeId: string, enabled: boolean, note: string): Promise<Result<{ employeeId: string; enabled: boolean; changed: boolean }>>
 }

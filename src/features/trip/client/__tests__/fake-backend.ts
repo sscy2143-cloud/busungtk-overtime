@@ -32,6 +32,8 @@ export interface FakeServer extends TripBackend {
   calls: { kind: 'select' | 'rpc' | 'compute'; name: string; args?: unknown }[]
   /** 다음 한 번의 호출을 실패시킨다 */
   failNext(name: string, code: string, message?: string): void
+  /** 직원 명부 (테스트가 역할·활성 여부를 바꿀 때) */
+  employees: Map<string, FakeEmployee>
 }
 
 const isoAt = (n: number) => `2026-11-10T09:${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}Z`
@@ -51,13 +53,16 @@ export function createFakeServer(o: FakeServerOptions): FakeServer {
   const employees = new Map(o.employees.map((e) => [e.id, e]))
   /** admin 이 지정한 조회 권한 (trip_view_grants) */
   const grants = new Map<string, ViewGrantRow>()
-  const hasGrant = (me: FakeEmployee | undefined) => !!me && me.role !== 'admin' && (me.is_active ?? true) && grants.has(me.id)
+  /** 020 trip_view_grant_eligible: 활성이고 role='manager' */
+  const eligible = (e: FakeEmployee | undefined) => !!e && e.role === 'manager' && (e.is_active ?? true)
+  const hasGrant = (me: FakeEmployee | undefined) => !!me && eligible(me) && grants.has(me.id)
 
   const self: FakeServer = {
     session: null,
     flags,
     server,
     calls,
+    employees,
     failNext: (name, code, message = code) => pendingFailures.set(name, { code, message }),
 
     async sessionUserId() { return self.session },
@@ -79,15 +84,19 @@ export function createFakeServer(o: FakeServerOptions): FakeServer {
       if (!self.session) return fail('UNAUTHENTICATED', '로그인이 필요합니다')
       const me = employees.get(self.session)
       if (!me || me.is_active === false) return fail('UNKNOWN_USER', '직원 정보가 없습니다')
+      if (fn === 'trip_view_grant_candidates') {
+        if (me.role !== 'admin') return fail('FORBIDDEN', '대표(admin)만 조회 권한 후보를 볼 수 있습니다')
+        return ok([...employees.values()].filter(eligible).map((e) => ({ employee_id: e.id })) as T)
+      }
       if (fn === 'trip_set_view_grant') {
-        // 020: admin 만, 사유 필수, 본인 불가, 대상은 활성·비admin. 스위치와 무관
+        // 020: admin 만, 사유 필수, 본인 불가, 대상은 활성 manager 만(NOT_ELIGIBLE). 스위치와 무관
         if (me.role !== 'admin') return fail('FORBIDDEN', '대표(admin)만 출장 조회 권한을 바꿀 수 있습니다')
         const target = employees.get(args.p_employee_id as string)
         if (!String(args.p_note ?? '').trim()) return fail('REASON_REQUIRED', '부여·회수 사유를 입력하세요')
         if (args.p_employee_id === me.id) return fail('INVALID_ARGUMENT', '본인에게는 부여할 수 없습니다')
         let changed = false
         if (args.p_enabled) {
-          if (!target || target.is_active === false || target.role === 'admin') return fail('NOT_FOUND', '활성 직원이 아니거나 관리자라 부여 대상이 아닙니다')
+          if (!target || !eligible(target)) return fail('NOT_ELIGIBLE', '부여 대상이 아닙니다 (활성이고 역할이 manager 인 직원만)')
           changed = !grants.has(target.id)
           if (changed) grants.set(target.id, { employee_id: target.id, granted_by: me.id, granted_at: isoAt(tick++), note: String(args.p_note) })
         } else {
@@ -177,7 +186,8 @@ export function createFakeServer(o: FakeServerOptions): FakeServer {
     }
     switch (table) {
       case 'trip_view_grants':
-        return [...grants.values()].filter((g) => me && (me.role === 'admin' || g.employee_id === me.id))
+        // 030: 본인 행은 유효할 때(활성 manager)만, admin 은 전부
+        return [...grants.values()].filter((g) => me && (me.role === 'admin' || (g.employee_id === me.id && eligible(me))))
       case 'trip_feature_flags':
         return (Object.keys(flags) as FeatureFlagRow['key'][]).map((key) => ({ key, enabled: flags[key] }))
       case 'employees': {
