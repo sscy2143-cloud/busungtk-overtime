@@ -273,3 +273,18 @@ describe('관리자 흐름: 수정 → 재계산 → 승인', () => {
     expect(unwrap(await client.refresh()).claims).toBe(1)
   })
 })
+
+describe('관리자 상세 열기 전 계산 갱신', () => {
+  it('제출된 건은 관리자가 compute 할 수 있고 거울이 갱신된다; 승인된 건은 서버가 NOT_EDITABLE 로 거부한다', async () => {
+    const { server, client } = setup()
+    const c = unwrap(server.server.createClaim(alice, claimArgs))
+    unwrap(server.server.submit(alice, c.id, c.version))
+    server.session = boss.id
+    await client.refresh()
+    const before = unwrap(client.latestCalcs(boss, c.id)).map((x) => x.id)
+    expect(unwrap(await client.compute(boss, c.id)).calcIds).toEqual({ [unwrap(client.claimDetail(boss, c.id)).days[0].id]: before[0] })
+    server.failNext('compute', 'NOT_EDITABLE', '승인·반려·취소된 신청은 다시 계산하지 않습니다')
+    expect(await client.compute(boss, c.id)).toMatchObject({ ok: false, code: 'NOT_EDITABLE' })
+    expect(client.computeIssue(c.id)?.code).toBe('NOT_EDITABLE')
+  })
+})
