@@ -18,6 +18,11 @@ end $$;
 
 create schema if not exists auth;
 
+-- Supabase 기본 권한 흉내: 이후 public 에 만드는 표·뷰·함수에 anon/authenticated/service_role 권한이 자동으로 붙는다
+--   (운영 C-8/S-7 대조 항목. 새 뷰·함수를 만들 때 명시적으로 회수하지 않으면 열린다 — 008a 가 이를 전제로 회수한다)
+alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
+alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
+
 -- 세션 설정값으로 로그인 사용자를 흉내 낸다:  select set_config('request.jwt.claim.sub', '<uuid>', false);
 create or replace function auth.uid()
 returns uuid

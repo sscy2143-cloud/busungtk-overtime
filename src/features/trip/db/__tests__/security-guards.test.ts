@@ -48,6 +48,13 @@ const countAs = async (uid: string, q: string) => {
   await exec('set role authenticated')
   try { return Number((await one<{ n: string }>(`select count(*)::text as n from (${q}) s`)).n) } finally { await exec('reset role') }
 }
+/** PostgREST 처럼 세션 사용자 + authenticated 역할로 임의 문장 실행 */
+const restRun = async (uid: string | null, stmt: string, role: 'authenticated' | 'anon' = 'authenticated') => {
+  await asUser(uid)
+  await exec(`set role ${role}`)
+  try { return await codeOf(exec(stmt)) } finally { await exec('reset role') }
+}
+const fnAttrs = (name: string) => one<{ a: string }>(`select prosecdef::text || '|' || provolatile::text || '|' || coalesce(proacl::text, '-') || '|' || coalesce(proconfig::text, '-') || '|' || proowner::regrole::text as a from pg_proc where oid = $1::regprocedure`, [name]).then((x) => x.a)
 const isAdminChecksActive = async () => (await one<{ ok: boolean }>("select pg_get_functiondef('public.is_admin()'::regprocedure) like '%is_active%' as ok")).ok
 
 beforeAll(async () => {
@@ -81,8 +88,34 @@ describe('D. 시급·2차 인증 해시 노출 — employees_select_active_for_g
     expect(await countAs(ALICE, `select 1 from public.employees where id = '${BOSS}' and hourly_wage is not null`)).toBe(1)
   })
 
-  it('008b: 정책 제거 후 일반 직원은 base 표에서 본인 행만, 인사담당·대표는 전원(시급 포함) 그대로', async () => {
+  it('008a 권한: 기본 권한(default privileges)으로 붙은 ALL 이 회수돼 authenticated 는 SELECT 뿐 — 뷰를 통한 INSERT·UPDATE·DELETE 는 permission denied, anon·PUBLIC 은 없음', async () => {
+    const grants = await rows<{ grantee: string; priv: string }>("select grantee, privilege_type as priv from information_schema.role_table_grants where table_schema = 'public' and table_name = 'employees_directory' and grantee in ('anon', 'authenticated', 'service_role', 'PUBLIC') order by 1, 2")
+    expect(grants).toEqual([{ grantee: 'authenticated', priv: 'SELECT' }, { grantee: 'service_role', priv: 'SELECT' }])
+    // 단순 뷰라 자동 갱신 가능(updatable) 하지만 권한이 없어 쓰지 못한다
+    expect(Number((await one<{ m: number }>("select pg_relation_is_updatable('public.employees_directory'::regclass, false) as m")).m)).toBeGreaterThan(0)
+    expect(await restRun(ALICE, `update public.employees_directory set name = 'x' where id = '${BOSS}'`)).toMatch(/permission denied/)
+    expect(await restRun(ALICE, `delete from public.employees_directory where id = '${BOSS}'`)).toMatch(/permission denied/)
+    expect(await restRun(ALICE, "insert into public.employees_directory (id, name) values ('00000000-0000-0000-0000-00000000000b', 'x')")).toMatch(/permission denied/)
+    expect(await restRun(MGR, `update public.employees_directory set name = 'x' where id = '${BOSS}'`)).toMatch(/permission denied/)
+    expect(await nameOf(BOSS)).toBe('박대표')
+    // 임의 필터·칼럼 선택으로 민감 칼럼에 닿을 수 없다 (PostgREST 도 같은 SQL 을 만든다)
+    expect(await restRun(ALICE, 'select id from public.employees_directory where hourly_wage > 0')).toMatch(/column "hourly_wage" does not exist/)
+    expect(await restRun(ALICE, 'select id from public.employees_directory order by second_auth_hash')).toMatch(/does not exist/)
+    expect(await restRun(ALICE, 'select email from public.employees_directory')).toMatch(/does not exist/)
+    // 비활성(퇴사) 계정 세션은 명부도 못 본다
+    expect(await countAs(GONE_MGR, 'select id from public.employees_directory')).toBe(0)
+    expect(await countAs(GONE_ADM, 'select id from public.employees_directory')).toBe(0)
+  })
+
+  it('우회 경로: register_employee(SECURITY DEFINER) 는 기존 id 를 넣으면 전체 행을 돌려준다 — 008b 가 EXECUTE 를 회수한다 (H0 와 멱등)', async () => {
+    expect(await restRun(ALICE, `select (public.register_employee('${BOSS}'::uuid, 'x', 'y')).hourly_wage`)).toBe('OK')   // 기본 권한이면 열려 있다
+  })
+
+  it('008b: 정책 제거 후 일반 직원은 base 표에서 본인 행만, 인사담당·대표는 전원(시급 포함) 그대로, register_employee 호출 거부', async () => {
     await exec(sql('008b_drop_group_select_policy.sql'))
+    expect(await restRun(ALICE, `select (public.register_employee('${BOSS}'::uuid, 'x', 'y')).hourly_wage`)).toMatch(/permission denied/)
+    expect(await restRun(ALICE, `select 1 from public.employees where id = '${BOSS}' and second_auth_hash is not null`)).toBe('OK')
+    expect(await countAs(ALICE, `select 1 from public.employees where id = '${BOSS}' and second_auth_hash is not null`)).toBe(0)
     expect(await countAs(ALICE, 'select id from public.employees')).toBe(1)
     expect(await countAs(ALICE, `select 1 from public.employees where id = '${BOSS}'`)).toBe(0)
     expect(await countAs(ALICE, `select 1 from public.employees where id = '${ALICE}' and hourly_wage is not null`)).toBe(1)   // 본인 시급은 본인 행
@@ -97,7 +130,7 @@ describe('D. 시급·2차 인증 해시 노출 — employees_select_active_for_g
     await exec('reset role')
     expect(await countAs(NEWBIE, 'select id from public.employees_directory')).toBe(0)
     for (const uid of [ALICE, MGR, BOSS]) expect(await countAs(uid, 'select id, name, department, role, employee_type from public.employees_directory')).toBe(4)
-    expect(await countAs(GONE_MGR, 'select id from public.employees_directory')).toBe(4)   // 비활성 계정도 '등록된 직원' — 명부(비민감)만, 시급은 본인 행(비활성 행은 self 정책으로 본인 것만)
+    expect(await countAs(GONE_MGR, 'select id from public.employees_directory')).toBe(0)   // 비활성 계정은 명부도 0행 (호출자 활성 조건)
     const cols = (await rows<{ c: string }>("select column_name as c from information_schema.columns where table_schema = 'public' and table_name = 'employees_directory' order by ordinal_position")).map((x) => x.c)
     expect(cols).toEqual(['id', 'name', 'department', 'role', 'employee_type', 'is_active'])
   })
@@ -163,14 +196,37 @@ describe('A. 재현 — 운영 정책·함수 사본만 있을 때 (006·007 없
     await exec(`delete from public.employees where id = '${NEWBIE}'`)
   })
 
-  it('006·007 적용 스크립트(보안패치-006-007-적용.sql)는 한 배치로 적용되고 확인 행을 돌려준다; 906·907 로 되돌린다', async () => {
+  it('006·007 적용 스크립트: 한 배치 적용, 원본 정의 보존, 함수 속성(소유자·권한·설정·volatility) 유지, 재실행은 ALREADY_APPLIED, 907 은 보존 원본으로 정확히 복원', async () => {
+    const before = { ia: await one<{ d: string }>("select pg_get_functiondef('public.is_admin()'::regprocedure) as d"), im: await one<{ d: string }>("select pg_get_functiondef('public.is_manager_or_admin()'::regprocedure) as d") }
+    const attrsBefore = [await fnAttrs('public.is_admin()'), await fnAttrs('public.is_manager_or_admin()')]
     await exec(sql('보안패치-006-007-적용.sql'))
     expect(await triggerCount()).toBe(1)
     expect(await isAdminChecksActive()).toBe(true)
-    await exec(sql('906_rollback_role_guard.sql'))
+    expect([await fnAttrs('public.is_admin()'), await fnAttrs('public.is_manager_or_admin()')]).toEqual(attrsBefore)   // security definer·stable·acl·config·owner 그대로
+    const saved = await rows<{ object: string; definition: string }>("select object, definition from public.security_patch_backup where patch = '007' order by object")
+    expect(saved.map((s) => s.object)).toEqual(['is_admin()', 'is_manager_or_admin()'])
+    expect(saved[0].definition).toBe(before.ia.d)
+    expect(saved[1].definition).toBe(before.im.d)
+    // 보존 표는 관리자 외 접근 불가
+    expect(await restRun(MGR, 'select * from public.security_patch_backup')).toMatch(/permission denied/)
+    // 재실행 → 사전 점검에서 중단, 아무것도 안 바뀜 (보존 행도 늘지 않음)
+    expect(await codeOf(exec(sql('보안패치-006-007-적용.sql')))).toBe('ALREADY_APPLIED')
+    expect(await triggerCount()).toBe(1)
+    expect(Number((await one<{ n: string }>("select count(*)::text as n from public.security_patch_backup")).n)).toBe(2)
+    // 907 → 보존 원본과 바이트 단위로 같은 정의, 906 → 트리거 제거
     await exec(sql('907_rollback_active_admin_functions.sql'))
+    expect((await one<{ d: string }>("select pg_get_functiondef('public.is_admin()'::regprocedure) as d")).d).toBe(before.ia.d)
+    expect((await one<{ d: string }>("select pg_get_functiondef('public.is_manager_or_admin()'::regprocedure) as d")).d).toBe(before.im.d)
+    expect([await fnAttrs('public.is_admin()'), await fnAttrs('public.is_manager_or_admin()')]).toEqual(attrsBefore)
+    await exec(sql('906_rollback_role_guard.sql'))
     expect(await triggerCount()).toBe(0)
     expect(await isAdminChecksActive()).toBe(false)
+    // 전제가 달라지면(with_check 생김) 중단
+    await exec('alter policy "employees_update_manager_admin" on public.employees with check (true)')
+    expect(await codeOf(exec(sql('보안패치-006-007-적용.sql')))).toBe('PRECONDITION_CHANGED')
+    expect(await triggerCount()).toBe(0)
+    await exec('drop policy "employees_update_manager_admin" on public.employees; create policy "employees_update_manager_admin" on public.employees for update using (public.is_manager_or_admin())')
+    await exec('drop table public.security_patch_backup')
   })
 
   it('직원(employee)은 처음부터 0행 — UPDATE 정책이 없다', async () => {
