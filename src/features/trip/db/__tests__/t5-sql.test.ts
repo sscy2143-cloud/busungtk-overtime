@@ -110,7 +110,7 @@ describe('1. 적용 — 010 → 020 → 030 → 040', () => {
 
   it('공개 RPC 8개 + 서버 저장 RPC, 정책·트리거가 있다', async () => {
     const fns = (await rows<{ proname: string }>("select proname from pg_proc where pronamespace = 'public'::regnamespace and proname like 'trip\\_%' order by proname")).map((x) => x.proname)
-    for (const f of ['trip_create_claim', 'trip_update_draft', 'trip_submit', 'trip_cancel', 'trip_invite_companions', 'trip_admin_adjust_day', 'trip_review', 'trip_store_server_calcs', 'trip_active_rule_version', 'trip_feature_enabled', 'trip_set_feature', 'trip_set_view_grant', 'trip_has_view_grant', 'trip_is_admin']) expect(fns).toContain(f)
+    for (const f of ['trip_create_claim', 'trip_update_draft', 'trip_submit', 'trip_cancel', 'trip_invite_companions', 'trip_admin_adjust_day', 'trip_review', 'trip_store_server_calcs', 'trip_active_rule_version', 'trip_feature_enabled', 'trip_set_feature', 'trip_set_view_grant', 'trip_has_view_grant', 'trip_view_grant_candidates', 'trip_is_admin']) expect(fns).toContain(f)
     const policies = (await rows<{ policyname: string }>("select policyname from pg_policies where schemaname = 'public' and (tablename like 'trip\\_%' or tablename = 'holidays')")).map((x) => x.policyname)
     expect(policies.length).toBe(22)   // 030 의 정책 수 (11-03 조회 권한 3개 포함). 바뀌면 030 과 같이 고친다
     expect(policies).toEqual(expect.arrayContaining(['trip_claims_select_self', 'trip_claims_select_admin', 'trip_day_calcs_select_self', 'trip_day_calcs_select_admin', 'holidays_select_authenticated']))
@@ -394,7 +394,8 @@ describe('5. 관리자 흐름 — 수정·재계산·승인 고정', () => {
   })
 })
 
-describe('5-2. 전체 조회 권한 — admin 이 지정한 직원만, 읽기 전용', () => {
+describe('5-2. 전체 조회 권한 — admin 이 role=manager 직원 중에서 지정, 읽기 전용', () => {
+  const candidates = () => rows<{ employee_id: string }>('select employee_id from public.trip_view_grant_candidates()').then((r) => r.map((x) => x.employee_id))
   const countAs = async (uid: string, table: string) => {
     await asUser(uid)
     await exec('set role authenticated')
@@ -405,14 +406,26 @@ describe('5-2. 전체 조회 권한 — admin 이 지정한 직원만, 읽기 �
 
   beforeAll(async () => { all = Number((await one<{ n: string }>('select count(*)::text as n from public.trip_claims')).n) })
 
-  it('부여 전: 팀장(MGR)은 0행, 권한 표는 본인 행만 보인다', async () => {
+  it('부여 전: manager(MGR)은 0행, 권한 표는 본인 행만. 부여 대상은 활성 manager 뿐 (employee·admin 은 아님)', async () => {
     expect(await countAs(MGR, 'trip_claims')).toBe(0)
     expect(await countAs(MGR, 'trip_view_grants')).toBe(0)
     expect((await one<{ ok: boolean }>("select public.trip_view_grant_eligible($1::uuid) as ok", [MGR])).ok).toBe(true)
     expect((await one<{ ok: boolean }>("select public.trip_view_grant_eligible($1::uuid) as ok", [BOSS])).ok).toBe(false)
+    expect((await one<{ ok: boolean }>("select public.trip_view_grant_eligible($1::uuid) as ok", [ALICE])).ok).toBe(false)
   })
 
-  it('부여는 admin 만. 사유 필수, 본인·admin·비활성 직원 불가', async () => {
+  it('후보 목록(trip_view_grant_candidates)은 admin 만, 판정 함수와 같은 명단', async () => {
+    await asUser(BOSS)
+    expect(await candidates()).toEqual([MGR])
+    await asUser(ALICE)
+    expect(await codeOf(candidates())).toBe('FORBIDDEN')
+    await asUser(MGR)
+    expect(await codeOf(candidates())).toBe('FORBIDDEN')
+    await asUser(null)
+    expect(await codeOf(candidates())).toBe('UNAUTHENTICATED')
+  })
+
+  it('부여는 admin 만. 사유 필수, 본인·admin·employee·비활성 직원 불가', async () => {
     await asUser(ALICE)
     expect(await codeOf(setGrant(MGR, true))).toBe('FORBIDDEN')
     await asUser(MGR)
@@ -423,7 +436,10 @@ describe('5-2. 전체 조회 권한 — admin 이 지정한 직원만, 읽기 �
     expect(await codeOf(setGrant(MGR, true, ' '))).toBe('REASON_REQUIRED')
     expect(await codeOf(setGrant(BOSS, true))).toBe('INVALID_ARGUMENT')
     await exec("insert into public.employees (id, name, role, is_active) values ('00000000-0000-0000-0000-000000000007', '퇴사자', 'employee', false) on conflict (id) do nothing")
-    expect(await codeOf(setGrant('00000000-0000-0000-0000-000000000007', true))).toBe('NOT_FOUND')
+    expect(await codeOf(setGrant('00000000-0000-0000-0000-000000000007', true))).toBe('NOT_ELIGIBLE')
+    expect(await codeOf(setGrant(ALICE, true))).toBe('NOT_ELIGIBLE')     // role=employee 는 대상이 아니다
+    expect(await codeOf(setGrant(BOB, true))).toBe('NOT_ELIGIBLE')
+    expect(await countAs(BOSS, 'trip_view_grants')).toBe(0)
     // 직접 INSERT 는 권한이 없다
     await exec('set role authenticated')
     const direct = await codeOf(exec(`insert into public.trip_view_grants (employee_id, granted_by) values ('${MGR}', '${BOSS}')`))
@@ -474,6 +490,20 @@ describe('5-2. 전체 조회 권한 — admin 이 지정한 직원만, 읽기 �
     await asUser(MGR)
     expect(await codeOf(one('select public._trip_actor_id()'))).toBe('FORBIDDEN')   // RPC 도 활성 직원만
     await exec(`update public.employees set is_active = true where id = '${MGR}'`)
+    expect(await countAs(MGR, 'trip_claims')).toBe(all)
+  })
+
+  it('역할이 manager 에서 employee 로 바뀌면 행이 남아 있어도 즉시 막히고 본인 행도 안 보이며, 후보에서도 빠진다', async () => {
+    await exec(`update public.employees set role = 'employee' where id = '${MGR}'`)
+    expect((await one<{ ok: boolean }>('select public.trip_view_grant_eligible($1::uuid) as ok', [MGR])).ok).toBe(false)
+    expect(await countAs(MGR, 'trip_claims')).toBe(0)
+    expect(await countAs(MGR, 'trip_view_grants')).toBe(0)          // 본인 행도 유효하지 않으면 안 보인다
+    await asUser(MGR)
+    expect((await one<{ ok: boolean }>('select public.trip_has_view_grant() as ok')).ok).toBe(false)
+    await asUser(BOSS)
+    expect(await countAs(BOSS, 'trip_view_grants')).toBe(1)         // admin 은 남은 행을 보고 회수로 정리할 수 있다
+    expect(await candidates()).toEqual([])
+    await exec(`update public.employees set role = 'manager' where id = '${MGR}'`)
     expect(await countAs(MGR, 'trip_claims')).toBe(all)
   })
 

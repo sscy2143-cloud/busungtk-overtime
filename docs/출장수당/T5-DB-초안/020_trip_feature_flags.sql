@@ -150,12 +150,15 @@ grant execute on function public.trip_set_feature(text, boolean, text) to authen
 -- ============================================================
 -- 전체 출장 내역 조회 권한 지정 (2026-11-03 추가)
 --   admin 이 특정 직원(팀장)을 골라 "전체 출장 내역 조회" 를 부여·회수한다. 기본값: 아무도 없음.
---   - 직급 칼럼이 운영 employees 에 없으므로(11-03 대조: role·employee_type 뿐) 부여 대상은
---     "활성 직원 중 admin 이 아닌 사람" 이다. 팀장 여부는 admin 이 판단한다. 직급 칼럼이 생기면
---     trip_view_grant_eligible() 한 곳만 좁히면 된다.
+--   - 부여 대상 = employees.role = 'manager' 이고 is_active 인 직원 (11-03 사용자 지정). 운영 employees 에는
+--     직급 칼럼이 없고(role·employee_type 뿐, manager_id 는 전부 null) 기존 앱에서 manager 는 '인사담당' 라벨이므로,
+--     manager 역할 = "조회 권한을 줄 수 있는 후보" 일 뿐 자동 부여는 없다. role='employee' 인 사람은 후보가 아니다.
+--     직급 칼럼이 생기면 trip_view_grant_eligible() 한 곳만 바꾼다 (결정 D8).
+--   - 관리자 화면의 후보 목록은 trip_view_grant_candidates() 가 같은 판정 함수로 돌려주므로 화면과 DB 가 어긋나지 않는다.
 --   - 부여되는 것은 SELECT(030 의 *_select_admin 정책이 trip_can_view_all() 을 통해 허용)뿐.
 --     수정·승인·반려·급여 반영 RPC 는 040 이 role='admin' 만 받으므로 그대로 막힌다.
---   - 퇴사·비활성화(is_active=false)·admin 승격 시 trip_has_view_grant() 가 false 가 되어 즉시 막힌다.
+--   - 퇴사·비활성화(is_active=false)·역할 변경(manager 가 아니게 됨) 시 trip_has_view_grant() 가 false 가 되어 즉시 막힌다.
+--     행은 남으므로 admin 화면에 "유효하지 않은 권한" 으로 보이고 회수로 정리한다.
 --   - 기능 스위치 admin_review 가 꺼져 있으면 정책 조건에서 막힌다 (권한이 있어도 0행).
 --   - 모든 변경은 trip_view_grant_history 에 남는다 (누가·언제·왜).
 -- ============================================================
@@ -181,7 +184,7 @@ create trigger trip_view_grant_history_append_only
   before update or delete on public.trip_view_grant_history
   for each row execute function public.trip_append_only();
 
--- 부여 대상인가: 활성 직원이고 admin 이 아닌 사람 (직급 칼럼이 생기면 여기만 좁힌다)
+-- 부여 대상인가: 활성이고 role = 'manager' 인 직원. 유일한 판정 지점 — RPC(부여)·RLS(유효성)·관리자 화면(후보) 모두 여기를 쓴다
 create or replace function public.trip_view_grant_eligible(p_employee uuid)
 returns boolean
 language sql security definer stable
@@ -189,11 +192,11 @@ set search_path = public, pg_temp
 as $$
   select exists (
     select 1 from public.employees e
-    where e.id = p_employee and e.is_active = true and e.role <> 'admin'
+    where e.id = p_employee and e.is_active = true and e.role = 'manager'
   )
 $$;
 
--- 지금 로그인한 사람에게 유효한 조회 권한이 있는가 (행이 있어도 비활성·admin 이면 false)
+-- 지금 로그인한 사람에게 유효한 조회 권한이 있는가 (행이 있어도 비활성이거나 role 이 manager 가 아니면 false)
 create or replace function public.trip_has_view_grant()
 returns boolean
 language sql security definer stable
@@ -202,9 +205,28 @@ as $$
   select exists (
     select 1
     from public.trip_view_grants g
-    join public.employees e on e.id = g.employee_id
-    where g.employee_id = auth.uid() and e.is_active = true and e.role <> 'admin'
+    where g.employee_id = auth.uid() and public.trip_view_grant_eligible(g.employee_id)
   )
+$$;
+
+-- 관리자 화면의 부여 후보 (admin 만). trip_view_grant_eligible() 과 같은 판정으로 id 만 돌려준다
+create or replace function public.trip_view_grant_candidates()
+returns table (employee_id uuid)
+language plpgsql security definer stable
+set search_path = public, pg_temp
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'UNAUTHENTICATED' using detail = '로그인이 필요합니다';
+  end if;
+  if not exists (select 1 from public.employees where id = auth.uid() and role = 'admin' and is_active = true) then
+    raise exception 'FORBIDDEN' using detail = '대표(admin)만 조회 권한 후보를 볼 수 있습니다';
+  end if;
+  return query
+    select e.id from public.employees e
+    where public.trip_view_grant_eligible(e.id)
+    order by e.name, e.id;
+end;
 $$;
 
 -- 부여·회수 (admin 만). 반환: { employeeId, enabled, changed }
@@ -237,7 +259,7 @@ begin
 
   if p_enabled then
     if not public.trip_view_grant_eligible(p_employee_id) then
-      raise exception 'NOT_FOUND' using detail = '활성 직원이 아니거나 관리자(admin)라 부여 대상이 아닙니다';
+      raise exception 'NOT_ELIGIBLE' using detail = '부여 대상이 아닙니다 (활성이고 역할이 manager 인 직원만)';
     end if;
     insert into public.trip_view_grants (employee_id, granted_by, note)
     values (p_employee_id, v_uid, btrim(p_note))
@@ -264,5 +286,7 @@ revoke all on function public.trip_view_grant_eligible(uuid)             from pu
 grant execute on function public.trip_view_grant_eligible(uuid)          to authenticated;
 revoke all on function public.trip_has_view_grant()                      from public, anon;
 grant execute on function public.trip_has_view_grant()                   to authenticated;
+revoke all on function public.trip_view_grant_candidates()               from public, anon;
+grant execute on function public.trip_view_grant_candidates()            to authenticated;
 revoke all on function public.trip_set_view_grant(uuid, boolean, text)   from public, anon;
 grant execute on function public.trip_set_view_grant(uuid, boolean, text) to authenticated;

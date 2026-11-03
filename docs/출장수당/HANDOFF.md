@@ -81,7 +81,7 @@
 
 **11-03 전체 조회 권한 지정 [확인: 코드·PGlite]**
 - 요구: 팀장에게 자동 부여 없음. admin 이 특정 직원을 골라 "전체 출장 내역 조회" 만 부여·회수(사유·이력). 직원/미부여 팀장은 본인 건만, admin 은 전부.
-- 운영 `employees` 에는 직급 칼럼이 없다(role employee/manager/admin = 직원/인사담당/관리자, employee_type office/field, manager_id 는 미사용). 그래서 부여 대상 = 활성·비admin 직원 전부, 팀장 여부는 admin 판단. 직급 칼럼 도입은 결정 항목.
+- 운영 `employees` 에는 직급 칼럼이 없다(role employee/manager/admin = 직원/인사담당/관리자, employee_type office/field, manager_id 는 미사용). **11-03 사용자 지정: 부여 대상(후보) = 활성이고 `role='manager'` 인 직원만**(`trip_view_grant_eligible()` 한 곳, 화면 후보는 `trip_view_grant_candidates()`). manager 는 기존 앱에서 '인사담당' 라벨이며 운영 활성 manager 2명 — 그 두 사람이 실제 팀장인지는 사용자 확인 사항. role='employee' 인 팀장은 후보가 아니므로 직급 구분이 필요하면 D8(직급 칼럼) 결정 뒤 판정 함수만 바꾼다.
 - DB(020·030): `trip_view_grants`·`trip_view_grant_history`·`trip_set_view_grant`·`trip_has_view_grant`·`trip_is_admin`, `trip_can_view_all = admin or grant`. 쓰기·승인 RPC 는 admin 만(변경 없음). 스위치 OFF 면 권한이 있어도 0행. 클라이언트(`client/`): `viewGrantState·viewerQueue·viewerDetail·viewGrants·setViewGrant`. 화면: `TripViewerScreen`(읽기 전용, `AdminTripReview mode="viewer"` + `ClaimReviewDetail readOnly`), `TripViewGrantsAdmin`(admin, 부여·회수·사유). 글루(integration): `/trip/all`, `/admin/trip` "조회 권한" 탭, 사이드바 "출장 내역 조회" 는 서버 권한(`useTripViewGrant`)이 있을 때만.
 
 **이 문서에서 유지되는 미확정 사항:** 3절 E3~E7, N1, N2, C-0 전부 그대로. 코드는 `engine/rules.ts` 에서 `undecided` 로 표시하며, 상태 변경은 회사·노무 결정 후에만 한다.

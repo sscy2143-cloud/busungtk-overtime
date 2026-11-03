@@ -3,17 +3,18 @@ import { MON, TEST_CALENDAR, TUE, alice, bob, boss, dayHeader, siteEntry, unwrap
 import { createTripClient } from '../trip-client'
 import { createFakeServer } from './fake-backend'
 
-const LEAD = 'emp-lead'      // 팀장 (role 은 employee — 직급 칼럼이 없으므로 admin 이 지정)
+const LEAD = 'emp-lead'      // 부여 후보 = role 'manager' (출장 기능 안에서는 직원과 같은 actor 역할)
 const LEAD2 = 'emp-lead2'
 const EMPLOYEES = [
   { id: alice.id, role: 'employee' as const }, { id: bob.id, role: 'employee' as const },
-  { id: LEAD, role: 'employee' as const }, { id: LEAD2, role: 'manager' as const }, { id: boss.id, role: 'admin' as const },
+  { id: LEAD, role: 'manager' as const }, { id: LEAD2, role: 'manager' as const }, { id: boss.id, role: 'admin' as const },
 ]
 const lead = { id: LEAD, role: 'employee' as const }
 const lead2 = { id: LEAD2, role: 'employee' as const }
 
 function setup() {
-  const server = createFakeServer({ employees: EMPLOYEES, flags: { employee_form: true, admin_review: true }, calendar: TEST_CALENDAR })
+  // 역할을 바꾸는 테스트가 있으므로 명부는 복사해 넘긴다
+  const server = createFakeServer({ employees: EMPLOYEES.map((e) => ({ ...e })), flags: { employee_form: true, admin_review: true }, calendar: TEST_CALENDAR })
   const c1 = unwrap(server.server.createClaim(alice, { header: dayHeader(['대전'], MON), entries: [siteEntry(MON, '08:00', '17:00')] }))
   unwrap(server.server.submit(alice, c1.id, c1.version))
   unwrap(server.server.createClaim(bob, { header: dayHeader(['부산'], TUE), entries: [siteEntry(TUE, '09:00', '18:00')] }))
@@ -86,15 +87,43 @@ describe('전체 출장 내역 조회 권한 — admin 지정', () => {
     expect(client.viewerQueue(lead)).toMatchObject({ ok: false, code: 'VIEW_NOT_GRANTED' })
   })
 
-  it('사유 없음·본인·관리자 대상·비활성 직원은 거부', async () => {
-    const server = createFakeServer({ employees: [...EMPLOYEES, { id: 'gone', role: 'employee' as const, is_active: false }], flags: { admin_review: true }, calendar: TEST_CALENDAR })
+  it('사유 없음·본인·관리자 대상·비활성·role=employee 는 거부 (대상은 활성 manager 뿐)', async () => {
+    const server = createFakeServer({ employees: [...EMPLOYEES, { id: 'gone', role: 'manager' as const, is_active: false }], flags: { admin_review: true }, calendar: TEST_CALENDAR })
     server.session = boss.id
     const client = createTripClient(server, { calendar: TEST_CALENDAR })
     await client.refresh()
     expect(await client.setViewGrant(boss, LEAD, true, '  ')).toMatchObject({ ok: false, code: 'REASON_REQUIRED' })
     expect(await client.setViewGrant(boss, boss.id, true, 'x')).toMatchObject({ ok: false, code: 'INVALID_ARGUMENT' })
-    expect(await client.setViewGrant(boss, 'gone', true, 'x')).toMatchObject({ ok: false, code: 'NOT_FOUND' })
-    expect(server.calls.filter((c) => c.kind === 'rpc').length).toBe(2)   // 사유 없음은 서버로 가지 않음
+    expect(await client.setViewGrant(boss, 'gone', true, 'x')).toMatchObject({ ok: false, code: 'NOT_ELIGIBLE' })
+    expect(await client.setViewGrant(boss, alice.id, true, 'x')).toMatchObject({ ok: false, code: 'NOT_ELIGIBLE' })
+    expect(unwrap(client.viewGrants(boss))).toEqual([])
+    expect(server.calls.filter((c) => c.kind === 'rpc' && c.name === 'trip_set_view_grant').length).toBe(3)   // 사유 없음은 서버로 가지 않음
+  })
+
+  it('부여 후보는 admin 만 받고, 서버 판정(활성 manager)과 같은 명단이다', async () => {
+    const { server, client } = setup()
+    server.session = boss.id; await client.refresh()
+    expect(unwrap(client.viewGrantCandidates(boss)).sort()).toEqual([LEAD, LEAD2].sort())
+    expect(server.calls.filter((c) => c.kind === 'rpc' && c.name === 'trip_view_grant_candidates').length).toBe(1)
+    server.session = LEAD; await client.refresh()
+    expect(client.viewGrantCandidates(lead)).toMatchObject({ ok: false, code: 'FORBIDDEN' })
+    expect(server.calls.filter((c) => c.kind === 'rpc' && c.name === 'trip_view_grant_candidates').length).toBe(1)   // 직원 세션은 서버를 부르지 않는다
+  })
+
+  it('역할이 manager 에서 employee 로 바뀌면 행이 남아 있어도 즉시 막히고, admin 화면에서는 후보 밖 권한으로 보인다', async () => {
+    const { server, client } = setup()
+    server.session = boss.id; await client.refresh()
+    unwrap(await client.setViewGrant(boss, LEAD, true, '팀장'))
+    server.employees.get(LEAD)!.role = 'employee'
+    server.session = LEAD; await client.refresh()
+    expect(client.viewGrantState(lead).granted).toBe(false)
+    expect(client.viewerQueue(lead)).toMatchObject({ ok: false, code: 'VIEW_NOT_GRANTED' })
+    expect(unwrap(client.viewGrants(lead))).toEqual([])
+    expect(unwrap(client.myClaims(lead))).toEqual([])
+    server.session = boss.id; await client.refresh()
+    expect(unwrap(client.viewGrants(boss)).map((g) => g.employeeId)).toEqual([LEAD])          // 행은 남아 admin 이 회수로 정리
+    expect(unwrap(client.viewGrantCandidates(boss))).toEqual([LEAD2])
+    expect(unwrap(await client.setViewGrant(boss, LEAD, false, '역할 변경 정리'))).toMatchObject({ enabled: false, changed: true })
   })
 
   it('검토 스위치가 꺼지면 권한이 있어도 전체 조회가 막힌다 (admin 포함)', async () => {

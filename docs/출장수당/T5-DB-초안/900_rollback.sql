@@ -92,6 +92,7 @@ drop function if exists public._trip_actor_id();
 -- ============================================================
 drop function if exists public.trip_set_feature(text, boolean, text);
 drop function if exists public.trip_set_view_grant(uuid, boolean, text);   -- 11-03 조회 권한
+drop function if exists public.trip_view_grant_candidates();
 drop function if exists public.trip_require_feature(text);
 
 -- ============================================================
