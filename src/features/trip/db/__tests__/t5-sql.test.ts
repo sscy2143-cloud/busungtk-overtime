@@ -21,7 +21,9 @@ const FILES = ['010_trip_tables.sql', '020_trip_feature_flags.sql', '030_trip_rl
 
 const ALICE = '00000000-0000-0000-0000-000000000001'
 const BOB = '00000000-0000-0000-0000-000000000002'
-const MGR = '00000000-0000-0000-0000-000000000005'
+const MGR = '00000000-0000-0000-0000-000000000005'     // role manager(인사담당) + 직급 팀장
+const LEAD = '00000000-0000-0000-0000-000000000006'    // role employee + 직급 팀장
+const GONE = '00000000-0000-0000-0000-000000000007'    // 비활성 + 직급 팀장
 const BOSS = '00000000-0000-0000-0000-000000000009'
 const MON: IsoDate = '2026-11-09'
 const TUE: IsoDate = '2026-11-10'
@@ -89,7 +91,9 @@ const ackAll = async (claimId: string) => {
 beforeAll(async () => {
   db = new PGlite()
   await exec(sql('로컬시험/000_local_shim.sql'))
-  await exec(`insert into public.employees (id, name, role) values ('${MGR}', '인사담당', 'manager') on conflict (id) do nothing`)
+  await exec(sql('005_employees_position.sql'))
+  await exec(`insert into public.employees (id, name, role, position) values ('${MGR}', '인사담당', 'manager', '팀장'), ('${LEAD}', '최팀장', 'employee', '팀장') on conflict (id) do nothing`)
+  await exec(`insert into public.employees (id, name, role, is_active, position) values ('${GONE}', '퇴사자', 'manager', false, '팀장') on conflict (id) do nothing`)
 }, 60_000)
 afterAll(async () => { await db?.close() })
 
@@ -110,7 +114,7 @@ describe('1. 적용 — 010 → 020 → 030 → 040', () => {
 
   it('공개 RPC 8개 + 서버 저장 RPC, 정책·트리거가 있다', async () => {
     const fns = (await rows<{ proname: string }>("select proname from pg_proc where pronamespace = 'public'::regnamespace and proname like 'trip\\_%' order by proname")).map((x) => x.proname)
-    for (const f of ['trip_create_claim', 'trip_update_draft', 'trip_submit', 'trip_cancel', 'trip_invite_companions', 'trip_admin_adjust_day', 'trip_review', 'trip_store_server_calcs', 'trip_active_rule_version', 'trip_feature_enabled', 'trip_set_feature', 'trip_set_view_grant', 'trip_has_view_grant', 'trip_view_grant_candidates', 'trip_is_admin']) expect(fns).toContain(f)
+    for (const f of ['trip_create_claim', 'trip_update_draft', 'trip_submit', 'trip_cancel', 'trip_invite_companions', 'trip_admin_adjust_day', 'trip_review', 'trip_store_server_calcs', 'trip_active_rule_version', 'trip_feature_enabled', 'trip_set_feature', 'trip_set_view_grant', 'trip_has_view_grant', 'trip_view_grant_candidates', 'trip_employee_grant_guard', 'trip_is_admin']) expect(fns).toContain(f)
     const policies = (await rows<{ policyname: string }>("select policyname from pg_policies where schemaname = 'public' and (tablename like 'trip\\_%' or tablename = 'holidays')")).map((x) => x.policyname)
     expect(policies.length).toBe(22)   // 030 의 정책 수 (11-03 조회 권한 3개 포함). 바뀌면 030 과 같이 고친다
     expect(policies).toEqual(expect.arrayContaining(['trip_claims_select_self', 'trip_claims_select_admin', 'trip_day_calcs_select_self', 'trip_day_calcs_select_admin', 'holidays_select_authenticated']))
@@ -394,29 +398,45 @@ describe('5. 관리자 흐름 — 수정·재계산·승인 고정', () => {
   })
 })
 
-describe('5-2. 전체 조회 권한 — admin 이 role=manager 직원 중에서 지정, 읽기 전용', () => {
-  const candidates = () => rows<{ employee_id: string }>('select employee_id from public.trip_view_grant_candidates()').then((r) => r.map((x) => x.employee_id))
+describe('5-2. 전체 조회 권한 — 직급이 팀장인 활성 직원 중 admin 이 지정한 사람만, 읽기 전용', () => {
   const countAs = async (uid: string, table: string) => {
     await asUser(uid)
     await exec('set role authenticated')
     try { return Number((await one<{ n: string }>(`select count(*)::text as n from public.${table}`)).n) } finally { await exec('reset role') }
   }
   const setGrant = (emp: string, on: boolean, note = '팀장') => one<{ r: { employeeId: string; enabled: boolean; changed: boolean } }>('select public.trip_set_view_grant($1::uuid, $2::boolean, $3::text) as r', [emp, on, note]).then((x) => x.r)
+  const candidates = () => rows<{ employee_id: string }>('select employee_id from public.trip_view_grant_candidates()').then((r) => r.map((x) => x.employee_id))
+  const eligible = async (id: string) => (await one<{ ok: boolean }>('select public.trip_view_grant_eligible($1::uuid) as ok', [id])).ok
+  const grantRows = async (id: string) => Number((await one<{ n: string }>('select count(*)::text as n from public.trip_view_grants where employee_id = $1', [id])).n)
+  const actions = (id: string) => rows<{ action: string; changed_by: string | null }>('select action, changed_by from public.trip_view_grant_history where employee_id = $1 order by changed_at', [id])
   let all = 0
 
   beforeAll(async () => { all = Number((await one<{ n: string }>('select count(*)::text as n from public.trip_claims')).n) })
 
-  it('부여 전: manager(MGR)은 0행, 권한 표는 본인 행만. 부여 대상은 활성 manager 뿐 (employee·admin 은 아님)', async () => {
+  it('직급 × 역할 조합: 활성이고 position=팀장이며 admin 이 아닌 사람만 후보 (employee·manager 는 무관)', async () => {
+    expect(await eligible(MGR)).toBe(true)     // manager + 팀장
+    expect(await eligible(LEAD)).toBe(true)    // employee + 팀장
+    expect(await eligible(ALICE)).toBe(false)  // employee + 미지정
+    expect(await eligible(BOB)).toBe(false)
+    expect(await eligible(BOSS)).toBe(false)   // admin + 미지정
+    expect(await eligible(GONE)).toBe(false)   // 비활성 + 팀장
+    await exec(`update public.employees set position = '팀장' where id = '${BOSS}'`)
+    expect(await eligible(BOSS)).toBe(false)   // admin + 팀장 → 제외 (이미 전부 본다)
+    await exec(`update public.employees set position = null where id = '${BOSS}'`)
+    await exec(`update public.employees set position = '과장' where id = '${BOB}'`)
+    expect(await eligible(BOB)).toBe(false)    // employee + 다른 직급
+    await exec(`update public.employees set role = 'manager' where id = '${BOB}'`)
+    expect(await eligible(BOB)).toBe(false)    // manager + 다른 직급
+    await exec(`update public.employees set role = 'employee', position = null where id = '${BOB}'`)
+    // 부여 전: 팀장이라도 본인 건만 (LEAD·MGR 은 신청이 없으므로 0행)
     expect(await countAs(MGR, 'trip_claims')).toBe(0)
+    expect(await countAs(LEAD, 'trip_claims')).toBe(0)
     expect(await countAs(MGR, 'trip_view_grants')).toBe(0)
-    expect((await one<{ ok: boolean }>("select public.trip_view_grant_eligible($1::uuid) as ok", [MGR])).ok).toBe(true)
-    expect((await one<{ ok: boolean }>("select public.trip_view_grant_eligible($1::uuid) as ok", [BOSS])).ok).toBe(false)
-    expect((await one<{ ok: boolean }>("select public.trip_view_grant_eligible($1::uuid) as ok", [ALICE])).ok).toBe(false)
   })
 
   it('후보 목록(trip_view_grant_candidates)은 admin 만, 판정 함수와 같은 명단', async () => {
     await asUser(BOSS)
-    expect(await candidates()).toEqual([MGR])
+    expect((await candidates()).sort()).toEqual([LEAD, MGR].sort())
     await asUser(ALICE)
     expect(await codeOf(candidates())).toBe('FORBIDDEN')
     await asUser(MGR)
@@ -425,29 +445,27 @@ describe('5-2. 전체 조회 권한 — admin 이 role=manager 직원 중에서 
     expect(await codeOf(candidates())).toBe('UNAUTHENTICATED')
   })
 
-  it('부여는 admin 만. 사유 필수, 본인·admin·employee·비활성 직원 불가', async () => {
+  it('부여는 admin 만. 사유 필수, 본인·admin·팀장 아닌 직원·비활성 불가, 직접 INSERT 불가', async () => {
     await asUser(ALICE)
     expect(await codeOf(setGrant(MGR, true))).toBe('FORBIDDEN')
     await asUser(MGR)
-    expect(await codeOf(setGrant(MGR, true))).toBe('FORBIDDEN')
+    expect(await codeOf(setGrant(LEAD, true))).toBe('FORBIDDEN')
     await asUser(null)
     expect(await codeOf(setGrant(MGR, true))).toBe('UNAUTHENTICATED')
     await asUser(BOSS)
     expect(await codeOf(setGrant(MGR, true, ' '))).toBe('REASON_REQUIRED')
     expect(await codeOf(setGrant(BOSS, true))).toBe('INVALID_ARGUMENT')
-    await exec("insert into public.employees (id, name, role, is_active) values ('00000000-0000-0000-0000-000000000007', '퇴사자', 'employee', false) on conflict (id) do nothing")
-    expect(await codeOf(setGrant('00000000-0000-0000-0000-000000000007', true))).toBe('NOT_ELIGIBLE')
-    expect(await codeOf(setGrant(ALICE, true))).toBe('NOT_ELIGIBLE')     // role=employee 는 대상이 아니다
+    expect(await codeOf(setGrant(GONE, true))).toBe('NOT_ELIGIBLE')
+    expect(await codeOf(setGrant(ALICE, true))).toBe('NOT_ELIGIBLE')
     expect(await codeOf(setGrant(BOB, true))).toBe('NOT_ELIGIBLE')
     expect(await countAs(BOSS, 'trip_view_grants')).toBe(0)
-    // 직접 INSERT 는 권한이 없다
     await exec('set role authenticated')
     const direct = await codeOf(exec(`insert into public.trip_view_grants (employee_id, granted_by) values ('${MGR}', '${BOSS}')`))
     await exec('reset role')
     expect(direct).toMatch(/permission denied/)
   })
 
-  it('부여하면 그 직원만 전체를 읽고, 다른 직원에게는 전파되지 않으며, 이력이 남는다', async () => {
+  it('부여하면 그 사람만 전체를 읽고(역할 무관), 다른 팀장에게 전파되지 않으며, 이력이 남는다', async () => {
     await asUser(BOSS)
     expect(await setGrant(MGR, true, '영업1팀 팀장')).toEqual({ employeeId: MGR, enabled: true, changed: true })
     expect(await setGrant(MGR, true, '다시')).toMatchObject({ changed: false })
@@ -458,13 +476,19 @@ describe('5-2. 전체 조회 권한 — admin 이 role=manager 직원 중에서 
     expect(await countAs(MGR, 'trip_view_grants')).toBe(1)              // 본인 행
     expect(await countAs(MGR, 'trip_view_grant_history')).toBe(0)       // 이력은 admin 만
     expect(await countAs(MGR, 'trip_feature_flag_history')).toBe(0)     // 스위치 이력도 admin 만
+    expect(await countAs(LEAD, 'trip_claims')).toBe(0)                  // 켜지 않은 팀장은 본인 건만
     expect(await countAs(ALICE, 'trip_claims')).toBeLessThan(all)
     expect(await countAs(BOB, 'trip_view_grants')).toBe(0)
     expect(await countAs(BOSS, 'trip_view_grants')).toBe(1)
     expect(await countAs(BOSS, 'trip_view_grant_history')).toBe(1)
+    // role=employee 인 팀장도 같은 방식으로 부여된다
+    await asUser(BOSS)
+    expect(await setGrant(LEAD, true, '생산팀 팀장')).toMatchObject({ changed: true })
+    expect(await countAs(LEAD, 'trip_claims')).toBe(all)
+    expect(await countAs(LEAD, 'trip_view_grants')).toBe(1)
   })
 
-  it('조회 권한이 있어도 쓰기·승인·수정은 FORBIDDEN', async () => {
+  it('조회 권한이 있어도 쓰기·승인·수정·스위치 변경은 FORBIDDEN', async () => {
     await asUser(MGR)
     const c = await one<{ id: string; version: number }>('select id, version from public.trip_claims where employee_id = $1 and status = $2', [ALICE, 'approved'])
     const dayId = (await loadDays(c.id))[0].id
@@ -473,49 +497,79 @@ describe('5-2. 전체 조회 권한 — admin 이 role=manager 직원 중에서 
     expect(await codeOf(updateDraft(c.id, c.version, null, null))).toBe('FORBIDDEN')
     expect(await codeOf(cancel(c.id, c.version))).toBe('FORBIDDEN')
     expect(await codeOf(setFeature('employee_form', false))).toBe('FORBIDDEN')
+    await asUser(LEAD)
+    expect(await codeOf(review(c.id, 'approve', [], []))).toBe('FORBIDDEN')
+    expect(await codeOf(setGrant(ALICE, true))).toBe('FORBIDDEN')
   })
 
   it('검토 스위치 OFF 면 권한이 있어도 0행', async () => {
     await asUser(BOSS)
     await setFeature('admin_review', false)
     expect(await countAs(MGR, 'trip_claims')).toBe(0)
+    expect(await countAs(LEAD, 'trip_claims')).toBe(0)
     await asUser(BOSS)
     await setFeature('admin_review', true)
     expect(await countAs(MGR, 'trip_claims')).toBe(all)
   })
 
-  it('비활성화되면 행이 남아 있어도 즉시 막히고, 다시 활성화하면 돌아온다', async () => {
+  it('직급이 팀장이 아니게 되면 권한이 자동 회수(auto_revoke)되고, 다시 팀장이 돼도 복원되지 않는다 — admin 이 새로 부여해야 한다', async () => {
+    await asUser(BOSS)
+    await exec(`update public.employees set position = '과장' where id = '${LEAD}'`)
+    expect(await grantRows(LEAD)).toBe(0)
+    expect(await countAs(LEAD, 'trip_claims')).toBe(0)
+    expect(await actions(LEAD)).toEqual([{ action: 'grant', changed_by: BOSS }, { action: 'auto_revoke', changed_by: BOSS }])
+    await exec(`update public.employees set position = '팀장' where id = '${LEAD}'`)
+    expect(await eligible(LEAD)).toBe(true)
+    expect(await grantRows(LEAD)).toBe(0)                 // 복원되지 않는다
+    expect(await countAs(LEAD, 'trip_claims')).toBe(0)
+    expect(await countAs(LEAD, 'trip_view_grants')).toBe(0)
+    await asUser(BOSS)   // countAs 가 세션을 바꾸므로 admin 으로 되돌린다
+    expect(await setGrant(LEAD, true, '재부여')).toMatchObject({ changed: true })
+    expect(await countAs(LEAD, 'trip_claims')).toBe(all)
+    // 세션 사용자 없이(SQL Editor 등) 바꿔도 회수되고 changed_by 는 null
+    await asUser(null)
+    await exec(`update public.employees set position = null where id = '${LEAD}'`)
+    expect(await grantRows(LEAD)).toBe(0)
+    expect((await actions(LEAD)).at(-1)).toEqual({ action: 'auto_revoke', changed_by: null })
+    await exec(`update public.employees set position = '팀장' where id = '${LEAD}'`)
+    expect(await countAs(LEAD, 'trip_claims')).toBe(0)
+    // 직급이 그대로인 다른 변경(이름)은 권한을 건드리지 않는다
+    await asUser(BOSS)
+    expect(await setGrant(LEAD, true, '재부여 2')).toMatchObject({ changed: true })
+    await exec(`update public.employees set name = '최팀장2' where id = '${LEAD}'`)
+    expect(await grantRows(LEAD)).toBe(1)
+    expect(await countAs(LEAD, 'trip_claims')).toBe(all)
+  })
+
+  it('비활성화·admin 승격 시에도 자동 회수되고, 되돌려도 복원되지 않는다', async () => {
+    await asUser(BOSS)
     await exec(`update public.employees set is_active = false where id = '${MGR}'`)
-    expect((await one<{ ok: boolean }>('select public.trip_view_grant_eligible($1::uuid) as ok', [MGR])).ok).toBe(false)
+    expect(await eligible(MGR)).toBe(false)
+    expect(await grantRows(MGR)).toBe(0)
     await asUser(MGR)
     expect(await codeOf(one('select public._trip_actor_id()'))).toBe('FORBIDDEN')   // RPC 도 활성 직원만
     await exec(`update public.employees set is_active = true where id = '${MGR}'`)
-    expect(await countAs(MGR, 'trip_claims')).toBe(all)
-  })
-
-  it('역할이 manager 에서 employee 로 바뀌면 행이 남아 있어도 즉시 막히고 본인 행도 안 보이며, 후보에서도 빠진다', async () => {
-    await exec(`update public.employees set role = 'employee' where id = '${MGR}'`)
-    expect((await one<{ ok: boolean }>('select public.trip_view_grant_eligible($1::uuid) as ok', [MGR])).ok).toBe(false)
     expect(await countAs(MGR, 'trip_claims')).toBe(0)
-    expect(await countAs(MGR, 'trip_view_grants')).toBe(0)          // 본인 행도 유효하지 않으면 안 보인다
-    await asUser(MGR)
-    expect((await one<{ ok: boolean }>('select public.trip_has_view_grant() as ok')).ok).toBe(false)
+    expect((await actions(MGR)).map((a) => a.action)).toEqual(['grant', 'auto_revoke'])
     await asUser(BOSS)
-    expect(await countAs(BOSS, 'trip_view_grants')).toBe(1)         // admin 은 남은 행을 보고 회수로 정리할 수 있다
-    expect(await candidates()).toEqual([])
-    await exec(`update public.employees set role = 'manager' where id = '${MGR}'`)
+    expect(await setGrant(MGR, true, '복직 재부여')).toMatchObject({ changed: true })
     expect(await countAs(MGR, 'trip_claims')).toBe(all)
+    await exec(`update public.employees set role = 'admin' where id = '${LEAD}'`)
+    expect(await grantRows(LEAD)).toBe(0)
+    await exec(`update public.employees set role = 'employee' where id = '${LEAD}'`)
+    expect(await grantRows(LEAD)).toBe(0)
+    expect(await countAs(LEAD, 'trip_claims')).toBe(0)
   })
 
-  it('회수하면 즉시 0행, 이력 2건, 다시 회수는 changed=false', async () => {
+  it('회수하면 즉시 0행, 이력에 revoke, 다시 회수는 changed=false, 이력 수정·삭제 불가', async () => {
     await asUser(BOSS)
     expect(await setGrant(MGR, false, '보직 해제')).toEqual({ employeeId: MGR, enabled: false, changed: true })
     expect(await setGrant(MGR, false, '다시')).toMatchObject({ changed: false })
     expect(await countAs(MGR, 'trip_claims')).toBe(0)
     expect(await countAs(MGR, 'trip_view_grants')).toBe(0)
-    const hist = await rows<{ action: string; note: string }>('select action, note from public.trip_view_grant_history where employee_id = $1 order by changed_at', [MGR])
-    expect(hist).toEqual([{ action: 'grant', note: '영업1팀 팀장' }, { action: 'revoke', note: '보직 해제' }])
+    expect((await actions(MGR)).map((a) => a.action)).toEqual(['grant', 'auto_revoke', 'grant', 'revoke'])
     expect(await codeOf(exec('delete from public.trip_view_grant_history'))).toBe('IMMUTABLE')
+    expect(await codeOf(exec("update public.trip_view_grant_history set note = 'x'"))).toBe('IMMUTABLE')
   })
 })
 
@@ -583,9 +637,11 @@ describe('7. 900 롤백 → 재적용', () => {
       select 'table' as kind, relname as name from pg_class where relnamespace = 'public'::regnamespace and relkind in ('r','v','S') and (relname like 'trip%' or relname = 'holidays')
       union all select 'function', proname from pg_proc where pronamespace = 'public'::regnamespace and (proname like 'trip%' or proname like '\\_trip%')
       union all select 'policy', policyname from pg_policies where schemaname = 'public' and (tablename like 'trip%' or tablename = 'holidays')
-      union all select 'type', typname from pg_type where typnamespace = 'public'::regnamespace and typname like 'trip%' and typtype = 'e'`)
+      union all select 'type', typname from pg_type where typnamespace = 'public'::regnamespace and typname like 'trip%' and typtype = 'e'
+      union all select 'trigger', tgname from pg_trigger where not tgisinternal and tgname like 'trip%'`)
     expect(left).toEqual([])
-    expect((await one<{ n: string }>('select count(*)::text as n from public.employees')).n).toBe('5')
+    expect((await one<{ n: string }>('select count(*)::text as n from public.employees')).n).toBe('6')
+    expect((await one<{ ok: boolean }>("select exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'employees' and column_name = 'position') as ok")).ok).toBe(true)   // 005 는 900 이 건드리지 않는다
     expect((await one<{ ok: boolean }>("select to_regprocedure('public.update_updated_at_column()') is not null as ok")).ok).toBe(true)
   }, 60_000)
 
@@ -593,5 +649,29 @@ describe('7. 900 롤백 → 재적용', () => {
     for (const f of FILES) await exec(sql(f))
     expect((await one<{ v: string }>('select public.trip_active_rule_version() as v')).v).toBe(RULE_VERSION)
     expect((await one<{ n: string }>('select count(*)::text as n from public.trip_claims')).n).toBe('0')
+  }, 60_000)
+})
+
+describe('8. 905 — employees.position 되돌리기', () => {
+  const hasPosition = async () => (await one<{ ok: boolean }>("select exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'employees' and column_name = 'position') as ok")).ok
+  it('출장 객체가 남아 있으면 ROLLBACK_ORDER, 값이 있으면 ROLLBACK_BLOCKED_DATA_EXISTS', async () => {
+    expect(await codeOf(exec(sql('905_rollback_position.sql')))).toBe('ROLLBACK_ORDER')
+    await exec("select set_config('trip.confirm_drop', 'yes', false)")
+    await exec(sql('900_rollback.sql'))
+    await exec("select set_config('trip.confirm_drop', '', false)")
+    expect(await codeOf(exec(sql('905_rollback_position.sql')))).toBe('ROLLBACK_BLOCKED_DATA_EXISTS')
+    expect(await hasPosition()).toBe(true)
+  }, 60_000)
+  it('값을 비우면(또는 확인 뒤) 칼럼·제약이 사라지고 다른 칼럼·행은 그대로', async () => {
+    await exec('update public.employees set position = null')
+    await exec(sql('905_rollback_position.sql'))
+    expect(await hasPosition()).toBe(false)
+    expect((await one<{ n: string }>('select count(*)::text as n from public.employees')).n).toBe('6')
+    expect((await one<{ ok: boolean }>("select to_regprocedure('public.update_updated_at_column()') is not null as ok")).ok).toBe(true)
+    // 005 는 다시 적용할 수 있다 (멱등)
+    await exec(sql('005_employees_position.sql'))
+    await exec(sql('005_employees_position.sql'))
+    expect(await hasPosition()).toBe(true)
+    expect(await codeOf(exec("update public.employees set position = ' 팀장' where id = '" + LEAD + "'"))).toMatch(/employees_position_trim_chk/)
   }, 60_000)
 })

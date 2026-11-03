@@ -14,7 +14,7 @@ import {
 import { fail, ok, type SelectQuery, type TripBackend } from '../backend'
 import type { AdjustmentRow, CalcRow, ClaimRow, DayRow, EmployeeRow, FeatureFlagRow, ReviewRow, ViewGrantRow } from '../rows'
 
-export interface FakeEmployee { id: string; role: 'employee' | 'manager' | 'admin'; is_active?: boolean }
+export interface FakeEmployee { id: string; role: 'employee' | 'manager' | 'admin'; is_active?: boolean; position?: string | null }
 
 export interface FakeServerOptions {
   employees: FakeEmployee[]
@@ -32,8 +32,10 @@ export interface FakeServer extends TripBackend {
   calls: { kind: 'select' | 'rpc' | 'compute'; name: string; args?: unknown }[]
   /** 다음 한 번의 호출을 실패시킨다 */
   failNext(name: string, code: string, message?: string): void
-  /** 직원 명부 (테스트가 역할·활성 여부를 바꿀 때) */
+  /** 직원 명부 (읽기용) */
   employees: Map<string, FakeEmployee>
+  /** 직원관리 변경 흉내 — 020 트리거 trip_view_grant_guard 처럼 후보가 아니게 되면 권한 행을 지운다 (복원 없음) */
+  setEmployee(id: string, patch: Partial<Omit<FakeEmployee, 'id'>>): void
 }
 
 const isoAt = (n: number) => `2026-11-10T09:${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}Z`
@@ -53,8 +55,8 @@ export function createFakeServer(o: FakeServerOptions): FakeServer {
   const employees = new Map(o.employees.map((e) => [e.id, e]))
   /** admin 이 지정한 조회 권한 (trip_view_grants) */
   const grants = new Map<string, ViewGrantRow>()
-  /** 020 trip_view_grant_eligible: 활성이고 role='manager' */
-  const eligible = (e: FakeEmployee | undefined) => !!e && e.role === 'manager' && (e.is_active ?? true)
+  /** 020 trip_view_grant_eligible: 활성이고 position='팀장' 이며 admin 이 아님 (역할 employee/manager 무관) */
+  const eligible = (e: FakeEmployee | undefined) => !!e && e.role !== 'admin' && (e.is_active ?? true) && e.position === '팀장'
   const hasGrant = (me: FakeEmployee | undefined) => !!me && eligible(me) && grants.has(me.id)
 
   const self: FakeServer = {
@@ -63,6 +65,12 @@ export function createFakeServer(o: FakeServerOptions): FakeServer {
     server,
     calls,
     employees,
+    setEmployee: (id, patch) => {
+      const e = employees.get(id)
+      if (!e) throw new Error('없는 직원: ' + id)
+      Object.assign(e, patch)
+      if (!eligible(e)) grants.delete(id)
+    },
     failNext: (name, code, message = code) => pendingFailures.set(name, { code, message }),
 
     async sessionUserId() { return self.session },
@@ -89,14 +97,14 @@ export function createFakeServer(o: FakeServerOptions): FakeServer {
         return ok([...employees.values()].filter(eligible).map((e) => ({ employee_id: e.id })) as T)
       }
       if (fn === 'trip_set_view_grant') {
-        // 020: admin 만, 사유 필수, 본인 불가, 대상은 활성 manager 만(NOT_ELIGIBLE). 스위치와 무관
+        // 020: admin 만, 사유 필수, 본인 불가, 대상은 활성·직급 팀장만(NOT_ELIGIBLE). 스위치와 무관
         if (me.role !== 'admin') return fail('FORBIDDEN', '대표(admin)만 출장 조회 권한을 바꿀 수 있습니다')
         const target = employees.get(args.p_employee_id as string)
         if (!String(args.p_note ?? '').trim()) return fail('REASON_REQUIRED', '부여·회수 사유를 입력하세요')
         if (args.p_employee_id === me.id) return fail('INVALID_ARGUMENT', '본인에게는 부여할 수 없습니다')
         let changed = false
         if (args.p_enabled) {
-          if (!target || !eligible(target)) return fail('NOT_ELIGIBLE', '부여 대상이 아닙니다 (활성이고 역할이 manager 인 직원만)')
+          if (!target || !eligible(target)) return fail('NOT_ELIGIBLE', '부여 대상이 아닙니다 (활성이고 회사 직급이 팀장인 직원만)')
           changed = !grants.has(target.id)
           if (changed) grants.set(target.id, { employee_id: target.id, granted_by: me.id, granted_at: isoAt(tick++), note: String(args.p_note) })
         } else {
@@ -186,7 +194,7 @@ export function createFakeServer(o: FakeServerOptions): FakeServer {
     }
     switch (table) {
       case 'trip_view_grants':
-        // 030: 본인 행은 유효할 때(활성 manager)만, admin 은 전부
+        // 030: 본인 행은 유효할 때(활성·직급 팀장)만, admin 은 전부
         return [...grants.values()].filter((g) => me && (me.role === 'admin' || (g.employee_id === me.id && eligible(me))))
       case 'trip_feature_flags':
         return (Object.keys(flags) as FeatureFlagRow['key'][]).map((key) => ({ key, enabled: flags[key] }))

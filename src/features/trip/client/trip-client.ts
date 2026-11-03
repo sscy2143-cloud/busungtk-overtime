@@ -131,7 +131,7 @@ export function createTripClient(backend: TripBackend, opts: TripClientOptions):
     const grantRows = await backend.select<ViewGrantRow>('trip_view_grants', { columns: VIEW_GRANT_COLUMNS, order: 'granted_at.asc' })
     if (!grantRows.ok) return grantRows
     grants = grantRows.value.map(toViewGrant)
-    // 본인 행은 RLS 가 "유효할 때(활성 manager)" 만 돌려주므로, 행이 보이면 곧 유효한 권한이다
+    // 본인 행은 RLS 가 "유효할 때(활성·직급 팀장)" 만 돌려주고, 자격을 잃으면 서버 트리거가 행을 지우므로 행이 보이면 곧 유효한 권한이다
     hasGrant = sessionActor.role !== 'admin' && grants.some((g) => g.employeeId === uid)
     candidates = []
     if (sessionActor.role === 'admin') {

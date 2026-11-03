@@ -18,7 +18,7 @@
 - `src/features/trip/db/__tests__/t5-sql.test.ts` — shim → 010 → 020 → 030 → 040 적용 → 시나리오 → 900 롤백 → 재적용. 서버 계산은 `api/trip-compute` 와 같은 함수(`computeClaimDays`)로 만들어 `trip_store_server_calcs` 에 넣는다.
 - 역할 흉내: `set role authenticated` + 세션 설정으로 RLS·EXECUTE 권한을 직접 평가. service_role 은 `request.jwt.claims` 의 `role` 값으로.
 
-## 3. 결과 — 43건 통과 (11-03, 4차: 조회 권한 대상을 role='manager' 로 제한한 뒤)
+## 3. 결과 — 45건 통과 (11-03, 5차: 회사 직급 employees.position 기준으로 바꾼 뒤)
 
 | 구분 | 확인한 것 | 결과 |
 |---|---|---|
@@ -54,12 +54,13 @@
 
 | 파일 | 변경 |
 |---|---|
-| `020` | `trip_view_grants`(employee_id PK, granted_by, granted_at, note), `trip_view_grant_history`(append-only), `trip_view_grant_eligible(uuid)`(활성·role='manager' — 유일한 판정 지점), `trip_view_grant_candidates()`(admin 만, 같은 판정으로 후보 id), `trip_has_view_grant()`(행 + 유효성), `trip_set_view_grant(uuid, boolean, text)`(admin 만·사유 필수·본인 불가·후보 아니면 NOT_ELIGIBLE·변경 시 이력) |
+| `020` | `trip_view_grants`(employee_id PK, granted_by, granted_at, note), `trip_view_grant_history`(append-only), `trip_view_grant_eligible(uuid)`(활성·position='팀장'·admin 제외 — 유일한 판정 지점), `trip_view_grant_candidates()`(admin 만, 같은 판정으로 후보 id), `trip_has_view_grant()`(행 + 유효성), `trip_set_view_grant(uuid, boolean, text)`(admin 만·사유 필수·본인 불가·후보 아니면 NOT_ELIGIBLE·변경 시 이력) |
 | `030` | `trip_is_admin()` 분리, `trip_can_view_all() = trip_is_admin() or trip_has_view_grant()`, 새 표 RLS·정책 3개(본인 행·admin·이력 admin), 스위치 이력은 admin 만 |
 | `900` | 새 표·함수 제거(이력 표는 트리거 함수보다 먼저) |
 | 테스트 7건 | 부여 전 0행·대상 판정, admin 만·사유·본인·비활성 거부·직접 INSERT 거부, 부여 후 전체 조회·전파 없음·이력, 권한자의 쓰기 FORBIDDEN, 스위치 OFF 0행, 비활성화 즉시 차단, 회수 즉시 0행·이력 2건·이력 수정 불가 |
 
-**11-03 4차 — 부여 대상을 role='manager' 로 제한 (사용자 지정).** 운영 `employees` 에 직급 칼럼은 없고(role·employee_type 뿐, manager_id 는 전부 null), 기존 앱에서 manager 는 '인사담당' 라벨이다. 사용자 결정에 따라 후보 = 활성 manager 만이고, role='employee' 는 `NOT_ELIGIBLE`. 030 `trip_view_grants_select_self` 도 유효할 때만 본인 행을 준다. 추가 테스트 2건(후보 목록 admin 만·역할 변경 시 즉시 차단). 직급 칼럼이 생기면 `trip_view_grant_eligible()` 만 좁힌다.
+**11-03 5차 — 부여 대상 = 회사 직급 '팀장' (사용자 최종 지정).** 새 파일 `005_employees_position.sql`(employees.position text NULL + 공백 금지 제약, 기존 행 미변경) · `905_rollback_position.sql`(900 뒤에만, 값 있으면 멈춤). 020 `trip_view_grant_eligible = is_active and position='팀장' and role<>'admin'`, employees 트리거 `trip_view_grant_guard`(직급·활성·역할 변경 시 권한 행 삭제 + 이력 auto_revoke, 복원 없음), 이력 `changed_by` nullable. 테스트: 직급×역할 6조합, 자동 회수·재부여, 세션 없는 변경, 905 순서·자료 가드. 4차 기록은 아래(참고).
+**11-03 4차 — 부여 대상을 role='manager' 로 제한 (당시 지시, 5차에서 대체).** 운영 `employees` 에 직급 칼럼은 없고(role·employee_type 뿐, manager_id 는 전부 null), 기존 앱에서 manager 는 '인사담당' 라벨이다. 사용자 결정에 따라 후보 = 활성 manager 만이고, role='employee' 는 `NOT_ELIGIBLE`. 030 `trip_view_grants_select_self` 도 유효할 때만 본인 행을 준다. 추가 테스트 2건(후보 목록 admin 만·역할 변경 시 즉시 차단). 직급 칼럼이 생기면 `trip_view_grant_eligible()` 만 좁힌다.
 
 ## 4. 미검증 (PGlite 로는 볼 수 없음 — 운영 적용 전 별도 확인)
 

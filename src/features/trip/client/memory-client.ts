@@ -14,7 +14,7 @@ export interface MemoryClientOptions {
   viewGrants?: string[]
   /** 조회 권한자의 읽기를 대신 수행할 admin actor (메모리 서비스는 역할로만 판단하므로) */
   adminActor?: Actor
-  /** 부여 후보 id (서버의 활성 manager 에 해당). 비우면(undefined) 메모리 시험에서는 누구나 후보 */
+  /** 부여 후보 id (서버의 "활성·직급 팀장·admin 제외" 에 해당). 비우면(undefined) 메모리 시험에서는 누구나 후보 */
   candidates?: string[]
 }
 
@@ -71,7 +71,7 @@ export function fromMemoryService(svc: GuardedTripService, opts: MemoryClientOpt
       if (actor.role !== 'admin') return fail('FORBIDDEN', '관리자만 할 수 있습니다')
       if (!note.trim()) return fail('REASON_REQUIRED', '부여·회수 사유를 입력하세요')
       if (employeeId === actor.id) return fail('INVALID_ARGUMENT', '본인에게는 부여할 수 없습니다')
-      if (enabled && !eligible(employeeId)) return fail('NOT_ELIGIBLE', '부여 대상이 아닙니다 (활성이고 역할이 manager 인 직원만)')
+      if (enabled && !eligible(employeeId)) return fail('NOT_ELIGIBLE', '부여 대상이 아닙니다 (활성이고 회사 직급이 팀장인 직원만)')
       const changed = enabled ? !granted.has(employeeId) : granted.has(employeeId)
       if (enabled) { granted.add(employeeId); grantMeta.set(employeeId, { grantedBy: actor.id, grantedAt: now(), note }) } else { granted.delete(employeeId); grantMeta.delete(employeeId) }
       return ok({ employeeId, enabled, changed })

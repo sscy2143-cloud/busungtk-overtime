@@ -4,8 +4,8 @@
 -- 출장수당 900: 롤백 (010 → 020 → 030 → 040 전부 되돌림, 역순)
 --
 -- 기존 테이블 무영향
---   - 010~040 은 기존 테이블에 칼럼·제약·트리거·정책을 추가하지 않았다.
---     따라서 이 롤백은 trip_* 객체와 holidays 만 지운다.
+--   - 010~040 은 기존 테이블에 정책·칼럼을 추가하지 않는다. 예외 하나: 020 이 employees 에 트리거
+--     trip_view_grant_guard(조회 권한 자동 회수)를 건다 — 이 파일이 먼저 지운다. 005 의 employees.position 칼럼은 905 가 따로 되돌린다.
 --   - 기존 함수 is_admin(), get_my_role() 등은 출장 객체가 쓰지 않는다 (11-03 부터 update_updated_at_column·is_manager_or_admin 의존도 제거). 지우는 것은 trip_* 와 holidays 뿐.
 --   - cascade 를 쓰지 않는다. 예상하지 못한 의존 객체(다른 기능이 출장 테이블을 참조 등)가 있으면
 --     조용히 같이 지우지 않고 오류로 멈추게 하기 위함이다.
@@ -91,6 +91,8 @@ drop function if exists public._trip_actor_id();
 --   trip_set_feature 는 trip_feature_flags 행을 반환하므로 테이블 삭제 전에 지운다.
 -- ============================================================
 drop function if exists public.trip_set_feature(text, boolean, text);
+drop trigger if exists trip_view_grant_guard on public.employees;          -- 11-03 조회 권한 자동 회수 (기존 표의 트리거)
+drop function if exists public.trip_employee_grant_guard();
 drop function if exists public.trip_set_view_grant(uuid, boolean, text);   -- 11-03 조회 권한
 drop function if exists public.trip_view_grant_candidates();
 drop function if exists public.trip_require_feature(text);
