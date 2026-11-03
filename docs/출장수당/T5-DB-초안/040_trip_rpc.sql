@@ -528,9 +528,10 @@ begin
         array['legal', 'totalWorkHours'], array['legal', 'dailyOver8Hours'],
         array['actualNight', 'workHours']
       ] loop
-        if case when jsonb_typeof(v_result #> v_path) = 'number'
-                then (v_result #>> v_path)::numeric < 0
-                else true end then
+        -- plpgsql 의 IF 는 괄호 밖 첫 THEN 에서 조건식을 끝내므로 CASE 전체를 괄호로 감싼다 (로컬 시험에서 발견)
+        if (case when jsonb_typeof(v_result #> v_path) = 'number'
+                 then (v_result #>> v_path)::numeric < 0
+                 else true end) then
           raise exception 'CALC_INVARIANT'
             using detail = format('%s %s 값이 올바르지 않습니다 (0 이상 숫자)', v_day.work_date, array_to_string(v_path, '.'));
         end if;
@@ -545,9 +546,9 @@ begin
       -- 휴일근로: 평일·토요일은 JSON null, 일요일·공휴일은 두 값 모두 0~24
       if jsonb_typeof(v_result -> 'holiday') = 'object' then
         foreach v_path slice 1 in array array[array['holiday', 'within8Hours'], array['holiday', 'over8Hours']] loop
-          if case when jsonb_typeof(v_result #> v_path) = 'number'
-                  then (v_result #>> v_path)::numeric not between 0 and 24
-                  else true end then
+          if (case when jsonb_typeof(v_result #> v_path) = 'number'
+                   then (v_result #>> v_path)::numeric not between 0 and 24
+                   else true end) then
             raise exception 'CALC_INVARIANT'
               using detail = format('%s %s 값이 올바르지 않습니다 (0~24)', v_day.work_date, array_to_string(v_path, '.'));
           end if;
