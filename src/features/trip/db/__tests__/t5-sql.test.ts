@@ -518,6 +518,7 @@ describe('5-2. 전체 조회 권한 — 직급이 팀장인 활성 직원 중 ad
     expect(await grantRows(LEAD)).toBe(0)
     expect(await countAs(LEAD, 'trip_claims')).toBe(0)
     expect(await actions(LEAD)).toEqual([{ action: 'grant', changed_by: BOSS }, { action: 'auto_revoke', changed_by: BOSS }])
+    await asUser(BOSS)   // countAs 가 세션을 바꿨다 — 직급 변경은 admin 세션으로
     await exec(`update public.employees set position = '팀장' where id = '${LEAD}'`)
     expect(await eligible(LEAD)).toBe(true)
     expect(await grantRows(LEAD)).toBe(0)                 // 복원되지 않는다
@@ -570,6 +571,63 @@ describe('5-2. 전체 조회 권한 — 직급이 팀장인 활성 직원 중 ad
     expect((await actions(MGR)).map((a) => a.action)).toEqual(['grant', 'auto_revoke', 'grant', 'revoke'])
     expect(await codeOf(exec('delete from public.trip_view_grant_history'))).toBe('IMMUTABLE')
     expect(await codeOf(exec("update public.trip_view_grant_history set note = 'x'"))).toBe('IMMUTABLE')
+  })
+})
+
+describe('5-3. D10 — 회사 직급(position)은 admin 만 바꾼다. 기존 직원관리·목록 RPC 는 그대로', () => {
+  const positionOf = async (id: string) => (await one<{ p: string | null }>('select position as p from public.employees where id = $1', [id])).p
+  /** PostgREST 처럼: 세션 사용자 + authenticated 역할로 employees 를 직접 UPDATE */
+  const restUpdate = async (uid: string, setClause: string, target: string) => {
+    await asUser(uid)
+    await exec('set role authenticated')
+    try { return await codeOf(exec(`update public.employees set ${setClause} where id = '${target}'`)) } finally { await exec('reset role') }
+  }
+
+  it('일반 직원: 본인·남의 직급을 REST 로 바꿀 수 없다 (RLS 가 행을 숨겨 0행, 값 그대로)', async () => {
+    expect(await restUpdate(ALICE, "position = '팀장'", ALICE)).toBe('OK')   // 오류 없이 0행
+    expect(await positionOf(ALICE)).toBeNull()
+    expect(await restUpdate(ALICE, "position = null", LEAD)).toBe('OK')
+    expect(await positionOf(LEAD)).toBe('팀장')
+  })
+
+  it('인사담당(manager): 직급 변경은 POSITION_ADMIN_ONLY, 다른 직원 정보 수정과 값이 같은 position 을 보내는 저장은 그대로 된다', async () => {
+    expect(await restUpdate(MGR, "position = '팀장'", BOB)).toBe('POSITION_ADMIN_ONLY')
+    expect(await positionOf(BOB)).toBeNull()
+    expect(await restUpdate(MGR, "position = null", LEAD)).toBe('POSITION_ADMIN_ONLY')
+    expect(await positionOf(LEAD)).toBe('팀장')
+    expect(await restUpdate(MGR, "position = '과장'", MGR)).toBe('POSITION_ADMIN_ONLY')   // 본인 직급도 불가
+    // 직원관리 저장 경로: 이름 등 다른 칼럼 + position 은 원본 그대로 → 통과
+    expect(await restUpdate(MGR, "name = '이동행2', position = null", BOB)).toBe('OK')
+    expect(await restUpdate(MGR, "name = '최팀장', position = '팀장'", LEAD)).toBe('OK')
+    expect((await one<{ n: string }>('select name as n from public.employees where id = $1', [BOB])).n).toBe('이동행2')
+  })
+
+  it('대표(admin): 직급 변경 정상, 지정만으로 전체 조회 권한은 생기지 않는다', async () => {
+    expect(await restUpdate(BOSS, "position = '팀장'", BOB)).toBe('OK')
+    expect(await positionOf(BOB)).toBe('팀장')
+    await asUser(BOSS)
+    expect((await one<{ ok: boolean }>('select public.trip_view_grant_eligible($1::uuid) as ok', [BOB])).ok).toBe(true)   // 후보가 됐지만
+    await asUser(BOB); await exec('set role authenticated')
+    expect(Number((await one<{ n: string }>('select count(*)::text as n from public.trip_claims where employee_id <> $1', [BOB])).n)).toBe(0)   // 남의 건은 없다 (본인 건만)
+    await exec('reset role')
+    expect(await restUpdate(BOSS, "position = null", BOB)).toBe('OK')
+    expect(await positionOf(BOB)).toBeNull()
+    // 세션 사용자 없음(service_role·SQL Editor)은 통과
+    await asUser(null)
+    expect(await codeOf(exec(`update public.employees set position = '팀장' where id = '${BOB}'`))).toBe('OK')
+    await exec(`update public.employees set position = null where id = '${BOB}'`)
+  })
+
+  it('기존 RPC update_employee_admin 과 list_all_employees 는 그대로: admin 만, 목록에 position 이 포함된다', async () => {
+    await asUser(BOSS)
+    const list = await rows<Record<string, unknown>>('select * from public.list_all_employees()')
+    expect(list.length).toBe(6)
+    expect(Object.keys(list[0])).toContain('position')
+    expect(list.find((r) => r.id === LEAD)?.position).toBe('팀장')
+    await asUser(ALICE)
+    expect(await codeOf(rows('select * from public.list_all_employees()'))).toBe('Unauthorized')
+    await asUser(MGR)
+    expect(await codeOf(rows('select * from public.list_all_employees()'))).toBe('Unauthorized')
   })
 })
 
@@ -666,6 +724,13 @@ describe('8. 905 — employees.position 되돌리기', () => {
     await exec('update public.employees set position = null')
     await exec(sql('905_rollback_position.sql'))
     expect(await hasPosition()).toBe(false)
+    expect((await one<{ n: string }>("select count(*)::text as n from pg_trigger where tgname = 'employees_position_admin_only'")).n).toBe('0')
+    expect((await one<{ ok: boolean }>("select to_regprocedure('public.employees_position_guard()') is null as ok")).ok).toBe(true)
+    // 칼럼이 없어도 list_all_employees() 는 그대로 동작한다
+    await asUser(BOSS)
+    const list = await rows<Record<string, unknown>>('select * from public.list_all_employees()')
+    expect(list.length).toBe(6)
+    expect(Object.keys(list[0])).not.toContain('position')
     expect((await one<{ n: string }>('select count(*)::text as n from public.employees')).n).toBe('6')
     expect((await one<{ ok: boolean }>("select to_regprocedure('public.update_updated_at_column()') is not null as ok")).ok).toBe(true)
     // 005 는 다시 적용할 수 있다 (멱등)

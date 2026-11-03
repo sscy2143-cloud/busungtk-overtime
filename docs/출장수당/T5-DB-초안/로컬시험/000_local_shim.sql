@@ -3,7 +3,8 @@
 -- Supabase 가 기본으로 제공하는 것을 빈 PostgreSQL(pglite 등)에 흉내 낸다.
 -- 010~040 이 기대는 것: 역할 anon/authenticated/service_role, auth.uid(), update_updated_at_column(),
 -- public.employees(id, role, is_active, ...), public.overtime_requests(employee_id, date, planned_start, planned_end, status),
--- public.is_manager_or_admin()
+-- public.is_manager_or_admin(), public.is_admin(), public.list_all_employees(), employees 의 RLS 정책
+--   (employees 정책·함수는 레포 마이그레이션 20260225210000·20260226100000·20260323000000 의 사본 — 운영 실제 정의는 C-7 대조로 확인)
 -- ============================================================
 
 do $$
@@ -67,8 +68,40 @@ as $$
   select exists (select 1 from public.employees where id = auth.uid() and role in ('manager', 'admin') and is_active)
 $$;
 
+-- 운영 함수 is_admin() (20260225210000 사본: is_active 를 보지 않는다)
+create or replace function public.is_admin()
+returns boolean
+language sql stable security definer
+as $$
+  select exists (select 1 from public.employees where id = auth.uid() and role = 'admin')
+$$;
+
+-- 운영 RPC list_all_employees() (20260323000000 사본): returns setof employees + select * → 칼럼이 늘어도 그대로 따라간다
+create or replace function public.list_all_employees(p_admin_key text default null)
+returns setof public.employees
+language plpgsql security definer
+as $$
+begin
+  if public.is_admin() then
+    return query select * from public.employees order by created_at asc;
+  else
+    raise exception 'Unauthorized';
+  end if;
+end;
+$$;
+
 grant usage on schema public to anon, authenticated, service_role;
 grant select on public.employees, public.overtime_requests to authenticated, service_role;
+grant update on public.employees to authenticated;
+
+-- 운영 employees RLS (사본): 본인·manager/admin 조회, manager/admin 수정 (20260226100000 — with check 없음)
+alter table public.employees enable row level security;
+drop policy if exists "employees_select_self" on public.employees;
+create policy "employees_select_self" on public.employees for select using (auth.uid() = id);
+drop policy if exists "employees_select_manager" on public.employees;
+create policy "employees_select_manager" on public.employees for select using (public.is_manager_or_admin());
+drop policy if exists "employees_update_manager_admin" on public.employees;
+create policy "employees_update_manager_admin" on public.employees for update using (public.is_manager_or_admin());
 
 -- 시험용 직원 (id 고정 — 시험 스크립트가 같은 값을 쓴다)
 insert into public.employees (id, name, role) values
