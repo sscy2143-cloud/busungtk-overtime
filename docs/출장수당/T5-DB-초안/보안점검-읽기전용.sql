@@ -159,5 +159,20 @@ select
     'is_manager_or_admin_checks_active', (
       select pg_get_functiondef(oid) like '%is_active%'
       from pg_proc where oid = 'public.is_manager_or_admin()'::regprocedure
+    ),
+    'view_employees_directory', to_regclass('public.employees_directory') is not null,
+    'view_options', coalesce(
+      (select array_to_string(reloptions, ',') from pg_class where oid = to_regclass('public.employees_directory')),
+      '(no view)'
+    ),
+    'employees_owner_bypasses_rls', (
+      select (not c.relforcerowsecurity) and coalesce(c.relowner = v.relowner, true)
+      from pg_class c
+      left join pg_class v on v.oid = to_regclass('public.employees_directory')
+      where c.oid = 'public.employees'::regclass
+    ),
+    'group_select_policy_present', exists (
+      select 1 from pg_policies
+      where schemaname = 'public' and tablename = 'employees' and policyname = 'employees_select_active_for_group'
     )
   );

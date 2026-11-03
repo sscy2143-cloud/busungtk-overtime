@@ -91,6 +91,28 @@ describe('D. 시급·2차 인증 해시 노출 — employees_select_active_for_g
     expect(await countAs(BOSS, 'select hourly_wage from public.employees')).toBe(6)
   })
 
+  it('역할별: anon 거부, employees 행 없는 auth 사용자 0행, 일반 직원·인사담당·대표는 활성 명부(비민감 칼럼)만', async () => {
+    await asUser(null); await exec('set role anon')
+    expect(await codeOf(one('select id from public.employees_directory'))).toMatch(/permission denied/)
+    await exec('reset role')
+    expect(await countAs(NEWBIE, 'select id from public.employees_directory')).toBe(0)
+    for (const uid of [ALICE, MGR, BOSS]) expect(await countAs(uid, 'select id, name, department, role, employee_type from public.employees_directory')).toBe(4)
+    expect(await countAs(GONE_MGR, 'select id from public.employees_directory')).toBe(4)   // 비활성 계정도 '등록된 직원' — 명부(비민감)만, 시급은 본인 행(비활성 행은 self 정책으로 본인 것만)
+    const cols = (await rows<{ c: string }>("select column_name as c from information_schema.columns where table_schema = 'public' and table_name = 'employees_directory' order by ordinal_position")).map((x) => x.c)
+    expect(cols).toEqual(['id', 'name', 'department', 'role', 'employee_type', 'is_active'])
+  })
+
+  it('security_invoker = true 면 008b 뒤 일반 직원은 뷰에서도 본인 행만 본다 → 반드시 false(기본) 로 둔다; 소유자는 RLS 를 지나지 않는다', async () => {
+    expect((await one<{ ok: boolean }>("select (not relforcerowsecurity) as ok from pg_class where oid = 'public.employees'::regclass")).ok).toBe(true)
+    expect((await one<{ ok: boolean }>("select (select relowner from pg_class where oid = 'public.employees'::regclass) = (select relowner from pg_class where oid = 'public.employees_directory'::regclass) as ok")).ok).toBe(true)
+    expect((await one<{ o: string }>("select array_to_string(reloptions, ',') as o from pg_class where oid = 'public.employees_directory'::regclass")).o).toContain('security_invoker=false')
+    await exec('alter view public.employees_directory set (security_invoker = true)')
+    expect(await countAs(ALICE, 'select id from public.employees_directory')).toBe(1)     // 호출자 RLS: 본인 행만 → 명부 기능이 깨진다
+    expect(await countAs(MGR, 'select id from public.employees_directory')).toBe(4)
+    await exec('alter view public.employees_directory set (security_invoker = false)')
+    expect(await countAs(ALICE, 'select id from public.employees_directory')).toBe(4)
+  })
+
   it('908: 정책 복원·뷰 제거 → 다시 전원 노출 (되돌리기 동작 확인), 008a·008b 재적용', async () => {
     await exec(sql('908_rollback_wage_protection.sql'))
     expect(await countAs(ALICE, `select 1 from public.employees where id = '${BOSS}' and hourly_wage is not null`)).toBe(1)
