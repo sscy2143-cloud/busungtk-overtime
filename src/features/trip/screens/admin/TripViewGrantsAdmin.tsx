@@ -4,8 +4,9 @@ import { Button, Card, ErrorBanner, Field, NoticeList, inputClass } from '../par
 
 /**
  * 출장 내역 조회 권한 관리 (admin 전용).
- * - 대상: 서버가 주는 후보(trip_view_grant_candidates = 활성이고 role 'manager')만. 화면이 따로 판정하지 않으므로 DB 와 어긋나지 않는다.
- *   role 이 employee 인 사람은 목록에 없고, 역할이 바뀐 사람의 남은 권한은 "유효하지 않은 권한" 으로 보여 회수만 할 수 있다.
+ * - 대상: 서버가 주는 후보(trip_view_grant_candidates = 활성이고 회사 직급 '팀장', admin 제외)만. 시스템 역할(employee/manager)은 보지 않는다.
+ *   화면이 따로 판정하지 않으므로 DB 와 어긋나지 않는다. 직급·활성이 바뀌면 서버 트리거가 권한을 지우며(복원 없음),
+ *   혹시 남은 행이 있으면 "유효하지 않은 권한" 으로 보여 회수만 할 수 있다.
  * - 부여되는 것은 전체 출장 내역 "조회" 뿐. 수정·승인·반려·급여 반영은 어떤 권한으로도 열리지 않는다.
  * - 부여·회수에는 사유가 필요하고, 서버가 이력(trip_view_grant_history)을 남긴다.
  */
@@ -46,16 +47,16 @@ export function TripViewGrantsAdmin() {
   return (
     <div className="mx-auto max-w-2xl space-y-4 px-4 pb-8 pt-4">
       <h2 className="text-lg font-bold text-dark-900">출장 내역 조회 권한</h2>
-      <NoticeList items={['부여되는 것은 "전체 출장 내역 조회" 하나뿐입니다. 신청 수정·승인·반려·급여 반영 권한은 생기지 않습니다', '부여 대상은 역할(role)이 manager 인 활성 직원뿐입니다. 자동 부여는 없고 여기서 직원별로 켜고 끕니다']} />
+      <NoticeList items={['부여되는 것은 "전체 출장 내역 조회" 하나뿐입니다. 신청 수정·승인·반려·급여 반영 권한은 생기지 않습니다', '부여 대상은 직원관리에서 회사 직급이 "팀장" 으로 지정된 활성 직원뿐입니다 (시스템 권한과 무관). 자동 부여는 없고 여기서 직원별로 켜고 끕니다', '직급이 바뀌거나 퇴사하면 권한은 자동으로 회수되고, 다시 팀장이 되어도 새로 부여해야 합니다']} />
       <ErrorBanner error={error} onDismiss={() => setError(undefined)} />
       {done && <NoticeList items={[done]} />}
-      {candidates.length === 0 && <p className="text-sm text-dark-500">대상 직원이 없습니다 (역할이 manager 인 활성 직원이 없습니다)</p>}
+      {candidates.length === 0 && <p className="text-sm text-dark-500">대상 직원이 없습니다 (직원관리에서 회사 직급을 "팀장" 으로 지정한 활성 직원이 없습니다)</p>}
       {stale.map((g) => (
         <Card key={g.employeeId}>
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className="font-medium text-dark-900">{employeeName(employees, g.employeeId)}</p>
-              <p className="text-xs text-amber-800">유효하지 않은 권한 — 역할이나 활성 상태가 바뀌어 서버가 이미 조회를 막고 있습니다. 회수해 정리하세요</p>
+              <p className="text-xs text-amber-800">유효하지 않은 권한 — 직급·활성 상태가 바뀌어 서버가 이미 조회를 막고 있습니다. 회수해 정리하세요</p>
             </div>
             <Button kind="danger" onClick={() => { setPending({ employeeId: g.employeeId, enabled: false }); setDone(null) }} disabled={busy}>회수</Button>
           </div>

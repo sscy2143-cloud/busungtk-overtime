@@ -149,16 +149,16 @@ grant execute on function public.trip_set_feature(text, boolean, text) to authen
 
 -- ============================================================
 -- 전체 출장 내역 조회 권한 지정 (2026-11-03 추가)
---   admin 이 특정 직원(팀장)을 골라 "전체 출장 내역 조회" 를 부여·회수한다. 기본값: 아무도 없음.
---   - 부여 대상 = employees.role = 'manager' 이고 is_active 인 직원 (11-03 사용자 지정). 운영 employees 에는
---     직급 칼럼이 없고(role·employee_type 뿐, manager_id 는 전부 null) 기존 앱에서 manager 는 '인사담당' 라벨이므로,
---     manager 역할 = "조회 권한을 줄 수 있는 후보" 일 뿐 자동 부여는 없다. role='employee' 인 사람은 후보가 아니다.
---     직급 칼럼이 생기면 trip_view_grant_eligible() 한 곳만 바꾼다 (결정 D8).
+--   admin 이 회사 직급이 '팀장' 인 직원을 골라 "전체 출장 내역 조회" 를 부여·회수한다. 기본값: 아무도 없음.
+--   - 부여 대상 = employees.is_active and employees.position = '팀장' and role <> 'admin' (11-03 최종, 005 칼럼).
+--     시스템 역할(employee/manager)은 보지 않는다 — manager 는 '인사담당' 이지 팀장이 아니다. admin 은 이미 전부 보므로 제외.
+--     자동 부여는 없다: 팀장이라도 admin 이 명시적으로 켜기 전에는 본인 건만 본다.
 --   - 관리자 화면의 후보 목록은 trip_view_grant_candidates() 가 같은 판정 함수로 돌려주므로 화면과 DB 가 어긋나지 않는다.
 --   - 부여되는 것은 SELECT(030 의 *_select_admin 정책이 trip_can_view_all() 을 통해 허용)뿐.
 --     수정·승인·반려·급여 반영 RPC 는 040 이 role='admin' 만 받으므로 그대로 막힌다.
---   - 퇴사·비활성화(is_active=false)·역할 변경(manager 가 아니게 됨) 시 trip_has_view_grant() 가 false 가 되어 즉시 막힌다.
---     행은 남으므로 admin 화면에 "유효하지 않은 권한" 으로 보이고 회수로 정리한다.
+--   - 직급 변경·퇴사·비활성화·admin 승격 시: employees 의 트리거 trip_view_grant_guard 가 권한 행을 지우고
+--     이력에 auto_revoke 를 남긴다 (즉시 무효). 다시 팀장이 돼도 복원되지 않는다 — admin 이 새로 부여해야 한다.
+--     트리거가 없더라도 trip_has_view_grant() 가 유효성을 다시 보므로 행이 남아도 조회는 막힌다 (이중 방어).
 --   - 기능 스위치 admin_review 가 꺼져 있으면 정책 조건에서 막힌다 (권한이 있어도 0행).
 --   - 모든 변경은 trip_view_grant_history 에 남는다 (누가·언제·왜).
 -- ============================================================
@@ -172,8 +172,9 @@ create table public.trip_view_grants (
 create table public.trip_view_grant_history (
   id           uuid primary key default gen_random_uuid(),
   employee_id  uuid not null references public.employees(id) on delete restrict,
-  action       text not null check (action in ('grant', 'revoke')),
-  changed_by   uuid not null references public.employees(id) on delete restrict,
+  action       text not null check (action in ('grant', 'revoke', 'auto_revoke')),
+  -- auto_revoke 는 트리거가 남긴다. SQL Editor 등 세션 사용자가 없는 경로면 null
+  changed_by   uuid references public.employees(id) on delete restrict,
   note         text not null default '',
   changed_at   timestamptz not null default now()
 );
@@ -184,7 +185,8 @@ create trigger trip_view_grant_history_append_only
   before update or delete on public.trip_view_grant_history
   for each row execute function public.trip_append_only();
 
--- 부여 대상인가: 활성이고 role = 'manager' 인 직원. 유일한 판정 지점 — RPC(부여)·RLS(유효성)·관리자 화면(후보) 모두 여기를 쓴다
+-- 부여 대상인가: 활성이고 회사 직급이 '팀장' 이며 admin 이 아닌 직원 (005 employees.position).
+-- 유일한 판정 지점 — RPC(부여)·RLS(유효성)·관리자 화면(후보)·트리거(자동 회수) 모두 여기를 쓴다
 create or replace function public.trip_view_grant_eligible(p_employee uuid)
 returns boolean
 language sql security definer stable
@@ -192,11 +194,11 @@ set search_path = public, pg_temp
 as $$
   select exists (
     select 1 from public.employees e
-    where e.id = p_employee and e.is_active = true and e.role = 'manager'
+    where e.id = p_employee and e.is_active = true and e.position = '팀장' and e.role <> 'admin'
   )
 $$;
 
--- 지금 로그인한 사람에게 유효한 조회 권한이 있는가 (행이 있어도 비활성이거나 role 이 manager 가 아니면 false)
+-- 지금 로그인한 사람에게 유효한 조회 권한이 있는가 (행이 있어도 비활성·직급 변경·admin 이면 false)
 create or replace function public.trip_has_view_grant()
 returns boolean
 language sql security definer stable
@@ -259,7 +261,7 @@ begin
 
   if p_enabled then
     if not public.trip_view_grant_eligible(p_employee_id) then
-      raise exception 'NOT_ELIGIBLE' using detail = '부여 대상이 아닙니다 (활성이고 역할이 manager 인 직원만)';
+      raise exception 'NOT_ELIGIBLE' using detail = '부여 대상이 아닙니다 (활성이고 회사 직급이 팀장인 직원만, admin 제외)';
     end if;
     insert into public.trip_view_grants (employee_id, granted_by, note)
     values (p_employee_id, v_uid, btrim(p_note))
@@ -288,5 +290,32 @@ revoke all on function public.trip_has_view_grant()                      from pu
 grant execute on function public.trip_has_view_grant()                   to authenticated;
 revoke all on function public.trip_view_grant_candidates()               from public, anon;
 grant execute on function public.trip_view_grant_candidates()            to authenticated;
+
+-- 자동 회수: 직급·활성·역할이 바뀌어 후보가 아니게 되면 권한 행을 지우고 이력을 남긴다 (기존 표 employees 의 유일한 출장 트리거, 900 이 지운다)
+create or replace function public.trip_employee_grant_guard()
+returns trigger
+language plpgsql security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if exists (select 1 from public.trip_view_grants where employee_id = new.id)
+     and not public.trip_view_grant_eligible(new.id) then
+    delete from public.trip_view_grants where employee_id = new.id;
+    insert into public.trip_view_grant_history (employee_id, action, changed_by, note)
+    values (new.id, 'auto_revoke', auth.uid(),
+            format('직급·상태 변경으로 자동 회수 (직급 %s → %s, 활성 %s → %s, 역할 %s → %s)',
+                   coalesce(old.position, '미지정'), coalesce(new.position, '미지정'), old.is_active, new.is_active, old.role, new.role));
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.trip_employee_grant_guard() from public, anon, authenticated;
+
+drop trigger if exists trip_view_grant_guard on public.employees;
+create trigger trip_view_grant_guard
+  after update of position, is_active, role on public.employees
+  for each row
+  when (old.position is distinct from new.position or old.is_active is distinct from new.is_active or old.role is distinct from new.role)
+  execute function public.trip_employee_grant_guard();
 revoke all on function public.trip_set_view_grant(uuid, boolean, text)   from public, anon;
 grant execute on function public.trip_set_view_grant(uuid, boolean, text) to authenticated;
