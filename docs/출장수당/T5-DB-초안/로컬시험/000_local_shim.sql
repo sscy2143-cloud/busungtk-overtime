@@ -41,12 +41,16 @@ $$;
 
 -- 기존 운영 표의 최소 모양 (칼럼 이름·타입은 운영과 같게. 운영 대조 C-6·C-10 뒤 필요하면 고친다)
 create table if not exists public.employees (
-  id          uuid primary key default gen_random_uuid(),
-  name        text not null,
-  email       text,
-  role        text not null default 'employee' check (role in ('employee', 'manager', 'admin')),
-  is_active   boolean not null default true,
-  created_at  timestamptz not null default now()
+  id            uuid primary key default gen_random_uuid(),
+  name          text not null,
+  email         text,
+  avatar_url    text,
+  department    text not null default '',
+  role          text not null default 'employee' check (role in ('employee', 'manager', 'admin')),
+  employee_type text not null default 'office',
+  hourly_wage   integer not null default 0,
+  is_active     boolean not null default true,
+  created_at    timestamptz not null default now()
 );
 
 create table if not exists public.overtime_requests (
@@ -60,12 +64,30 @@ create table if not exists public.overtime_requests (
 );
 
 -- (표 다음에 둔다 — SQL 함수는 만들 때 표를 확인한다)
--- 운영 함수 is_manager_or_admin() 의 최소 흉내 — 030 trip_can_view_all() 이 부른다 (운영 정의는 대조 C-7 에서 확인)
+-- 운영 함수 is_manager_or_admin() 사본 (20260225210000): is_active 를 보지 않는다 — 비활성 계정도 세션만 있으면 true (운영 정의는 C-7 대조)
 create or replace function public.is_manager_or_admin()
 returns boolean
 language sql stable security definer
 as $$
-  select exists (select 1 from public.employees where id = auth.uid() and role in ('manager', 'admin') and is_active)
+  select exists (select 1 from public.employees where id = auth.uid() and role in ('manager', 'admin'))
+$$;
+
+-- 운영 RPC register_employee (20260225220000 사본): 첫 직원만 admin, 이후는 employee·비활성
+create or replace function public.register_employee(p_id uuid, p_name text, p_email text, p_avatar_url text default null)
+returns public.employees
+language plpgsql security definer
+as $$
+declare v_is_first boolean; v_role text; v_active boolean; v_result public.employees;
+begin
+  select * into v_result from public.employees where id = p_id;
+  if found then return v_result; end if;
+  select not exists (select 1 from public.employees) into v_is_first;
+  if v_is_first then v_role := 'admin'; v_active := true; else v_role := 'employee'; v_active := false; end if;
+  insert into public.employees (id, name, email, avatar_url, department, role, employee_type, hourly_wage, is_active)
+  values (p_id, p_name, p_email, p_avatar_url, '', v_role, 'office', 0, v_active)
+  returning * into v_result;
+  return v_result;
+end;
 $$;
 
 -- 운영 함수 is_admin() (20260225210000 사본: is_active 를 보지 않는다)
@@ -116,6 +138,7 @@ $$;
 grant usage on schema public to anon, authenticated, service_role;
 grant select on public.employees, public.overtime_requests to authenticated, service_role;
 grant update on public.employees to authenticated;
+grant insert on public.employees to authenticated;
 
 -- 운영 employees RLS (사본): 본인·manager/admin 조회, manager/admin 수정 (20260226100000 — with check 없음)
 alter table public.employees enable row level security;
@@ -125,6 +148,9 @@ drop policy if exists "employees_select_manager" on public.employees;
 create policy "employees_select_manager" on public.employees for select using (public.is_manager_or_admin());
 drop policy if exists "employees_update_manager_admin" on public.employees;
 create policy "employees_update_manager_admin" on public.employees for update using (public.is_manager_or_admin());
+-- 본인 자동 등록 (사본): role 을 제한하지 않는다
+drop policy if exists "employees_insert_self" on public.employees;
+create policy "employees_insert_self" on public.employees for insert with check (auth.uid() = id);
 
 -- 시험용 직원 (id 고정 — 시험 스크립트가 같은 값을 쓴다)
 insert into public.employees (id, name, role) values

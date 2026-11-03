@@ -32,9 +32,10 @@ language plpgsql security definer
 set search_path = public, pg_temp
 as $$
 begin
-  if new.position is distinct from old.position
-     and auth.uid() is not null
-     and not exists (select 1 from public.employees where id = auth.uid() and role = 'admin' and is_active = true) then
+  if auth.uid() is null then return new; end if;                                  -- service_role·SQL Editor
+  if tg_op = 'UPDATE' and new.position is not distinct from old.position then return new; end if;
+  if tg_op = 'INSERT' and new.position is null then return new; end if;
+  if not exists (select 1 from public.employees where id = auth.uid() and role = 'admin' and is_active = true) then
     raise exception 'POSITION_ADMIN_ONLY' using detail = '회사 직급은 대표(admin)만 바꿀 수 있습니다', errcode = '42501';
   end if;
   return new;
@@ -44,5 +45,5 @@ revoke all on function public.employees_position_guard() from public, anon, auth
 
 drop trigger if exists employees_position_admin_only on public.employees;
 create trigger employees_position_admin_only
-  before update of position on public.employees
+  before insert or update of position on public.employees
   for each row execute function public.employees_position_guard();

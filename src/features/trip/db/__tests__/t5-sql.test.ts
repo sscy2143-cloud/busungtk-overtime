@@ -93,6 +93,7 @@ beforeAll(async () => {
   await exec(sql('로컬시험/000_local_shim.sql'))
   await exec(sql('005_employees_position.sql'))
   await exec(sql('006_employees_role_guard.sql'))
+  await exec(sql('007_active_admin_functions.sql'))
   await exec(`insert into public.employees (id, name, role, position) values ('${MGR}', '인사담당', 'manager', '팀장'), ('${LEAD}', '최팀장', 'employee', '팀장') on conflict (id) do nothing`)
   await exec(`insert into public.employees (id, name, role, is_active, position) values ('${GONE}', '퇴사자', 'manager', false, '팀장') on conflict (id) do nothing`)
 }, 60_000)
@@ -814,5 +815,10 @@ describe('8. 905 — employees.position 되돌리기', () => {
     await exec(sql('006_employees_role_guard.sql'))
     await exec(sql('006_employees_role_guard.sql'))
     expect((await one<{ n: string }>("select count(*)::text as n from pg_trigger where tgname = 'employees_role_admin_only'")).n).toBe('1')
+    // 907 → 원래 정의(is_active 없음), 007 재적용
+    await exec(sql('907_rollback_active_admin_functions.sql'))
+    expect((await one<{ ok: boolean }>("select pg_get_functiondef('public.is_admin()'::regprocedure) like '%is_active%' as ok")).ok).toBe(false)
+    await exec(sql('007_active_admin_functions.sql'))
+    expect((await one<{ ok: boolean }>("select pg_get_functiondef('public.is_admin()'::regprocedure) like '%is_active%' as ok")).ok).toBe(true)
   }, 60_000)
 })
