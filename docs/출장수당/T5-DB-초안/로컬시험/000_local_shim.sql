@@ -2,7 +2,8 @@
 -- ============================================================
 -- Supabase 가 기본으로 제공하는 것을 빈 PostgreSQL(pglite 등)에 흉내 낸다.
 -- 010~040 이 기대는 것: 역할 anon/authenticated/service_role, auth.uid(), update_updated_at_column(),
--- public.employees(id, role, is_active, ...), public.overtime_requests(employee_id, date, planned_start, planned_end, status)
+-- public.employees(id, role, is_active, ...), public.overtime_requests(employee_id, date, planned_start, planned_end, status),
+-- public.is_manager_or_admin()
 -- ============================================================
 
 do $$
@@ -12,7 +13,7 @@ begin
   if not exists (select 1 from pg_roles where rolname = 'service_role') then create role service_role nologin bypassrls; end if;
 end $$;
 
-create extension if not exists pgcrypto;
+-- pgcrypto 는 쓰지 않는다 (gen_random_uuid 는 PostgreSQL 13+ 내장). 운영의 pgcrypto 는 extensions 스키마에 있다.
 
 create schema if not exists auth;
 
@@ -56,6 +57,15 @@ create table if not exists public.overtime_requests (
   status         text not null default 'pending',
   created_at     timestamptz not null default now()
 );
+
+-- (표 다음에 둔다 — SQL 함수는 만들 때 표를 확인한다)
+-- 운영 함수 is_manager_or_admin() 의 최소 흉내 — 030 trip_can_view_all() 이 부른다 (운영 정의는 대조 C-7 에서 확인)
+create or replace function public.is_manager_or_admin()
+returns boolean
+language sql stable security definer
+as $$
+  select exists (select 1 from public.employees where id = auth.uid() and role in ('manager', 'admin') and is_active)
+$$;
 
 grant usage on schema public to anon, authenticated, service_role;
 grant select on public.employees, public.overtime_requests to authenticated, service_role;

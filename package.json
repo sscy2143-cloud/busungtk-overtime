@@ -39,6 +39,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.14",
     "@eslint/js": "^9.39.1",
     "@types/dompurify": "^3.0.5",
     "@types/node": "^24.10.1",
