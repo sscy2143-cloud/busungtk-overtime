@@ -11,5 +11,7 @@ begin
   end if;
 end $$;
 
+drop trigger if exists employees_position_admin_only on public.employees;
+drop function if exists public.employees_position_guard();
 alter table public.employees drop constraint if exists employees_position_trim_chk;
 alter table public.employees drop column if exists position;
