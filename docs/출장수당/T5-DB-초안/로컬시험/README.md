@@ -20,6 +20,7 @@
 
 ## 3. 결과 — 53건 + 보안 단독 시험 (11-03, 8차: shim 사본 정정·INSERT 경로·007)
 
+**11-03 9차 — 운영 S-1~S-6 확정 반영.** shim 에 `employees_select_active_for_group`·`is_employee()`(본문은 S-3 기준 추정)·`employees_updated_at`·second_auth_hash/updated_at 칼럼 추가. D14: 일반 직원의 전원 시급·해시 노출 재현 → `008a`(뷰)·`008b`(정책 제거)·`908`. `보안패치-006-007-적용.sql` 한 배치 적용·906/907 복원 시험. security-guards 17건.
 **11-03 8차.** shim 의 `is_manager_or_admin()` 사본에서 `is_active` 를 뺐다(마이그레이션 20260225210000 과 같게 — 이전 shim 이 더 엄격했음). `employees_insert_self` 정책·`register_employee` 사본 추가. 005·006 가드를 INSERT 에도 적용(행 없는 auth 사용자가 admin 행을 만드는 경로 차단). `007_active_admin_functions.sql`(is_admin·is_manager_or_admin 에 is_active)·907. 별도 파일 `security-guards.test.ts`(shim 만 올린 빈 DB): 재현 4건(인사담당·비활성 인사담당 role 상승, 비활성 admin RPC, insert_self admin 행) → begin/006/rollback 무흔적 → 006 단독 차단 → 007 비활성 차단 → 907·906 되돌림. 운영 점검은 `보안점검-읽기전용.sql`(S-1~S-6).
 
 **11-03 7차 — D11 role 권한 상승.** shim 에 `update_employee_admin` 사본 추가. 운영 정책 사본(`employees_update_manager_admin`, with check 없음)에서 인사담당이 REST 로 자기·남의 role 을 admin 으로 바꿀 수 있음을 재현(트리거 끈 상태)하고, 상승 직후 출장 스위치·후보 조회·직급 변경·직원 목록 RPC 가 열림을 확인. `006_employees_role_guard.sql`(BEFORE UPDATE OF role, 활성 admin 아니면 `ROLE_ADMIN_ONLY`)로 차단, 직원은 RLS 0행, 이름·활성 등 다른 수정과 같은 값 저장은 통과, admin 의 REST·RPC 정상, `906` 단독 되돌리기. 운영조회 SQL C-3 에 employees 정책 with_check·트리거·표/칼럼 권한, C-7 에 `update_employee_admin`·`list_all_employees` 정의를 추가(읽기 전용).
