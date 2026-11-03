@@ -90,6 +90,17 @@ select
     ),
     'rls_enabled', (
       select relrowsecurity from pg_class where oid = 'public.employees'::regclass
+    ),
+    'view_grants', (
+      select coalesce(
+        jsonb_agg(jsonb_build_object('grantee', grantee, 'priv', privilege_type) order by grantee, privilege_type),
+        '[]'::jsonb
+      )
+      from information_schema.role_table_grants
+      where table_schema = 'public' and table_name = 'employees_directory'
+    ),
+    'view_updatable_mask', (
+      select pg_relation_is_updatable(c.oid, false) from pg_class c where c.oid = to_regclass('public.employees_directory')
     )
   )
 
@@ -174,5 +185,23 @@ select
     'group_select_policy_present', exists (
       select 1 from pg_policies
       where schemaname = 'public' and tablename = 'employees' and policyname = 'employees_select_active_for_group'
+    ),
+    'backup_table', to_regclass('public.security_patch_backup') is not null,
+    'register_employee_acl', (
+      select coalesce(array_to_string(proacl, ','), '(default: PUBLIC execute)')
+      from pg_proc where oid = to_regprocedure('public.register_employee(uuid, text, text, text)')
     )
+  )
+
+union all
+
+select
+  'S-7 default privileges (public schema)',
+  (
+    select coalesce(
+      jsonb_agg(jsonb_build_object('for_role', defaclrole::regrole::text, 'objtype', defaclobjtype, 'acl', defaclacl::text)),
+      '[]'::jsonb
+    )
+    from pg_default_acl
+    where defaclnamespace = 'public'::regnamespace
   );

@@ -20,6 +20,7 @@
 
 ## 3. 결과 — 53건 + 보안 단독 시험 (11-03, 8차: shim 사본 정정·INSERT 경로·007)
 
+**11-03 10차 — 최종 검증판.** shim 에 Supabase 기본 권한(default privileges) 흉내 → 새 뷰에 ALL 이 자동 부여되는 문제를 재현, 008a 가 전부 회수 뒤 SELECT 만. 008a 호출자 활성 조건(비활성 세션 0행). 008b 에 register_employee EXECUTE 회수(우회 경로, H0 와 멱등). 적용 스크립트: 사전 점검(ALREADY_APPLIED·PRECONDITION_CHANGED)·원본 정의 보존(security_patch_backup)·함수 속성 유지 확인, 907 은 보존 원본으로 바이트 단위 복원. 보안점검 S-4 뷰 권한·updatable, S-6 backup_table·register_employee_acl, S-7 기본 권한. 절차·장애 대응은 `docs/출장수당/보안패치-운영절차.md`.
 **11-03 9차 — 운영 S-1~S-6 확정 반영.** shim 에 `employees_select_active_for_group`·`is_employee()`(본문은 S-3 기준 추정)·`employees_updated_at`·second_auth_hash/updated_at 칼럼 추가. D14: 일반 직원의 전원 시급·해시 노출 재현 → `008a`(뷰)·`008b`(정책 제거)·`908`. `보안패치-006-007-적용.sql` 한 배치 적용·906/907 복원 시험. security-guards 17건.
 **11-03 8차.** shim 의 `is_manager_or_admin()` 사본에서 `is_active` 를 뺐다(마이그레이션 20260225210000 과 같게 — 이전 shim 이 더 엄격했음). `employees_insert_self` 정책·`register_employee` 사본 추가. 005·006 가드를 INSERT 에도 적용(행 없는 auth 사용자가 admin 행을 만드는 경로 차단). `007_active_admin_functions.sql`(is_admin·is_manager_or_admin 에 is_active)·907. 별도 파일 `security-guards.test.ts`(shim 만 올린 빈 DB): 재현 4건(인사담당·비활성 인사담당 role 상승, 비활성 admin RPC, insert_self admin 행) → begin/006/rollback 무흔적 → 006 단독 차단 → 007 비활성 차단 → 907·906 되돌림. 운영 점검은 `보안점검-읽기전용.sql`(S-1~S-6).
 
