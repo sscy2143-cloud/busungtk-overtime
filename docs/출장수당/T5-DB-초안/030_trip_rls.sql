@@ -5,7 +5,8 @@
 --
 -- 원칙
 --   - 직원: 본인 행 SELECT 만.
---   - 관리자(admin 만): SELECT 전체. manager 는 출장 기능에서 직원과 같다 (본인 건만) — 11-03 사용자 기준.
+--   - 관리자(admin): SELECT 전체. manager 는 출장 기능에서 직원과 같다 (본인 건만) — 11-03 사용자 기준.
+--   - admin 이 trip_set_view_grant() 로 지정한 직원(팀장): SELECT 전체만 (020 trip_view_grants). 쓰기·승인은 여전히 admin 만.
 --   - INSERT/UPDATE/DELETE 정책은 하나도 만들지 않는다 → 클라이언트 직접 쓰기는 RLS 가 항상 거부.
 --     모든 쓰기는 040 의 SECURITY DEFINER RPC 로만 한다 (K6·S4 재발 방지).
 --   - 추가 방어: anon·authenticated 의 테이블 쓰기 권한(GRANT)도 회수한다.
@@ -28,7 +29,8 @@
 --   권한 체계가 나중에 적용되면 이 함수 본문만 has_admin_permission('trip_view') 로 바꾼다.
 -- ============================================================
 
-create or replace function public.trip_can_view_all()
+-- admin 인가 (활성). 스위치 이력·조회 권한 표처럼 "관리자만" 인 곳에 쓴다
+create or replace function public.trip_is_admin()
 returns boolean
 language sql security definer stable
 set search_path = public, pg_temp
@@ -40,6 +42,17 @@ as $$
   -- 대안 (20260916 권한 체계 적용 시): select public.has_admin_permission('trip_view')
 $$;
 
+-- 전체 출장 내역을 볼 수 있는가: admin, 또는 admin 이 지정한 직원(020 trip_has_view_grant)
+create or replace function public.trip_can_view_all()
+returns boolean
+language sql security definer stable
+set search_path = public, pg_temp
+as $$
+  select public.trip_is_admin() or public.trip_has_view_grant()
+$$;
+
+revoke all on function public.trip_is_admin() from public, anon;
+grant execute on function public.trip_is_admin() to authenticated;
 revoke all on function public.trip_can_view_all() from public, anon;
 grant execute on function public.trip_can_view_all() to authenticated;
 
@@ -58,6 +71,8 @@ alter table public.trip_reviews               enable row level security;
 alter table public.trip_review_flags          enable row level security;
 alter table public.trip_feature_flags         enable row level security;
 alter table public.trip_feature_flag_history  enable row level security;
+alter table public.trip_view_grants           enable row level security;
+alter table public.trip_view_grant_history    enable row level security;
 
 -- ------------------------------------------------------------
 -- 직접 쓰기 권한 회수 (RLS 와 이중 방어). SELECT 권한은 RLS 정책으로 거른다.
@@ -67,14 +82,16 @@ revoke all on table
   public.trip_rule_versions, public.trip_regions, public.holidays,
   public.trip_claims, public.trip_claim_days, public.trip_actual_times,
   public.trip_day_calcs, public.trip_adjustments, public.trip_reviews, public.trip_review_flags,
-  public.trip_feature_flags, public.trip_feature_flag_history
+  public.trip_feature_flags, public.trip_feature_flag_history,
+  public.trip_view_grants, public.trip_view_grant_history
 from anon, authenticated;
 
 grant select on table
   public.trip_rule_versions, public.trip_regions, public.holidays,
   public.trip_claims, public.trip_claim_days, public.trip_actual_times,
   public.trip_day_calcs, public.trip_adjustments, public.trip_reviews, public.trip_review_flags,
-  public.trip_feature_flags, public.trip_feature_flag_history
+  public.trip_feature_flags, public.trip_feature_flag_history,
+  public.trip_view_grants, public.trip_view_grant_history
 to authenticated;
 
 revoke all on public.trip_latest_day_calcs from anon, authenticated;
@@ -99,10 +116,23 @@ create policy "trip_feature_flags_select_authenticated"
   on public.trip_feature_flags for select to authenticated
   using (true);
 
--- 스위치 변경 이력: admin 만
+-- 스위치 변경 이력: admin 만 (조회 권한자 제외)
 create policy "trip_feature_flag_history_select_admin"
   on public.trip_feature_flag_history for select to authenticated
-  using (public.trip_can_view_all());
+  using (public.trip_is_admin());
+
+-- 조회 권한 지정: 본인 행(메뉴 표시용) + admin 전체. 이력은 admin 만. 쓰기 정책 없음 (trip_set_view_grant 로만)
+create policy "trip_view_grants_select_self"
+  on public.trip_view_grants for select to authenticated
+  using (employee_id = auth.uid());
+
+create policy "trip_view_grants_select_admin"
+  on public.trip_view_grants for select to authenticated
+  using (public.trip_is_admin());
+
+create policy "trip_view_grant_history_select_admin"
+  on public.trip_view_grant_history for select to authenticated
+  using (public.trip_is_admin());
 
 -- ============================================================
 -- trip_claims

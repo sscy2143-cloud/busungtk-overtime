@@ -18,6 +18,8 @@ export interface TripScreenProviderProps {
   repo?: TripRepository
   /** 실제 연결용(T6): createTripClient 로 만든 서비스를 넣으면 메모리 저장소를 만들지 않는다. 먼저 refresh() 를 끝내 둘 것 */
   service?: TripClientService
+  /** 메모리 시험용: 전체 조회 권한을 받은 직원 id (실제 연결에서는 서버 trip_view_grants) */
+  viewGrants?: string[]
   children: ReactNode
 }
 
@@ -38,7 +40,7 @@ function sequentialClock(today: IsoDate, n: number): string {
  * 시간·ID 생성은 결정적(순번)이라 같은 조작이면 같은 결과가 난다.
  */
 export function TripScreenProvider(props: TripScreenProviderProps) {
-  const { actor, employees, today, calendar = NO_CALENDAR, flags = NO_FLAGS, repo, service, children } = props
+  const { actor, employees, today, calendar = NO_CALENDAR, flags = NO_FLAGS, repo, service, viewGrants, children } = props
   const [revision, setRevision] = useState(0)
 
   const svc = useMemo<TripClientService>(() => {
@@ -52,8 +54,11 @@ export function TripScreenProvider(props: TripScreenProviderProps) {
       newId: (prefix) => `${prefix}-${++seq}`,
     }
     const directory = Object.fromEntries(employees.map((e) => [e.id, e.role]))
-    return fromMemoryService(createGuardedTripService(deps, createStaticGate(flags, directory)), { now: deps.now })
-  }, [service, repo, calendar, today, flags, employees])
+    const adminActor = employees.find((e) => e.role === 'admin')
+    return fromMemoryService(createGuardedTripService(deps, createStaticGate(flags, directory)), {
+      now: deps.now, viewGrants, ...(adminActor ? { adminActor: { id: adminActor.id, role: 'admin' } } : {}),
+    })
+  }, [service, repo, calendar, today, flags, employees, viewGrants])
 
   const value = useMemo(() => ({
     service: svc,

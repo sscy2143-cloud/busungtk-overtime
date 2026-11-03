@@ -98,20 +98,21 @@ describe('1. 적용 — 010 → 020 → 030 → 040', () => {
     await exec(sql(f))
   }, 60_000)
 
-  it('표 12개 + holidays, 전부 RLS 켜짐', async () => {
+  it('표 13개 + holidays, 전부 RLS 켜짐', async () => {
     const t = await rows<{ relname: string; relrowsecurity: boolean }>("select relname, relrowsecurity from pg_class where relkind = 'r' and relnamespace = 'public'::regnamespace and (relname like 'trip\\_%' or relname = 'holidays') order by relname")
     expect(t.map((x) => x.relname).sort()).toEqual([
       'holidays', 'trip_actual_times', 'trip_adjustments', 'trip_claim_days', 'trip_claims', 'trip_day_calcs',
       'trip_feature_flag_history', 'trip_feature_flags', 'trip_regions', 'trip_review_flags', 'trip_reviews', 'trip_rule_versions',
+      'trip_view_grant_history', 'trip_view_grants',
     ].sort())
     expect(t.every((x) => x.relrowsecurity)).toBe(true)
   })
 
   it('공개 RPC 8개 + 서버 저장 RPC, 정책·트리거가 있다', async () => {
     const fns = (await rows<{ proname: string }>("select proname from pg_proc where pronamespace = 'public'::regnamespace and proname like 'trip\\_%' order by proname")).map((x) => x.proname)
-    for (const f of ['trip_create_claim', 'trip_update_draft', 'trip_submit', 'trip_cancel', 'trip_invite_companions', 'trip_admin_adjust_day', 'trip_review', 'trip_store_server_calcs', 'trip_active_rule_version', 'trip_feature_enabled', 'trip_set_feature']) expect(fns).toContain(f)
+    for (const f of ['trip_create_claim', 'trip_update_draft', 'trip_submit', 'trip_cancel', 'trip_invite_companions', 'trip_admin_adjust_day', 'trip_review', 'trip_store_server_calcs', 'trip_active_rule_version', 'trip_feature_enabled', 'trip_set_feature', 'trip_set_view_grant', 'trip_has_view_grant', 'trip_is_admin']) expect(fns).toContain(f)
     const policies = (await rows<{ policyname: string }>("select policyname from pg_policies where schemaname = 'public' and (tablename like 'trip\\_%' or tablename = 'holidays')")).map((x) => x.policyname)
-    expect(policies.length).toBe(19)   // 030 의 정책 수. 바뀌면 030 과 같이 고친다
+    expect(policies.length).toBe(22)   // 030 의 정책 수 (11-03 조회 권한 3개 포함). 바뀌면 030 과 같이 고친다
     expect(policies).toEqual(expect.arrayContaining(['trip_claims_select_self', 'trip_claims_select_admin', 'trip_day_calcs_select_self', 'trip_day_calcs_select_admin', 'holidays_select_authenticated']))
     // 쓰기 정책은 하나도 없다 — 쓰기는 전부 SECURITY DEFINER RPC 로만
     const writes = await one<{ n: string }>("select count(*)::text as n from pg_policies where schemaname = 'public' and tablename like 'trip\\_%' and cmd <> 'SELECT'")
@@ -393,6 +394,101 @@ describe('5. 관리자 흐름 — 수정·재계산·승인 고정', () => {
   })
 })
 
+describe('5-2. 전체 조회 권한 — admin 이 지정한 직원만, 읽기 전용', () => {
+  const countAs = async (uid: string, table: string) => {
+    await asUser(uid)
+    await exec('set role authenticated')
+    try { return Number((await one<{ n: string }>(`select count(*)::text as n from public.${table}`)).n) } finally { await exec('reset role') }
+  }
+  const setGrant = (emp: string, on: boolean, note = '팀장') => one<{ r: { employeeId: string; enabled: boolean; changed: boolean } }>('select public.trip_set_view_grant($1::uuid, $2::boolean, $3::text) as r', [emp, on, note]).then((x) => x.r)
+  let all = 0
+
+  beforeAll(async () => { all = Number((await one<{ n: string }>('select count(*)::text as n from public.trip_claims')).n) })
+
+  it('부여 전: 팀장(MGR)은 0행, 권한 표는 본인 행만 보인다', async () => {
+    expect(await countAs(MGR, 'trip_claims')).toBe(0)
+    expect(await countAs(MGR, 'trip_view_grants')).toBe(0)
+    expect((await one<{ ok: boolean }>("select public.trip_view_grant_eligible($1::uuid) as ok", [MGR])).ok).toBe(true)
+    expect((await one<{ ok: boolean }>("select public.trip_view_grant_eligible($1::uuid) as ok", [BOSS])).ok).toBe(false)
+  })
+
+  it('부여는 admin 만. 사유 필수, 본인·admin·비활성 직원 불가', async () => {
+    await asUser(ALICE)
+    expect(await codeOf(setGrant(MGR, true))).toBe('FORBIDDEN')
+    await asUser(MGR)
+    expect(await codeOf(setGrant(MGR, true))).toBe('FORBIDDEN')
+    await asUser(null)
+    expect(await codeOf(setGrant(MGR, true))).toBe('UNAUTHENTICATED')
+    await asUser(BOSS)
+    expect(await codeOf(setGrant(MGR, true, ' '))).toBe('REASON_REQUIRED')
+    expect(await codeOf(setGrant(BOSS, true))).toBe('INVALID_ARGUMENT')
+    await exec("insert into public.employees (id, name, role, is_active) values ('00000000-0000-0000-0000-000000000007', '퇴사자', 'employee', false) on conflict (id) do nothing")
+    expect(await codeOf(setGrant('00000000-0000-0000-0000-000000000007', true))).toBe('NOT_FOUND')
+    // 직접 INSERT 는 권한이 없다
+    await exec('set role authenticated')
+    const direct = await codeOf(exec(`insert into public.trip_view_grants (employee_id, granted_by) values ('${MGR}', '${BOSS}')`))
+    await exec('reset role')
+    expect(direct).toMatch(/permission denied/)
+  })
+
+  it('부여하면 그 직원만 전체를 읽고, 다른 직원에게는 전파되지 않으며, 이력이 남는다', async () => {
+    await asUser(BOSS)
+    expect(await setGrant(MGR, true, '영업1팀 팀장')).toEqual({ employeeId: MGR, enabled: true, changed: true })
+    expect(await setGrant(MGR, true, '다시')).toMatchObject({ changed: false })
+    expect(await countAs(MGR, 'trip_claims')).toBe(all)
+    expect(await countAs(MGR, 'trip_day_calcs')).toBeGreaterThan(0)
+    expect(await countAs(MGR, 'trip_reviews')).toBeGreaterThan(0)
+    expect(await countAs(MGR, 'trip_adjustments')).toBe(1)
+    expect(await countAs(MGR, 'trip_view_grants')).toBe(1)              // 본인 행
+    expect(await countAs(MGR, 'trip_view_grant_history')).toBe(0)       // 이력은 admin 만
+    expect(await countAs(MGR, 'trip_feature_flag_history')).toBe(0)     // 스위치 이력도 admin 만
+    expect(await countAs(ALICE, 'trip_claims')).toBeLessThan(all)
+    expect(await countAs(BOB, 'trip_view_grants')).toBe(0)
+    expect(await countAs(BOSS, 'trip_view_grants')).toBe(1)
+    expect(await countAs(BOSS, 'trip_view_grant_history')).toBe(1)
+  })
+
+  it('조회 권한이 있어도 쓰기·승인·수정은 FORBIDDEN', async () => {
+    await asUser(MGR)
+    const c = await one<{ id: string; version: number }>('select id, version from public.trip_claims where employee_id = $1 and status = $2', [ALICE, 'approved'])
+    const dayId = (await loadDays(c.id))[0].id
+    expect(await codeOf(review(c.id, 'approve', [], []))).toBe('FORBIDDEN')
+    expect(await codeOf(adjust(c.id, dayId, 1, entry(MON, '07:00', '17:00'), '사유'))).toBe('FORBIDDEN')
+    expect(await codeOf(updateDraft(c.id, c.version, null, null))).toBe('FORBIDDEN')
+    expect(await codeOf(cancel(c.id, c.version))).toBe('FORBIDDEN')
+    expect(await codeOf(setFeature('employee_form', false))).toBe('FORBIDDEN')
+  })
+
+  it('검토 스위치 OFF 면 권한이 있어도 0행', async () => {
+    await asUser(BOSS)
+    await setFeature('admin_review', false)
+    expect(await countAs(MGR, 'trip_claims')).toBe(0)
+    await asUser(BOSS)
+    await setFeature('admin_review', true)
+    expect(await countAs(MGR, 'trip_claims')).toBe(all)
+  })
+
+  it('비활성화되면 행이 남아 있어도 즉시 막히고, 다시 활성화하면 돌아온다', async () => {
+    await exec(`update public.employees set is_active = false where id = '${MGR}'`)
+    expect((await one<{ ok: boolean }>('select public.trip_view_grant_eligible($1::uuid) as ok', [MGR])).ok).toBe(false)
+    await asUser(MGR)
+    expect(await codeOf(one('select public._trip_actor_id()'))).toBe('FORBIDDEN')   // RPC 도 활성 직원만
+    await exec(`update public.employees set is_active = true where id = '${MGR}'`)
+    expect(await countAs(MGR, 'trip_claims')).toBe(all)
+  })
+
+  it('회수하면 즉시 0행, 이력 2건, 다시 회수는 changed=false', async () => {
+    await asUser(BOSS)
+    expect(await setGrant(MGR, false, '보직 해제')).toEqual({ employeeId: MGR, enabled: false, changed: true })
+    expect(await setGrant(MGR, false, '다시')).toMatchObject({ changed: false })
+    expect(await countAs(MGR, 'trip_claims')).toBe(0)
+    expect(await countAs(MGR, 'trip_view_grants')).toBe(0)
+    const hist = await rows<{ action: string; note: string }>('select action, note from public.trip_view_grant_history where employee_id = $1 order by changed_at', [MGR])
+    expect(hist).toEqual([{ action: 'grant', note: '영업1팀 팀장' }, { action: 'revoke', note: '보직 해제' }])
+    expect(await codeOf(exec('delete from public.trip_view_grant_history'))).toBe('IMMUTABLE')
+  })
+})
+
 describe('6. RLS — 직원·manager 는 본인 건, admin 만 전부, 스위치 OFF 면 0행', () => {
   const countAs = async (uid: string, table: string) => {
     await asUser(uid)
@@ -459,7 +555,7 @@ describe('7. 900 롤백 → 재적용', () => {
       union all select 'policy', policyname from pg_policies where schemaname = 'public' and (tablename like 'trip%' or tablename = 'holidays')
       union all select 'type', typname from pg_type where typnamespace = 'public'::regnamespace and typname like 'trip%' and typtype = 'e'`)
     expect(left).toEqual([])
-    expect((await one<{ n: string }>('select count(*)::text as n from public.employees')).n).toBe('4')
+    expect((await one<{ n: string }>('select count(*)::text as n from public.employees')).n).toBe('5')
     expect((await one<{ ok: boolean }>("select to_regprocedure('public.update_updated_at_column()') is not null as ok")).ok).toBe(true)
   }, 60_000)
 

@@ -4,7 +4,7 @@ import {
   createMemoryRepository, createTripService, type Actor, type HolidayCalendar, type ServiceDeps, type TripRepository,
 } from '../../data'
 import { MON, TEST_CALENDAR, TUE, alice, bob, boss, dayHeader, siteEntry, stayHeader, unwrap } from '../../data/__tests__/fixtures'
-import { AdminTripReview, ClaimReviewDetail, EmployeeTripScreen, MyTripClaims, TripClaimForm, TripRemoteProvider, TripScreenProvider, WorkRequestEntry } from '..'
+import { AdminTripReview, ClaimReviewDetail, EmployeeTripScreen, MyTripClaims, TripClaimForm, TripRemoteProvider, TripScreenProvider, TripViewGrantsAdmin, TripViewerScreen, WorkRequestEntry } from '..'
 
 const EMPLOYEES = [
   { id: alice.id, name: '김직원', role: 'employee' as const },
@@ -150,5 +150,70 @@ describe('원격 제공자 (T7 글루)', () => {
     expect(html).toContain('불러오는 중')
     expect(html).not.toContain('근무 신청')
     expect(fetched).toBe(0)
+  })
+})
+
+describe('전체 출장 내역 조회 (admin 지정 권한)', () => {
+  const LEAD = 'emp-lead'
+  const lead = { id: LEAD, role: 'employee' as const }
+  const WITH_LEAD = [...EMPLOYEES, { id: LEAD, name: '최팀장', role: 'employee' as const }]
+  const renderLead = (ui: React.ReactNode, grants: string[], flags: Record<string, boolean> = { employeeForm: true, adminReview: true }) => {
+    const { repo } = seeded()
+    return renderToStaticMarkup(
+      <TripScreenProvider actor={lead} employees={WITH_LEAD} today={MON} repo={repo} flags={flags} viewGrants={grants}>{ui}</TripScreenProvider>,
+    )
+  }
+
+  it('권한 없는 팀장: 안내만, 목록 없음', () => {
+    const html = renderLead(<TripViewerScreen />, [])
+    expect(html).toContain('조회 권한이 없습니다')
+    expect(html).not.toContain('김직원')
+  })
+
+  it('권한 받은 팀장: 읽기 전용 목록 — 모든 직원 건이 보이고 "보기" 버튼, 승인·수정 조작 없음', () => {
+    const html = renderLead(<TripViewerScreen />, [LEAD])
+    expect(html).toContain('출장 내역 조회')
+    expect(html).toContain('김직원')          // 기본 필터 '제출됨' — 김직원 건만 제출 상태
+    expect(html).toContain('보기')
+    expect(html).not.toContain('>검토<')
+    expect(html).not.toContain('계산 갱신')
+  })
+
+  it('권한 받은 팀장의 상세: 조회 전용 문구, 승인·되돌림·반려·입력값 수정 없음', () => {
+    const { repo, submitted } = seeded()
+    const html = renderToStaticMarkup(
+      <TripScreenProvider actor={lead} employees={WITH_LEAD} today={MON} repo={repo} flags={{ employeeForm: true, adminReview: true }} viewGrants={[LEAD]}>
+        <ClaimReviewDetail claimId={submitted.id} onBack={() => {}} readOnly />
+      </TripScreenProvider>,
+    )
+    expect(html).toContain('조회 전용')
+    expect(html).not.toContain('>승인<')
+    expect(html).not.toContain('>되돌림<')
+    expect(html).not.toContain('>반려<')
+    expect(html).not.toContain('입력값 수정')
+    expect(html).toContain('disabled=""')      // 확인 표시 체크박스는 읽기 전용
+  })
+
+  it('스위치가 꺼지면 권한이 있어도 안내만', () => {
+    const html = renderLead(<TripViewerScreen />, [LEAD], { employeeForm: true, adminReview: false })
+    expect(html).toContain('아직 열리지 않았습니다')
+    expect(html).not.toContain('김직원')
+  })
+
+  it('권한 관리 화면: admin 에게는 직원 목록과 부여/회수 버튼, 직원에게는 안내만', () => {
+    const { repo } = seeded()
+    const adminHtml = renderToStaticMarkup(
+      <TripScreenProvider actor={boss} employees={WITH_LEAD} today={MON} repo={repo} flags={{ adminReview: true }} viewGrants={[LEAD]}>
+        <TripViewGrantsAdmin />
+      </TripScreenProvider>,
+    )
+    expect(adminHtml).toContain('최팀장')
+    expect(adminHtml).toContain('조회 권한 있음')
+    expect(adminHtml).toContain('회수')
+    expect(adminHtml).toContain('김직원')
+    expect(adminHtml).toContain('부여')
+    expect(adminHtml).not.toContain('박관리</p>')   // 본인은 목록에 없음
+    const empHtml = renderLead(<TripViewGrantsAdmin />, [])
+    expect(empHtml).toContain('대표(admin)만')
   })
 })
