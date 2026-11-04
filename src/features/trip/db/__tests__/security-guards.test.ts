@@ -13,6 +13,7 @@ const DRAFT = resolve(process.cwd(), 'docs/출장수당/T5-DB-초안')
 const sql = (name: string) => readFileSync(resolve(DRAFT, name), 'utf8')
 
 const ALICE = '00000000-0000-0000-0000-000000000001'   // employee (shim)
+const BOB = '00000000-0000-0000-0000-000000000002'     // employee (shim)
 const BOSS = '00000000-0000-0000-0000-000000000009'    // admin (shim)
 const MGR = '00000000-0000-0000-0000-000000000005'     // manager 활성
 const GONE_MGR = '00000000-0000-0000-0000-000000000007' // manager 비활성 (퇴사, auth 계정은 남아 있다고 가정)
@@ -303,51 +304,88 @@ describe('B. 006 — 트랜잭션 ROLLBACK 가능, 단독 적용으로 role 경�
   })
 })
 
-describe('E. D13 — payslips 관리자 정책: 009 로 비활성 manager 차단, 활성 관리자·본인 조회 유지 (금액 없음, 행 수만)', () => {
-  const payslipRows = (uid: string) => countAs(uid, 'select id from public.payslips')
-  it('재현(007 적용 상태에서도): 비활성 manager 세션이 급여명세서 전체를 읽고 지울 수 있다', async () => {
-    await exec(sql('007_active_admin_functions.sql'))
+describe('E. D13 — 급여명세서 표·Storage: 010 RESTRICTIVE 로 비활성 계정 차단, 활성 관리자·본인 조회 유지 (금액 없음, 행 수만)', () => {
+  const rowsOf = (uid: string, q: string) => countAs(uid, q)
+  const seed = async () => {
     await asUser(null)
-    await exec(`insert into public.payslips (employee_id, period, file_path, file_name) values ('${ALICE}', '2026-10', 'p/a', 'a.pdf'), ('${MGR}', '2026-10', 'p/m', 'm.pdf') on conflict do nothing`)
-    expect(await payslipRows(GONE_MGR)).toBe(2)                                             // 비활성 manager: 전체
+    await exec('delete from storage.objects; delete from public.payslips')
+    await exec(`insert into public.payslips (employee_id, period, file_path, file_name) values ('${ALICE}', '2026-10', '${ALICE}/2026-10_x.pdf', 'a.pdf'), ('${MGR}', '2026-10', '${MGR}/2026-10_y.pdf', 'm.pdf'), ('${GONE_MGR}', '2026-09', '${GONE_MGR}/2026-09_z.pdf', 'g.pdf')`)
+    await exec(`insert into storage.objects (bucket_id, name) values ('payslips', '${ALICE}/2026-10_x.pdf'), ('payslips', '${MGR}/2026-10_y.pdf'), ('payslips', '${GONE_MGR}/2026-09_z.pdf'), ('payslips', 'notices/files/n.pdf'), ('receipts', 'r/1.jpg')`)
+  }
+  const total = async () => Number((await one<{ n: string }>('select count(*)::text as n from public.payslips')).n)
+
+  it('재현(007 적용 상태): 비활성 manager 가 표 전체·파일 전체를 읽고 지울 수 있고, 비활성 직원도 본인 명세서를 읽는다', async () => {
+    await exec(sql('007_active_admin_functions.sql'))
+    await seed()
+    expect(await rowsOf(GONE_MGR, 'select id from public.payslips')).toBe(3)
+    expect(await rowsOf(GONE_MGR, "select id from storage.objects where bucket_id = 'payslips'")).toBe(4)
     expect(await restRun(GONE_MGR, `delete from public.payslips where employee_id = '${MGR}'`)).toBe('OK')
-    expect(Number((await one<{ n: string }>('select count(*)::text as n from public.payslips')).n)).toBe(1)   // 실제로 지워졌다
-    await asUser(null)
-    await exec(`insert into public.payslips (employee_id, period, file_path, file_name) values ('${MGR}', '2026-10', 'p/m', 'm.pdf')`)
-    expect(await payslipRows(ALICE)).toBe(1)                                                // 직원: 본인만
-    expect(await payslipRows(MGR)).toBe(2)
-    expect(await payslipRows(BOSS)).toBe(2)
+    expect(await total()).toBe(2)                                                                  // 실제로 지워졌다
+    expect(await rowsOf(GONE_ADM, 'select id from public.payslips')).toBe(2)
+    expect(await rowsOf(GONE_MGR, "select id from public.payslips where employee_id = '" + GONE_MGR + "'")).toBe(1)   // 비활성 직원 본인 행
+    expect(await rowsOf(ALICE, 'select id from public.payslips')).toBe(1)                          // 활성 직원 본인만
+    expect(await rowsOf(ALICE, "select id from storage.objects where bucket_id = 'payslips'")).toBe(1)
+    await seed()
   })
-  it('009 적용: 비활성 manager 0행·삭제 0행, 활성 인사담당·대표 전체, 직원 본인만 (정책 2개 유지)', async () => {
-    await exec(sql('009_payslips_active_staff_policy.sql'))
-    expect(await payslipRows(GONE_MGR)).toBe(0)
-    expect(await payslipRows(GONE_ADM)).toBe(0)
-    expect(await restRun(GONE_MGR, 'delete from public.payslips')).toBe('OK')               // 오류 없이 0행
-    expect(Number((await one<{ n: string }>('select count(*)::text as n from public.payslips')).n)).toBe(2)
-    expect(await payslipRows(ALICE)).toBe(1)
-    expect(await payslipRows(MGR)).toBe(2)
-    expect(await payslipRows(BOSS)).toBe(2)
-    expect(await restRun(MGR, "update public.payslips set file_name = 'x.pdf' where period = '2026-10'")).toBe('OK')
-    expect(Number((await one<{ n: string }>("select count(*)::text as n from public.payslips where file_name = 'x.pdf'")).n)).toBe(2)   // 활성 인사담당 쓰기 유지
-    const pol = await rows<{ policyname: string; qual: string }>("select policyname, qual from pg_policies where tablename = 'payslips' order by 1")
-    expect(pol.map((p) => p.policyname)).toEqual(['admin_manage_payslips', 'employees_see_own_payslips'])
-    expect(pol[0].qual).toBe('is_manager_or_admin()')
-    expect(pol[1].qual).toBe('(employee_id = auth.uid())')                                  // 본인 조회 정책은 그대로
-    // 재실행은 그대로 통과(멱등), 907 로 007 을 되돌리면 사전 점검이 막는다
-    await exec(sql('009_payslips_active_staff_policy.sql'))
+
+  it('010 적용: 비활성 admin·manager·직원은 표·파일의 SELECT/INSERT/UPDATE/DELETE 전부 0행·거부', async () => {
+    await exec(sql('010_payslips_active_only_restrictive.sql'))
+    for (const uid of [GONE_MGR, GONE_ADM]) {
+      expect(await rowsOf(uid, 'select id from public.payslips')).toBe(0)
+      expect(await rowsOf(uid, "select id from storage.objects where bucket_id = 'payslips'")).toBe(0)
+      expect(await restRun(uid, 'delete from public.payslips')).toBe('OK'); expect(await total()).toBe(3)             // 0행
+      expect(await restRun(uid, "update public.payslips set file_name = 'hack'")).toBe('OK')
+      expect(Number((await one<{ n: string }>("select count(*)::text as n from public.payslips where file_name = 'hack'")).n)).toBe(0)
+      expect(await restRun(uid, `insert into public.payslips (employee_id, period, file_path, file_name) values ('${uid}', '2026-11', 'p', 'n')`)).toMatch(/row-level security/)
+      expect(await restRun(uid, "insert into storage.objects (bucket_id, name) values ('payslips', 'x/1.pdf')")).toMatch(/row-level security/)
+      expect(await restRun(uid, "delete from storage.objects where bucket_id = 'payslips'")).toBe('OK')
+      expect(Number((await one<{ n: string }>("select count(*)::text as n from storage.objects where bucket_id = 'payslips'")).n)).toBe(4)
+    }
+    expect(await rowsOf(GONE_MGR, "select id from public.payslips where employee_id = '" + GONE_MGR + "'")).toBe(0)   // 비활성 직원 본인 명세서도 차단
+    expect(await rowsOf(GONE_MGR, "select id from storage.objects where name like '" + GONE_MGR + "/%'")).toBe(0)
+  })
+
+  it('010 적용: 활성 admin·manager 는 표·파일 CRUD 그대로, 활성 직원은 본인 조회만, anon 0행, 다른 버킷(receipts·공지 경로) 무영향', async () => {
+    for (const uid of [MGR, BOSS]) {
+      expect(await rowsOf(uid, 'select id from public.payslips')).toBe(3)
+      expect(await rowsOf(uid, "select id from storage.objects where bucket_id = 'payslips'")).toBe(4)
+      expect(await restRun(uid, `insert into public.payslips (employee_id, period, file_path, file_name) values ('${BOB}', '2026-11', '${BOB}/2026-11.pdf', 'b.pdf')`)).toBe('OK')
+      expect(await restRun(uid, "insert into storage.objects (bucket_id, name) values ('payslips', '" + BOB + "/2026-11.pdf')")).toBe('OK')
+      expect(await restRun(uid, "update public.payslips set file_name = 'b2.pdf' where employee_id = '" + BOB + "'")).toBe('OK')
+      expect(await restRun(uid, "update storage.objects set name = name where bucket_id = 'payslips' and name like '" + BOB + "/%'")).toBe('OK')
+      expect(await restRun(uid, "delete from public.payslips where employee_id = '" + BOB + "'")).toBe('OK')
+      expect(await restRun(uid, "delete from storage.objects where bucket_id = 'payslips' and name like '" + BOB + "/%'")).toBe('OK')
+      expect(await total()).toBe(3)
+    }
+    expect(await rowsOf(ALICE, 'select id from public.payslips')).toBe(1)
+    expect(await rowsOf(ALICE, "select id from storage.objects where bucket_id = 'payslips'")).toBe(1)                 // 본인 폴더만
+    expect(await restRun(ALICE, `insert into public.payslips (employee_id, period, file_path, file_name) values ('${ALICE}', '2026-11', 'p', 'n')`)).toMatch(/row-level security/)
+    expect(await rowsOf(ALICE, "select id from storage.objects where bucket_id = 'receipts'")).toBe(1)                 // 다른 버킷 그대로
+    expect(await rowsOf(GONE_MGR, "select id from storage.objects where bucket_id = 'receipts'")).toBe(1)              // 비활성도 다른 버킷은 010 과 무관
+    await asUser(null); await exec('set role anon')                                                              // anon: 기본 권한은 있으나(S-4·S-7) 정책이 없어 0행
+    expect(Number((await one<{ n: string }>('select count(*)::text as n from public.payslips')).n)).toBe(0)
+    await exec('reset role')                                                                                     // storage.objects 의 anon 권한은 운영 설정이 달라 여기서는 보지 않는다
+    const pols = await rows<{ p: string; permissive: string }>("select policyname as p, permissive from pg_policies where (schemaname = 'public' and tablename = 'payslips') or (schemaname = 'storage' and tablename = 'objects' and policyname like 'payslips%') order by 1")
+    expect(pols.filter((x) => x.permissive === 'RESTRICTIVE').map((x) => x.p)).toEqual(['payslips_active_only_restrictive', 'payslips_storage_active_only_restrictive'])
+    expect(pols.length).toBe(10)                                                                   // 기존 8개 + 2개, 본문 불변
+  })
+
+  it('사전 점검: 재실행은 ALREADY_APPLIED, 정책 이름이 다르면 PRECONDITION_CHANGED, 007 없으면 중단; 910 은 추가분만 제거', async () => {
+    expect(await codeOf(exec(sql('010_payslips_active_only_restrictive.sql')))).toBe('ALREADY_APPLIED'); await exec('rollback')
+    await exec(sql('910_rollback_payslips_active_only.sql'))
+    expect(await rowsOf(GONE_MGR, 'select id from public.payslips')).toBe(3)                      // 되돌리면 재노출 (문서화)
+    await exec('alter policy "payslips_delete_admin" on public.payslips rename to "payslips_delete_admin_x"')
+    expect(await codeOf(exec(sql('010_payslips_active_only_restrictive.sql')))).toBe('PRECONDITION_CHANGED'); await exec('rollback')
+    await exec('alter policy "payslips_delete_admin_x" on public.payslips rename to "payslips_delete_admin"')
     await exec(sql('907_rollback_active_admin_functions.sql'))
-    expect(await codeOf(exec(sql('009_payslips_active_staff_policy.sql')))).toBe('PRECONDITION_CHANGED')
-    await exec('rollback')
+    expect(await codeOf(exec(sql('010_payslips_active_only_restrictive.sql')))).toBe('PRECONDITION_CHANGED'); await exec('rollback')
     await exec(sql('007_active_admin_functions.sql'))
-  })
-  it('909: 원래 정책으로 복원되면 비활성 manager 접근이 다시 열린다 (되돌리기 동작 확인) → 009 재적용', async () => {
-    await exec(sql('909_rollback_payslips_policy.sql'))
-    expect(await payslipRows(GONE_MGR)).toBe(2)
-    await exec(sql('009_payslips_active_staff_policy.sql'))
-    expect(await payslipRows(GONE_MGR)).toBe(0)
+    await exec(sql('010_payslips_active_only_restrictive.sql'))
+    expect(await rowsOf(GONE_MGR, 'select id from public.payslips')).toBe(0)
     await asUser(null)
-    await exec('delete from public.payslips')
-    await exec(sql('907_rollback_active_admin_functions.sql'))   // 이후 섹션(C)은 007 미적용 상태를 전제로 한다
+    await exec('delete from storage.objects; delete from public.payslips')
+    await exec(sql('910_rollback_payslips_active_only.sql'))
+    await exec(sql('907_rollback_active_admin_functions.sql'))   // 이후 섹션(C)은 007 미적용 상태 전제
   })
 })
 

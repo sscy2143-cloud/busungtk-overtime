@@ -3,7 +3,7 @@
 select
   (
     select coalesce(
-      jsonb_agg(jsonb_build_object('name', policyname, 'cmd', cmd, 'roles', roles::text[], 'qual', qual, 'with_check', with_check) order by policyname),
+      jsonb_agg(jsonb_build_object('name', policyname, 'permissive', permissive, 'cmd', cmd, 'roles', roles::text[], 'qual', qual, 'with_check', with_check) order by policyname),
       '[]'::jsonb
     )
     from pg_policies
@@ -21,7 +21,7 @@ select
   ) as buckets,
   (
     select coalesce(
-      jsonb_agg(jsonb_build_object('name', policyname, 'cmd', cmd, 'roles', roles::text[], 'qual', qual, 'with_check', with_check) order by policyname),
+      jsonb_agg(jsonb_build_object('name', policyname, 'permissive', permissive, 'cmd', cmd, 'roles', roles::text[], 'qual', qual, 'with_check', with_check) order by policyname),
       '[]'::jsonb
     )
     from pg_policies
