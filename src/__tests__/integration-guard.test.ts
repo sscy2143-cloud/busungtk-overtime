@@ -80,10 +80,21 @@ describe('출장 라우트·메뉴는 코드 스위치 뒤에 있다', () => {
   it('직원관리: 회사 직급(position)은 시스템 역할과 별개 필드이고 대표만 바꾸며, 빈 값은 NULL', () => {
     expect(employeePage).toContain("const POSITION_OPTIONS = ['팀장']")
     expect(employeePage).toContain('const safePosition = isAdmin ? (position.trim() || null) : (editPanel.employee.position ?? null)')
-    expect(employeePage).toMatch(/hire_date: hireDate \|\| null,\s*position: safePosition,\s*updated_at:/)
+    // 005(직급 칼럼) 적용 전 DB 호환: 칼럼이 있을 때만 position 을 보내고 입력란도 그때만 보인다
+    expect(employeePage).toContain("const hasPositionColumn = 'position' in editPanel.employee")
+    expect(employeePage).toMatch(/hire_date: hireDate \|\| null,\s*\.\.\.\(hasPositionColumn \? \{ position: safePosition \} : \{\}\),\s*updated_at:/)
+    expect(employeePage).toContain("'position' in editPanel.employee && (")
     expect(employeePage).toMatch(/value=\{editPanel\.form\.position\}\s*disabled=\{!isAdmin\}/)
     // 역할(role) 저장 규칙은 그대로
     expect(employeePage).toContain('const safeRole = isAdmin ? role : editPanel.employee.role')
+  })
+  it('D15: 직원 저장은 is_active 를 직접 쓰지 않고 서버 API(set_active, Ban 포함)로 바꾼다', () => {
+    const start = employeePage.indexOf("supabase.from('employees').update({")
+    const upd = employeePage.slice(start, employeePage.indexOf(".eq('id', empId)", start)).replace(/\/\/.*$/gm, '')   // 주석 제외, 코드만
+    expect(upd.length).toBeGreaterThan(50)
+    expect(upd).not.toContain('is_active')
+    expect(employeePage).toContain('const r = await setActiveViaApi(empId, isActive)')
+    expect(employeePage).not.toMatch(/from\('employees'\)\.update\(\{ is_active:/)
   })
   it('일반 직원이 쓰는 직원 목록(야근 그룹 선택·출장 동행자)은 employees_directory 뷰만 읽고 시급을 요청하지 않는다', () => {
     expect(requestPage).toContain("from('employees_directory')")

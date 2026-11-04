@@ -411,16 +411,19 @@ export function AdminEmployeeManagementPage() {
       const safeRole = isAdmin ? role : editPanel.employee.role
       // 회사 직급은 대표만 바꾼다 — 인사담당은 원본 유지. 빈 값은 NULL(미지정)
       const safePosition = isAdmin ? (position.trim() || null) : (editPanel.employee.position ?? null)
+      // 005(회사 직급 칼럼) 적용 전 DB 에는 position 칼럼이 없다 — 칼럼이 있을 때만 보낸다 (없는데 보내면 모든 직원 저장이 실패한다)
+      const hasPositionColumn = 'position' in editPanel.employee
       const { hireDate } = editPanel.form
+      const originalActive = editPanel.originalForm.isActive
       const { error: updateError } = await supabase.from('employees').update({
         name,
         department,
         role: safeRole,
-        is_active: isActive,
+        // is_active 는 여기서 직접 바꾸지 않는다 — 서버 API(set_active)가 인증 차단(Ban)·마지막 관리자 보호와 함께 처리한다 (D15)
         employee_type: employeeType,
         hourly_wage: isNaN(wage) ? 0 : wage,
         hire_date: hireDate || null,
-        position: safePosition,
+        ...(hasPositionColumn ? { position: safePosition } : {}),
         updated_at: new Date().toISOString(),
       }).eq('id', empId)
 
@@ -428,6 +431,14 @@ export function AdminEmployeeManagementPage() {
         // 005 트리거(D10): 회사 직급은 대표만 바꿀 수 있다 — 인사담당 화면은 선택을 막지만 서버가 최종 거부한다
         setSaveError(updateError.message.includes('POSITION_ADMIN_ONLY') ? '저장 실패: 회사 직급은 대표(admin)만 바꿀 수 있습니다' : '저장 실패: ' + updateError.message)
         return
+      }
+
+      let activeNow = originalActive
+      let activeError = ''
+      if (isActive !== originalActive) {
+        const r = await setActiveViaApi(empId, isActive)
+        if (r.ok) activeNow = isActive
+        else activeError = r.message
       }
 
       setEmployees(prev => prev.map(e => e.id === empId ? {
@@ -438,9 +449,16 @@ export function AdminEmployeeManagementPage() {
         employee_type: employeeType,
         hourly_wage: isNaN(wage) ? 0 : wage,
         hire_date: hireDate || null,
-        position: safePosition,
-        is_active: isActive,
+        ...(hasPositionColumn ? { position: safePosition } : {}),
+        is_active: activeNow,
       } : e))
+
+      if (activeError) {
+        // 다른 항목은 저장됐고 활성 상태만 바뀌지 않았다 — 화면 토글을 실제 상태로 되돌리고 사유를 보여 준다
+        setEditPanel(p => ({ ...p, form: { ...p.form, isActive: activeNow }, originalForm: { ...p.form, isActive: activeNow } }))
+        setSaveError('다른 항목은 저장됐지만 재직 상태는 바뀌지 않았습니다: ' + activeError)
+        return
+      }
 
       setEditPanel(p => ({ ...p, originalForm: p.form }))
     } finally {
@@ -916,6 +934,7 @@ export function AdminEmployeeManagementPage() {
                       ))}
                     </div>
                   </div>
+                  {editPanel.employee && 'position' in editPanel.employee && (
                   <div>
                     <label className="block text-xs font-medium text-dark-600 mb-1">회사 직급</label>
                     <select
@@ -932,6 +951,7 @@ export function AdminEmployeeManagementPage() {
                     </select>
                     <p className="text-xs text-dark-400 mt-1">위 권한(시스템 역할)과 별개인 회사 직급입니다. '팀장'만 출장 내역 조회 권한 후보가 되며, 직급이 바뀌면 그 권한은 자동 회수됩니다{!isAdmin ? ' (대표만 변경)' : ''}</p>
                   </div>
+                  )}
                   <div>
                     <label className="block text-xs font-medium text-dark-600 mb-1">시급 (원)</label>
                     <input
