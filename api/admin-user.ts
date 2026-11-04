@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
+import { setActive, BAN_DURATION } from './_setActive'
 
 const EMAIL_DOMAIN = '@busungtk.internal'
 
@@ -173,55 +174,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   //   둘 다 멱등이라 실패 시 같은 요청을 다시 보내면 된다. 이미 발급된 액세스 토큰은 만료(기본 1시간)까지 유효하다.
   if (req.method === 'PATCH' && req.body?.action === 'set_active') {
     const { userId, active } = req.body as { userId?: string; active?: boolean }
-    if (!userId || typeof active !== 'boolean') {
-      return res.status(400).json({ error: '사용자 ID와 활성 여부가 필요합니다' })
-    }
-    if (userId === authResult.data.user.id) {
-      return res.status(400).json({ error: '본인 계정은 퇴사 처리할 수 없습니다' })
-    }
-    const { data: target } = await supabaseAdmin
-      .from('employees')
-      .select('id, role, is_active')
-      .eq('id', userId)
-      .single()
-    if (!target) {
-      return res.status(404).json({ error: '직원을 찾을 수 없습니다' })
-    }
-    if (caller.role === 'manager' && target.role === 'admin') {
-      return res.status(403).json({ error: '관리자 계정은 다른 관리자만 처리할 수 있습니다' })
-    }
-
-    const steps: { employee: 'ok' | 'failed' | 'skipped'; auth: 'ok' | 'failed' | 'skipped' } = { employee: 'skipped', auth: 'skipped' }
-
-    if (active) {
-      const { error: unbanErr } = await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: 'none' })
-      if (unbanErr) {
-        steps.auth = 'failed'
-        return res.status(500).json({ error: '인증 차단 해제에 실패했습니다. 다시 시도하세요', steps })
-      }
-      steps.auth = 'ok'
-      const { error: actErr } = await supabaseAdmin.from('employees').update({ is_active: true }).eq('id', userId)
-      if (actErr) {
-        steps.employee = 'failed'
-        return res.status(500).json({ error: '복직 처리(활성화)에 실패했습니다. 인증 차단은 해제됐으니 다시 시도하세요', steps })
-      }
-      steps.employee = 'ok'
-      return res.status(200).json({ success: true, steps })
-    }
-
-    const { error: deactErr } = await supabaseAdmin.from('employees').update({ is_active: false }).eq('id', userId)
-    if (deactErr) {
-      steps.employee = 'failed'
-      return res.status(500).json({ error: '퇴사 처리(비활성화)에 실패했습니다', steps })
-    }
-    steps.employee = 'ok'
-    const { error: banErr } = await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: '876000h' })
-    if (banErr) {
-      steps.auth = 'failed'
-      return res.status(207).json({ success: false, error: '비활성화는 됐지만 인증 차단에 실패했습니다. 다시 시도하세요', steps })
-    }
-    steps.auth = 'ok'
-    return res.status(200).json({ success: true, steps })
+    const result = await setActive(
+      { callerId: authResult.data.user.id, callerRole: caller.role, userId, active },
+      {
+        async getTarget(id) {
+          const { data } = await supabaseAdmin.from('employees').select('id, role, is_active').eq('id', id).maybeSingle()
+          return data ?? null
+        },
+        async countActiveAdmins() {
+          const { count, error } = await supabaseAdmin.from('employees').select('id', { count: 'exact', head: true }).eq('role', 'admin').eq('is_active', true)
+          return error ? null : (count ?? 0)
+        },
+        async setEmployeeActive(id, on) {
+          const { error } = await supabaseAdmin.from('employees').update({ is_active: on }).eq('id', id)
+          return { error: !!error }
+        },
+        async isBanned(id) {
+          const { data, error } = await supabaseAdmin.auth.admin.getUserById(id)
+          if (error || !data?.user) return null
+          const until = data.user.banned_until
+          return !!until && new Date(until).getTime() > Date.now()
+        },
+        async setBan(id, ban) {
+          const { error } = await supabaseAdmin.auth.admin.updateUserById(id, { ban_duration: ban ? BAN_DURATION : 'none' })
+          return { error: !!error }
+        },
+      },
+    )
+    return res.status(result.status).json(result.body)
   }
 
   // PATCH: 사번 변경 (Auth 이메일 + employees.email 동시 변경)

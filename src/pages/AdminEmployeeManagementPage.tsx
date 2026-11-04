@@ -483,7 +483,7 @@ export function AdminEmployeeManagementPage() {
     // "계정 삭제" 도 실제로는 비활성화 — 서버에서 인증 차단까지 함께 (D15)
     const r = await setActiveViaApi(deleteConfirm.id, false)
     if (!r.ok) { alert(r.message); return }
-    setEmployees(prev => prev.filter(e => e.id !== deleteConfirm.id))
+    setEmployees(prev => prev.map(e => e.id === deleteConfirm.id ? { ...e, is_active: false } : e))
     setDeleteConfirm(null)
     closePanel()
   }
@@ -1384,14 +1384,14 @@ export function AdminEmployeeManagementPage() {
                     <p className="text-sm text-dark-400 text-center py-8">본인 계정은 퇴직 처리할 수 없습니다</p>
                   )}
                   <div className="bg-danger-50 rounded-xl p-4">
-                    <p className="text-sm font-medium text-danger-700 mb-2">계정 삭제</p>
-                    <p className="text-xs text-dark-400 mb-3">직원 계정과 모든 관련 데이터를 영구 삭제합니다</p>
+                    <p className="text-sm font-medium text-danger-700 mb-2">계정 사용 중지</p>
+                    <p className="text-xs text-dark-400 mb-3">전산 로그인은 차단되지만 기존 근태·급여·인사 기록은 삭제되지 않고 보존됩니다</p>
                     <button
                       onClick={() => setDeleteConfirm({ id: panelEmployee.id, name: panelEmployee.name })}
                       disabled={panelEmployee.id === currentUser?.id}
                       className="w-full py-2.5 text-sm font-semibold text-white bg-danger-500 rounded-xl hover:bg-danger-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      계정 삭제
+                      계정 사용 중지
                     </button>
                   </div>
                 </>
@@ -1691,7 +1691,7 @@ export function AdminEmployeeManagementPage() {
               <span className="font-semibold">{resignConfirm.name}</span>님을 퇴직 처리하시겠습니까?
             </p>
             <div className="bg-primary-50 rounded-xl px-3 py-2.5 mb-4 space-y-1">
-              <p className="text-xs text-primary-700">· 퇴직 처리 후 해당 직원은 로그인이 비활성화됩니다</p>
+              <p className="text-xs text-primary-700">· 전산 로그인은 차단되지만 기존 근태·급여·인사 기록은 보존됩니다</p>
               <p className="text-xs text-primary-700">· 야근, 휴가, 급여 등 모든 이력은 보존됩니다</p>
               <p className="text-xs text-primary-700">· 언제든지 복직 처리할 수 있습니다</p>
             </div>
@@ -1750,14 +1750,14 @@ export function AdminEmployeeManagementPage() {
           <div className="absolute inset-0 bg-black/50" onClick={() => setDeleteConfirm(null)} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-dark-900">계정 삭제</h3>
+              <h3 className="text-base font-bold text-dark-900">계정 사용 중지</h3>
               <button onClick={() => setDeleteConfirm(null)}><X className="w-5 h-5 text-dark-400" /></button>
             </div>
             <p className="text-sm text-dark-600 mb-2">
-              <span className="font-semibold">{deleteConfirm.name}</span> 계정을 삭제하시겠습니까?
+              <span className="font-semibold">{deleteConfirm.name}</span> 계정의 사용을 중지하시겠습니까?
             </p>
             <p className="text-xs text-danger-600 bg-danger-50 rounded-lg px-3 py-2 mb-4">
-              삭제된 사용자의 관련 데이터(야근, 휴가, 경비 등)도 함께 삭제됩니다.
+              전산 로그인은 차단되지만 기존 근태·급여·인사 기록은 삭제되지 않고 보존됩니다. 복직 처리로 다시 사용할 수 있습니다.
             </p>
             <div className="flex gap-2">
               <button
@@ -1770,7 +1770,7 @@ export function AdminEmployeeManagementPage() {
                 onClick={confirmDeleteAccount}
                 className="flex-1 py-2.5 text-sm font-semibold text-white bg-danger-500 rounded-xl hover:bg-danger-600 transition-colors"
               >
-                삭제
+                사용 중지
               </button>
             </div>
           </div>
