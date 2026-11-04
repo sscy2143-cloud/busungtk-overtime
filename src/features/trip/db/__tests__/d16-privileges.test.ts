@@ -66,3 +66,35 @@ describe('D16 011 — employees 최소 권한', () => {
     expect(await grantsOf('anon')).toEqual(['SELECT'])
   })
 })
+
+describe('D16 012 — SECURITY DEFINER 함수의 anon EXECUTE 회수 (011 과 별도 승인 범위)', () => {
+  const anonCan = async (fn: string) => (await db.query<{ ok: boolean }>(`select has_function_privilege('anon', '${fn}'::regprocedure, 'EXECUTE') as ok`)).rows[0].ok
+  const authCan = async (fn: string) => (await db.query<{ ok: boolean }>(`select has_function_privilege('authenticated', '${fn}'::regprocedure, 'EXECUTE') as ok`)).rows[0].ok
+
+  it('재현: 적용 전에는 anon 이 definer 함수를 실행할 수 있다', async () => {
+    expect(await anonCan('public.is_admin()')).toBe(true)
+  })
+  it('적용: anon 은 모든 definer 함수 실행 불가, authenticated 는 그대로', async () => {
+    await exec(sql('012_rpc_revoke_anon_execute.sql'))
+    const r = (await db.query<{ n: string; m: string }>(
+      "select count(*) filter (where has_function_privilege('anon', p.oid, 'EXECUTE'))::text as n, count(*) filter (where has_function_privilege('authenticated', p.oid, 'EXECUTE'))::text as m from pg_proc p join pg_namespace s on s.oid = p.pronamespace where s.nspname = 'public' and p.prosecdef")).rows[0]
+    expect(r.n).toBe('0')
+    expect(Number(r.m)).toBeGreaterThan(0)
+    expect(await anonCan('public.is_admin()')).toBe(false)
+    expect(await authCan('public.is_admin()')).toBe(true)
+  })
+  it('로그인 사용자의 기존 업무는 그대로 (RLS 안의 is_admin 호출 포함)', async () => {
+    expect(await run(BOSS, 'select id from public.employees')).toBe('ok')
+    expect(await run(BOSS, 'select * from public.list_all_employees()')).toBe('ok')
+    expect(await run(ALICE, `select id from public.employees where id = '${ALICE}'`)).toBe('ok')
+  })
+  it('익명 호출은 함수 실행 단계에서 permission denied', async () => {
+    expect(await run(null, 'select public.is_admin()', 'anon')).toMatch(/permission denied/)
+  })
+  it('멱등 + 912 롤백', async () => {
+    await exec(sql('012_rpc_revoke_anon_execute.sql'))
+    expect(await anonCan('public.is_admin()')).toBe(false)
+    await exec(sql('912_rollback_rpc_anon_execute.sql'))
+    expect(await anonCan('public.is_admin()')).toBe(true)
+  })
+})
