@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
-import { setActive, BAN_DURATION } from './_setActive'
+import { setActive, BAN_DURATION } from './_setActive.js'
 
 const EMAIL_DOMAIN = '@busungtk.internal'
 
