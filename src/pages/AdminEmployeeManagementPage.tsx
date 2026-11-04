@@ -403,11 +403,12 @@ export function AdminEmployeeManagementPage() {
       // manager는 role 변경 불가 — 원본 role 유지
       const safeRole = isAdmin ? role : editPanel.employee.role
       const { hireDate } = editPanel.form
+      const originalActive = editPanel.originalForm.isActive
       const { error: updateError } = await supabase.from('employees').update({
         name,
         department,
         role: safeRole,
-        is_active: isActive,
+        // is_active 는 여기서 직접 바꾸지 않는다 — 서버 API(set_active)가 인증 차단(Ban)·마지막 관리자 보호와 함께 처리한다 (D15)
         employee_type: employeeType,
         hourly_wage: isNaN(wage) ? 0 : wage,
         hire_date: hireDate || null,
@@ -419,6 +420,14 @@ export function AdminEmployeeManagementPage() {
         return
       }
 
+      let activeNow = originalActive
+      let activeError = ''
+      if (isActive !== originalActive) {
+        const r = await setActiveViaApi(empId, isActive)
+        if (r.ok) activeNow = isActive
+        else activeError = r.message
+      }
+
       setEmployees(prev => prev.map(e => e.id === empId ? {
         ...e,
         name,
@@ -427,8 +436,15 @@ export function AdminEmployeeManagementPage() {
         employee_type: employeeType,
         hourly_wage: isNaN(wage) ? 0 : wage,
         hire_date: hireDate || null,
-        is_active: isActive,
+        is_active: activeNow,
       } : e))
+
+      if (activeError) {
+        // 다른 항목은 저장됐고 활성 상태만 바뀌지 않았다 — 화면 토글을 실제 상태로 되돌리고 사유를 보여 준다
+        setEditPanel(p => ({ ...p, form: { ...p.form, isActive: activeNow }, originalForm: { ...p.form, isActive: activeNow } }))
+        setSaveError('다른 항목은 저장됐지만 재직 상태는 바뀌지 않았습니다: ' + activeError)
+        return
+      }
 
       setEditPanel(p => ({ ...p, originalForm: p.form }))
     } finally {
