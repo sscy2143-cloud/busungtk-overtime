@@ -36,8 +36,25 @@ begin
   if v_missing is not null then
     raise exception 'PRECONDITION_CHANGED' using detail = 'storage.objects 정책 없음: ' || v_missing;
   end if;
-  if exists (select 1 from pg_policies where (schemaname = 'public' and tablename = 'payslips' and policyname = 'payslips_active_only_restrictive')
-                                           or (schemaname = 'storage' and tablename = 'objects' and policyname = 'payslips_storage_active_only_restrictive')) then
+  if exists (
+    select 1 from pg_policies
+    where permissive <> 'PERMISSIVE'
+      and policyname in (
+        'payslips_select_own', 'payslips_insert_admin',
+        'payslips_update_admin', 'payslips_delete_admin',
+        'payslips_storage_select', 'payslips_storage_insert',
+        'payslips_storage_update', 'payslips_storage_delete')
+  ) then
+    raise exception 'PRECONDITION_CHANGED' using detail = '기존 급여명세서 정책 중 PERMISSIVE 가 아닌 것이 있습니다';
+  end if;
+  if not (select relrowsecurity from pg_class where oid = 'storage.objects'::regclass) then
+    raise exception 'PRECONDITION_CHANGED' using detail = 'storage.objects RLS 가 꺼져 있습니다';
+  end if;
+  if exists (
+    select 1 from pg_policies
+    where policyname in ('payslips_active_only_restrictive',
+                         'payslips_storage_active_only_restrictive')
+  ) then
     raise exception 'ALREADY_APPLIED' using detail = '활성 직원 제한 정책이 이미 있습니다';
   end if;
   if (select pg_get_functiondef('public.is_manager_or_admin()'::regprocedure)) not like '%is_active%' then
@@ -57,8 +74,14 @@ create policy "payslips_active_only_restrictive"
   as restrictive
   for all
   to authenticated
-  using (exists (select 1 from public.employees me where me.id = auth.uid() and me.is_active = true))
-  with check (exists (select 1 from public.employees me where me.id = auth.uid() and me.is_active = true));
+  using (
+    exists (select 1 from public.employees me
+            where me.id = auth.uid() and me.is_active = true)
+  )
+  with check (
+    exists (select 1 from public.employees me
+            where me.id = auth.uid() and me.is_active = true)
+  );
 
 -- Storage: payslips 버킷의 객체만 활성 직원으로 제한. 다른 버킷은 조건이 참이라 영향 없음
 create policy "payslips_storage_active_only_restrictive"
@@ -66,8 +89,16 @@ create policy "payslips_storage_active_only_restrictive"
   as restrictive
   for all
   to authenticated
-  using (bucket_id <> 'payslips' or exists (select 1 from public.employees me where me.id = auth.uid() and me.is_active = true))
-  with check (bucket_id <> 'payslips' or exists (select 1 from public.employees me where me.id = auth.uid() and me.is_active = true));
+  using (
+    bucket_id <> 'payslips'
+    or exists (select 1 from public.employees me
+               where me.id = auth.uid() and me.is_active = true)
+  )
+  with check (
+    bucket_id <> 'payslips'
+    or exists (select 1 from public.employees me
+               where me.id = auth.uid() and me.is_active = true)
+  );
 
 select schemaname, tablename, policyname, permissive, cmd
 from pg_policies
