@@ -28,6 +28,9 @@ select
     where schemaname = 'storage' and tablename = 'objects'
   ) as storage_objects_policies,
   (
+    select relrowsecurity from pg_class where oid = 'storage.objects'::regclass
+  ) as storage_objects_rls,
+  (
     select jsonb_build_object(
       'payslips_objects', count(*) filter (where bucket_id = 'payslips' and name not like 'notices/%'),
       'notice_objects', count(*) filter (where bucket_id = 'payslips' and name like 'notices/%'),
