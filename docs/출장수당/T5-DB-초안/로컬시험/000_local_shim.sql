@@ -182,11 +182,40 @@ create table if not exists public.payslips (
 );
 alter table public.payslips enable row level security;
 grant select, insert, update, delete on public.payslips to authenticated, service_role;
-drop policy if exists "employees_see_own_payslips" on public.payslips;
-create policy "employees_see_own_payslips" on public.payslips for select using (employee_id = auth.uid());
-drop policy if exists "admin_manage_payslips" on public.payslips;
-create policy "admin_manage_payslips" on public.payslips
-  for all using (exists (select 1 from public.employees where id = auth.uid() and role in ('admin', 'manager')));
+-- 운영 S-8(11-04) 정책 4개 — 이름은 운영과 같고 본문은 "본인 또는 role in (admin, manager), is_active 없음" 으로 추정 (010 은 본문에 의존하지 않는다)
+create policy "payslips_select_own" on public.payslips for select to authenticated
+  using (employee_id = auth.uid() or exists (select 1 from public.employees where id = auth.uid() and role in ('admin', 'manager')));
+create policy "payslips_insert_admin" on public.payslips for insert to authenticated
+  with check (exists (select 1 from public.employees where id = auth.uid() and role in ('admin', 'manager')));
+create policy "payslips_update_admin" on public.payslips for update to authenticated
+  using (exists (select 1 from public.employees where id = auth.uid() and role in ('admin', 'manager')));
+create policy "payslips_delete_admin" on public.payslips for delete to authenticated
+  using (exists (select 1 from public.employees where id = auth.uid() and role in ('admin', 'manager')));
+
+-- Storage 스텁 (운영 S-8: payslips private, receipts public, storage.objects 정책 4개)
+create schema if not exists storage;
+create table if not exists storage.buckets (id text primary key, name text, public boolean not null default false, file_size_limit bigint, allowed_mime_types text[]);
+create table if not exists storage.objects (
+  id uuid primary key default gen_random_uuid(), bucket_id text references storage.buckets(id), name text not null, owner uuid, created_at timestamptz default now()
+);
+create or replace function storage.foldername(name text) returns text[] language sql immutable as $$
+  select (string_to_array(name, '/'))[1 : array_length(string_to_array(name, '/'), 1) - 1]
+$$;
+grant usage on schema storage to anon, authenticated, service_role;
+grant select, insert, update, delete on storage.objects to authenticated, service_role;
+grant select on storage.buckets to authenticated, service_role;
+alter table storage.objects enable row level security;
+insert into storage.buckets (id, name, public) values ('payslips', 'payslips', false), ('receipts', 'receipts', true) on conflict (id) do nothing;
+create policy "payslips_storage_select" on storage.objects for select to authenticated
+  using (bucket_id = 'payslips' and ((storage.foldername(name))[1] = auth.uid()::text or exists (select 1 from public.employees where id = auth.uid() and role in ('admin', 'manager'))));
+create policy "payslips_storage_insert" on storage.objects for insert to authenticated
+  with check (bucket_id = 'payslips' and exists (select 1 from public.employees where id = auth.uid() and role in ('admin', 'manager')));
+create policy "payslips_storage_update" on storage.objects for update to authenticated
+  using (bucket_id = 'payslips' and exists (select 1 from public.employees where id = auth.uid() and role in ('admin', 'manager')));
+create policy "payslips_storage_delete" on storage.objects for delete to authenticated
+  using (bucket_id = 'payslips' and exists (select 1 from public.employees where id = auth.uid() and role in ('admin', 'manager')));
+-- 다른 버킷(receipts: 영수증)은 비교용 — 010 이 건드리지 않음을 확인하기 위한 단순 정책
+create policy "receipts_select_authenticated" on storage.objects for select to authenticated using (bucket_id = 'receipts');
 
 -- 운영 S-1 (11-03): 마이그레이션에 없는 정책 — 등록된 직원이면 활성 직원 전원의 행(시급·2차인증 해시 포함)을 읽는다
 drop policy if exists "employees_select_active_for_group" on public.employees;
