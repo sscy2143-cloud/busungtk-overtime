@@ -7,5 +7,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.{ts,tsx}'],
+    // PGlite(WASM) 데이터베이스를 테스트마다 띄우는 시험이 있어 병렬 실행 부하에서 기본 5초를 넘길 수 있다
+    testTimeout: 60_000,
+    hookTimeout: 60_000,
   },
 })
