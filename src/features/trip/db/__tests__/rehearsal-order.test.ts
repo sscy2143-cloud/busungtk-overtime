@@ -1,5 +1,5 @@
 // 운영 도입 SQL 순서 리허설 (로컬 PGlite, 합성 데이터). 운영 DB 와 무관.
-// 순서: (운영 완료분은 shim 에 이미 반영) 011 → 012 → 005 → 010 → 020 → 030 → 040. 기능 스위치는 모두 OFF 로 끝나야 한다.
+// 순서: (운영 완료분은 shim 에 이미 반영) 011 → 012 → 013 → 005 → 010 → 020 → 030 → 040. 기능 스위치는 모두 OFF 로 끝나야 한다.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { readFileSync } from 'node:fs'
@@ -27,8 +27,8 @@ beforeAll(async () => {
 afterAll(async () => { await db?.close() })
 
 describe('도입 SQL 순서 리허설', () => {
-  it('011 → 012 → 005 → 010 → 020 → 030 → 040 이 순서대로 오류 없이 적용된다', async () => {
-    for (const f of ['011_employees_privileges_minimal.sql', '012_rpc_revoke_anon_execute.sql', '005_employees_position.sql', '010_trip_tables.sql', '020_trip_feature_flags.sql', '030_trip_rls.sql', '040_trip_rpc.sql']) {
+  it('011 → 012 → 013 → 005 → 010 → 020 → 030 → 040 이 순서대로 오류 없이 적용된다', async () => {
+    for (const f of ['011_employees_privileges_minimal.sql', '012_rpc_revoke_anon_execute.sql', '013_employees_active_guard.sql', '005_employees_position.sql', '010_trip_tables.sql', '020_trip_feature_flags.sql', '030_trip_rls.sql', '040_trip_rpc.sql']) {
       await exec(sql(f))
     }
   })
