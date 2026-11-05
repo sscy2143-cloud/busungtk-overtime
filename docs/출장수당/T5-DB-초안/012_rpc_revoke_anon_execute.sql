@@ -1,4 +1,4 @@
--- DRAFT v3. 011 과 별도의 운영 승인이 필요하다.
+-- 012 v3. 운영 승인됨 (013 적용 후, 사용자가 SQL Editor 에서 실행).
 -- public 스키마 SECURITY DEFINER 함수 중
 -- anon 이 실행할 수 있는 함수에서만
 -- anon 과 PUBLIC 의 EXECUTE 를 회수한다.
