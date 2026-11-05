@@ -21,10 +21,11 @@ describe('012 사후 점검 SQL', () => {
   it('적용 전에는 [1] 에 anon 실행 가능 함수가 나오고, 적용 후에는 [1]·[2] 가 0 행이다', async () => {
     await exec(sql('012_rpc_revoke_anon_execute.sql'))
     const r = (await db.exec(sql('보안점검-012-사후.sql'))).filter(x => x.fields.length > 0)
-    expect(r).toHaveLength(3)
+    expect(r).toHaveLength(4)
     expect(r[0].rows).toHaveLength(0)                      // anon 실행 가능 0
     expect(r[1].rows).toHaveLength(0)                      // 원본 대비 실효 권한 변화 0
-    const s = r[2].rows[0] as Record<string, unknown>
+    expect(r[2].rows).toHaveLength(0)                      // 새 GRANT OPTION 0
+    const s = r[3].rows[0] as Record<string, unknown>
     expect(Number(s.backed_up)).toBe(Number(s.definer_functions))
     expect(Number(s.authenticated_exec)).toBeGreaterThan(5)
   })
