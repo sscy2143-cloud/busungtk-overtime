@@ -1,4 +1,4 @@
--- DRAFT v2. 운영 실행 금지. 별도 승인 필요.
+-- 013 v2. 운영 승인됨 (D15 배포 후, 사용자가 SQL Editor 에서 실행).
 -- 선행 조건: D15 재직 토글 수정(9814ca1) 배포 완료.
 -- employees.is_active 는 서버 API 만 바꾼다.
 -- 허용: 요청 역할이 service_role 인 경우,
