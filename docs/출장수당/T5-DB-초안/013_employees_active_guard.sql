@@ -1,11 +1,14 @@
--- DRAFT. 운영 실행 금지. 별도 승인 필요.
+-- DRAFT v2. 운영 실행 금지. 별도 승인 필요.
+-- 선행 조건: D15 재직 토글 수정(9814ca1) 배포 완료.
 -- employees.is_active 는 서버 API 만 바꾼다.
--- 로그인 세션(auth.uid 있음)이 값을 바꾸면 거부한다.
+-- 허용: 요청 역할이 service_role 인 경우,
+--       또는 세션 사용자가 없고 역할이 anon,
+--       authenticated 가 아닌 경우 (SQL Editor).
+-- 그 밖에 값이 바뀌면 거부한다.
+-- anon 토큰은 사용자 id 가 없어도 허용되지 않는다.
 -- 막는 경로:
 --   REST 직접 UPDATE (admin, manager)
 --   update_employee_admin RPC 의 p_is_active
--- 이유: 인증 차단(Ban)과 마지막 admin 보호를 우회한다.
--- 통과: service_role 과 SQL Editor (auth.uid 없음).
 -- 값이 안 바뀌는 UPDATE 는 통과한다.
 -- 되돌리기: 913
 begin;
@@ -14,9 +17,19 @@ returns trigger
 language plpgsql security definer
 set search_path = public, pg_temp
 as $$
+declare
+  v_role text;
 begin
-  if auth.uid() is null then return new; end if;
   if new.is_active is not distinct from old.is_active then
+    return new;
+  end if;
+  v_role := coalesce(
+    nullif(current_setting('request.jwt.claim.role', true), ''),
+    (nullif(current_setting('request.jwt.claims', true), '')
+      ::jsonb) ->> 'role');
+  if v_role = 'service_role' then return new; end if;
+  if auth.uid() is null
+     and coalesce(v_role, '') not in ('anon', 'authenticated') then
     return new;
   end if;
   raise exception 'ACTIVE_VIA_SERVER_ONLY'
