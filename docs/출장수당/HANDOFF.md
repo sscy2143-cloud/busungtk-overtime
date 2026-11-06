@@ -39,7 +39,7 @@
 | T6 | 실제 연결 계층 `client/` — RPC·RLS 조회·서버 계산 호출을 묶은 `TripClientService`(거울 저장소), fetch 백엔드, 화면의 쓰기 비동기화. 테스트 40건(가짜 서버·fetch) | 2 | **코드 완료(11-03)** — 실제 DB 호출은 T5 적용 후 | 11-03 커밋 |
 | T7 | 기존 앱 최소 연결 — 통합 작업트리 `busungtk-overtime-integration`(브랜치 `integration/trip-on-hotfix` = 급여명세서 핫픽스 `9f9fd1f` + 이 브랜치 + 글루 `src/pages/trip/*`, 라우트 `/trip`·`/admin/trip`, 사이드바 2항목). secpatch·master 미커밋 미포함. 계획·충돌 분석은 `T7-통합계획.md` | 3·4 | **로컬 완료(11-03)**, 배포 안 함, 코드 스위치 OFF | integration `c048910` |
 | T8 | 정산·마감·명세서 | 5 | 미착수 | — |
-| T9 | 시범 운영·수기 병행 | 6 | 미착수 | — |
+| T9 | 시범 운영·수기 병행 | 6 | **일부 완료(11-06)**: `src/features/trip/pilot/` 순수 함수(시스템 결과↔수기 계산표 날짜별 대조, CSV 내보내기·가져오기, 12건, 급여 무관). 화면·시범 설계는 미착수 | integration `integration/trip-on-d15` |
 | T10 | 통합 승인함 등 후속 | 7 | 미착수 | — |
 
 **검증 상태 (2026-11-02, 서버 재계산 후):** 테스트 281건 통과(엔진 108, 데이터 87, 서버 17, 화면 모델 23, 화면 렌더·흐름 18, 독립성 28 — 세부는 `npx vitest run`), `tsc` 통과, `api/trip-compute.ts` 단독 `tsc` 통과, `npm run build` 성공, 신규 코드 ESLint 0건.
