@@ -7,8 +7,8 @@
  *  - 표준 이동시간은 직원 입력이 아니다. 실제 출발·도착 시각(actual)은 기록 전용이고 계산에 쓰지 않는다.
  */
 
-import type { DayKind, HourRange, TripDayError, TripDayInput, TripDayResult, WorkType } from '../engine'
-import type { IsoDate } from './calendar'
+import type { DayKind, HourRange, TripDayError, TripDayInput, TripDayResult, WorkType } from '../engine/index.js'
+import type { IsoDate } from './calendar.js'
 
 /** 'HH:MM' (00:00 ~ 24:00) */
 export type ClockTime = string

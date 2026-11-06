@@ -2,7 +2,7 @@
  * 시각 구간 계산. 내부는 근무일 0시 기준 분(정수)으로 다뤄 소수 오차를 없앤다.
  */
 
-import type { HourRange } from './types'
+import type { HourRange } from './types.js'
 
 export interface Interval {
   start: number

@@ -12,16 +12,16 @@
  *   제주(⑦ 제외)                  → jejuPath (5-7, E6)
  */
 
-import { REGIONS, oneWayMinutes, type RegionClass } from './regions'
-import { RULES, RULE_VERSION } from './rules'
+import { REGIONS, oneWayMinutes, type RegionClass } from './regions.js'
+import { RULES, RULE_VERSION } from './rules.js'
 import {
   LUNCH, NEXT_DAY_9, NIGHT, REGULAR, hasOverlap, len, overlapMinutes, subtract, sumLen,
   toHours, toInterval, toMin, toRange, type Interval,
-} from './time'
+} from './time.js'
 import type {
   FlagKind, HourRange, ReviewFlag, RuleId, TravelLegInput, TripDayError, TripDayInput, TripDayResult, ValueStatus,
   WorkType,
-} from './types'
+} from './types.js'
 
 const EIGHT_HOURS = 8 * 60
 const FORMULA_TYPES: ReadonlySet<WorkType> = new Set(['day_trip', 'stay_outbound', 'stay_return', 'stay_middle'])

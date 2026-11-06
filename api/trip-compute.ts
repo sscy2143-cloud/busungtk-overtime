@@ -8,7 +8,7 @@
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { HTTP_STATUS, runTripCompute, type ClaimRow, type ComputeIO, type DayRow } from '../src/features/trip/server'
+import { HTTP_STATUS, runTripCompute, type ClaimRow, type ComputeIO, type DayRow } from '../src/features/trip/server/index.js'
 
 const ACTIVE_CLAIM_STATUSES = ['draft', 'submitted', 'returned', 'approved']
 

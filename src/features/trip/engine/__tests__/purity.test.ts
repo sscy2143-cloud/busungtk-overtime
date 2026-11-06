@@ -10,7 +10,8 @@ describe('계산 엔진은 순수 함수다', () => {
 
   it.each(Object.entries(sources))('%s: DB·화면·기존 계산 코드·시각·난수에 의존하지 않는다', (_file, src) => {
     const imports = [...src.matchAll(/from\s+['"]([^'"]+)['"]/g)].map((m) => m[1])
-    for (const spec of imports) expect(spec).toMatch(/^\.\/[a-z-]+$/)
+    // 같은 폴더만 참조한다. 서버 함수가 Node ESM 으로 읽으므로 확장자(.js)를 붙인다 (isolation.test.ts 가 강제)
+    for (const spec of imports) expect(spec).toMatch(/^\.\/[a-z-]+(\.js)?$/)
     for (const banned of ['supabase', 'react', 'fetch(', 'localStorage', 'Date.now', 'new Date', 'Math.random', 'overtime-calc']) {
       expect(src).not.toContain(banned)
     }

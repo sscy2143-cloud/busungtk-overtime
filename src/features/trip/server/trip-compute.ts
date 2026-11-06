@@ -5,12 +5,12 @@
  * 규칙 버전·지역은 서버 번들의 엔진 상수(RULE_VERSION, REGIONS)를 쓰고, DB 활성 버전과 다르면 거부한다.
  */
 
-import { RULE_VERSION } from '../engine'
+import { RULE_VERSION } from '../engine/index.js'
 import {
   NO_CALENDAR, REVIEW_NOTICE_CODES, addDays, computeClaimDays,
   type Actor, type ClaimHeader, type HolidayCalendar, type IsoDate, type TripDayRecord,
-} from '../data'
-import type { ClaimRow, ComputeIO, ComputeRequest, ComputeResponse, DayRow, StoredDayComputation } from './types'
+} from '../data/index.js'
+import type { ClaimRow, ComputeIO, ComputeRequest, ComputeResponse, DayRow, StoredDayComputation } from './types.js'
 
 const fail = (code: string, message: string): ComputeResponse => ({ ok: false, code, message })
 

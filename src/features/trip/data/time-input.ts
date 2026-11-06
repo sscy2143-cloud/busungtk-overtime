@@ -2,8 +2,8 @@
  * 화면 시각 입력('HH:MM') → 엔진 시각(근무일 0시 기준 시, 다음 날이면 24 이상)
  */
 
-import type { HourRange } from '../engine'
-import type { ClockTime, Notice, TimeRangeInput } from './types'
+import type { HourRange } from '../engine/index.js'
+import type { ClockTime, Notice, TimeRangeInput } from './types.js'
 
 const CLOCK = /^(\d{1,2}):(\d{2})$/
 

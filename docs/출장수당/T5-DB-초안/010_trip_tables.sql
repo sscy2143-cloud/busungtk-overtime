@@ -724,3 +724,18 @@ select distinct on (c.day_id) c.*
 from public.trip_day_calcs c
 join public.trip_claim_days d on d.id = c.day_id and not d.is_removed
 order by c.day_id, c.seq desc;
+
+-- ============================================================
+-- 12. 트리거 함수는 직접 호출할 일이 없다 — PUBLIC·anon·authenticated 실행 권한 회수 (012 의 목표 유지)
+--     트리거 함수의 실행 권한은 트리거를 만들 때만 검사하므로 회수해도 트리거는 그대로 동작한다.
+--     (Supabase 는 새 함수에 anon·authenticated 실행 권한을 자동 부여한다 — 회수하지 않으면 012 가 막은 상태가 다시 열린다)
+-- ============================================================
+revoke all on function public.trip_touch_updated_at()           from public, anon, authenticated;
+revoke all on function public.trip_rule_versions_guard()        from public, anon, authenticated;
+revoke all on function public.trip_claim_days_before_insert()   from public, anon, authenticated;
+revoke all on function public.trip_claim_days_lock_guard()      from public, anon, authenticated;
+revoke all on function public.trip_claims_sync_day_status()     from public, anon, authenticated;
+revoke all on function public.trip_day_calcs_immutable()        from public, anon, authenticated;
+revoke all on function public.trip_reviews_calc_guard()         from public, anon, authenticated;
+revoke all on function public.trip_append_only()                from public, anon, authenticated;
+revoke all on function public.trip_review_flags_guard()         from public, anon, authenticated;

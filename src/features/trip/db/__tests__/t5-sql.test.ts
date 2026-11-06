@@ -60,6 +60,13 @@ const review = (claimId: string, action: string, calcIds: string[], decisions: u
   one<{ status: string; version: number }>('select status, version from public.trip_review($1::uuid, $2::text, $3::uuid[], $4::jsonb, $5::text)', [claimId, action, `{${calcIds.join(',')}}`, JSON.stringify(decisions), reason])
 const storeCalcs = (claimId: string, claimVersion: number, ruleVersion: string, calcs: Record<string, StoredDayComputation>, by = BOSS) =>
   one<{ r: Record<string, string> }>('select public.trip_store_server_calcs($1::uuid, $2::int, $3::text, $4::jsonb, $5::uuid) as r', [claimId, claimVersion, ruleVersion, JSON.stringify(calcs), by]).then((x) => x.r)
+/** 재직 상태는 서버 API(service_role)만 바꾼다 — 013 적용 상태(운영)에서는 로그인 세션의 직접 UPDATE 가 막힌다. 호출 뒤 세션은 호출 전 사용자로 돌린다 */
+const setActive = async (id: string, on: boolean) => {
+  const sub = (await one<{ v: string }>("select coalesce(current_setting('request.jwt.claim.sub', true), '') as v")).v
+  if (process.env.TRIP_PROD_STATE === '1') await asUser(sub || null, 'service_role')
+  await exec(`update public.employees set is_active = ${on} where id = '${id}'`)
+  await asUser(sub || null)
+}
 const setFeature = (key: string, on: boolean, note = '로컬 시험') => exec(`select public.trip_set_feature('${key}', ${on}, '${note}')`)
 
 interface DayRow { id: string; claim_id: string; employee_id: string; work_date: string; entry: DayEntry; revision: number; claim_status: string; site_start_min: number | null }
@@ -91,9 +98,15 @@ const ackAll = async (claimId: string) => {
 beforeAll(async () => {
   db = new PGlite()
   await exec(sql('로컬시험/000_local_shim.sql'))
-  await exec(sql('005_employees_position.sql'))
-  await exec(sql('006_employees_role_guard.sql'))
-  await exec(sql('007_active_admin_functions.sql'))
+  if (process.env.TRIP_PROD_STATE === '1') {
+    // 운영 상태 전제: 006·007·011·012·013 이 이미 적용된 DB 에 005 → 010 → 020 → 030 → 040 을 얹는다 (t5-sql-prod-state.test.ts)
+    for (const f of ['006_employees_role_guard.sql', '007_active_admin_functions.sql', '011_employees_privileges_minimal.sql', '012_rpc_revoke_anon_execute.sql', '013_employees_active_guard.sql']) await exec(sql(f))
+    await exec(sql('005_employees_position.sql'))
+  } else {
+    await exec(sql('005_employees_position.sql'))
+    await exec(sql('006_employees_role_guard.sql'))
+    await exec(sql('007_active_admin_functions.sql'))
+  }
   await exec(`insert into public.employees (id, name, role, position) values ('${MGR}', '인사담당', 'manager', '팀장'), ('${LEAD}', '최팀장', 'employee', '팀장') on conflict (id) do nothing`)
   await exec(`insert into public.employees (id, name, role, is_active, position) values ('${GONE}', '퇴사자', 'manager', false, '팀장') on conflict (id) do nothing`)
 }, 60_000)
@@ -546,12 +559,12 @@ describe('5-2. 전체 조회 권한 — 직급이 팀장인 활성 직원 중 ad
 
   it('비활성화·admin 승격 시에도 자동 회수되고, 되돌려도 복원되지 않는다', async () => {
     await asUser(BOSS)
-    await exec(`update public.employees set is_active = false where id = '${MGR}'`)
+    await setActive(MGR, false)
     expect(await eligible(MGR)).toBe(false)
     expect(await grantRows(MGR)).toBe(0)
     await asUser(MGR)
     expect(await codeOf(one('select public._trip_actor_id()'))).toBe('FORBIDDEN')   // RPC 도 활성 직원만
-    await exec(`update public.employees set is_active = true where id = '${MGR}'`)
+    await setActive(MGR, true)
     expect(await countAs(MGR, 'trip_claims')).toBe(0)
     expect((await actions(MGR)).map((a) => a.action)).toEqual(['grant', 'auto_revoke'])
     await asUser(BOSS)

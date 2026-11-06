@@ -10,11 +10,11 @@
  *  4. 같은 날 다른 신청(기존 야근 등) → 관리자 확인 항목 (5-8 같은 시간 중복 지급 금지)
  */
 
-import { addDays, weekStartOf, type HolidayCalendar, type IsoDate } from './calendar'
-import { classifyDay } from './classify'
-import { calculateTripDay } from '../engine'
-import type { ClaimHeader, DayEntry, Notice, TripCalcRecord, TripDayRecord } from './types'
-import type { ClassifyOptions } from './classify'
+import { addDays, weekStartOf, type HolidayCalendar, type IsoDate } from './calendar.js'
+import { classifyDay } from './classify.js'
+import { calculateTripDay } from '../engine/index.js'
+import type { ClaimHeader, DayEntry, Notice, TripCalcRecord, TripDayRecord } from './types.js'
+import type { ClassifyOptions } from './classify.js'
 
 export type DayComputation = Pick<TripCalcRecord, 'classification' | 'engineInput' | 'result' | 'carryIn' | 'carryOut'>
 export type DayComputationWithDay = DayComputation & { day: TripDayRecord }

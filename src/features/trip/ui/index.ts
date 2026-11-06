@@ -12,3 +12,5 @@ export {
   type DayDraftComputation, type FormAction, type SavedRef, type TripFormState,
 } from './form-state'
 export { ERROR_ACTION_LABEL, describeError, type ErrorAction, type ErrorNotice } from './messages'
+export { collectPilotSystemRows, PILOT_KEY_LABEL, PILOT_STATUS_LABEL, type PilotCollect } from './pilot-model'
+export { preCloseCheck, type PreCloseClaim, type PreCloseCode, type PreCloseItem, type PreCloseResult } from './preclose'

@@ -5,11 +5,11 @@
  * 메모리 구현도 DB 제약을 흉내 낸다: 계산 결과 수정 불가, 버전 불일치 시 거부, 직원·날짜 중복 금지.
  */
 
-import type { IsoDate } from './calendar'
+import type { IsoDate } from './calendar.js'
 import {
   ACTIVE_STATUSES,
   type TripAdjustmentRecord, type TripCalcRecord, type TripClaimRecord, type TripDayRecord, type TripReviewRecord,
-} from './types'
+} from './types.js'
 
 export class RepoError extends Error {
   readonly code: string

@@ -5,7 +5,7 @@
  * 경고만 하고 계산 결과는 바꾸지 않는다.
  */
 
-import type { ReviewFlag, TripDayResult } from './types'
+import type { ReviewFlag, TripDayResult } from './types.js'
 
 export interface WeekCheck {
   /** 6절: 1주(월~일) 출장 + 연장 합계 */

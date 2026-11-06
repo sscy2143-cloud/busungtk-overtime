@@ -11,10 +11,10 @@
  * 판정할 수 없거나 정보가 모자라면 missing 으로 돌려주고, 화면은 그 항목만 추가로 묻는다.
  */
 
-import { REGIONS, type HourRange, type TravelLegInput, type TripDayInput, type WorkType } from '../engine'
-import { dayKindOf, isVerifiedCalendar, type HolidayCalendar, type IsoDate } from './calendar'
-import { toHour, toHourRange } from './time-input'
-import type { ClaimHeader, Classification, DayEntry, DayPosition, MissingField, Notice, Schedule } from './types'
+import { REGIONS, type HourRange, type TravelLegInput, type TripDayInput, type WorkType } from '../engine/index.js'
+import { dayKindOf, isVerifiedCalendar, type HolidayCalendar, type IsoDate } from './calendar.js'
+import { toHour, toHourRange } from './time-input.js'
+import type { ClaimHeader, Classification, DayEntry, DayPosition, MissingField, Notice, Schedule } from './types.js'
 
 const NEXT_DAY_9 = 33
 

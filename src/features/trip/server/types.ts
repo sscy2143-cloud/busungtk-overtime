@@ -5,8 +5,8 @@
  * 테스트는 가짜 ComputeIO 로 조작 시도를 흉내 낸다.
  */
 
-import type { DayComputation } from '../data'
-import type { Actor, ClaimHeader, ClaimStatus, DayEntry, IsoDate } from '../data'
+import type { DayComputation } from '../data/index.js'
+import type { Actor, ClaimHeader, ClaimStatus, DayEntry, IsoDate } from '../data/index.js'
 
 /** 저장 RPC 에 넘기는 하루 계산 + 계산에 쓴 입력 판 번호 */
 export type StoredDayComputation = DayComputation & { dayRevision: number }

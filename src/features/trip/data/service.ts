@@ -9,13 +9,13 @@
  *  - 급여 반영은 이 단계에서 하지 않는다 (C-0 노무 확인 전).
  */
 
-import { RULE_VERSION, checkWeek, type TripDayResult, type WeekCheck } from '../engine'
-import { addDays, eachDate, isIsoDate, weekStartOf, type HolidayCalendar, type IsoDate } from './calendar'
-import { computeClaimDays } from './compute'
-import { RepoError, type TripRepository } from './repository'
+import { RULE_VERSION, checkWeek, type TripDayResult, type WeekCheck } from '../engine/index.js'
+import { addDays, eachDate, isIsoDate, weekStartOf, type HolidayCalendar, type IsoDate } from './calendar.js'
+import { computeClaimDays } from './compute.js'
+import { RepoError, type TripRepository } from './repository.js'
 import type {
   Actor, ClaimHeader, DayEntry, FlagDecision, Result, TripCalcRecord, TripClaimRecord,
-} from './types'
+} from './types.js'
 
 /** 이 단계에서는 어떤 결과도 급여에 반영하지 않는다 (C-0, 노무 확인 전) */
 export const PAYROLL_APPLICATION_ENABLED = false

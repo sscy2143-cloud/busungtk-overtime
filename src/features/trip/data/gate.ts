@@ -9,11 +9,11 @@
  * 실제 DB 단계(T5)에서는 같은 규칙을 RPC 첫 줄에서 강제한다: trip_feature_enabled(key) → auth.uid() 역할 조회.
  */
 
-import { createTripService, type GroupMismatch, type ServiceDeps, type TripService } from './service'
+import { createTripService, type GroupMismatch, type ServiceDeps, type TripService } from './service.js'
 import type {
   Actor, Result, TripAdjustmentRecord, TripCalcRecord, TripClaimRecord, TripDayRecord, TripReviewRecord,
-} from './types'
-import type { WeekCheck } from '../engine'
+} from './types.js'
+import type { WeekCheck } from '../engine/index.js'
 
 export type FeatureKey = 'employeeForm' | 'adminReview' | 'payrollApply'
 

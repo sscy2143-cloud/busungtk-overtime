@@ -2,7 +2,7 @@
  * 날짜 계산 (YYYY-MM-DD). 현재 시각을 쓰지 않는다 — 같은 입력이면 같은 결과.
  */
 
-import type { DayKind } from '../engine'
+import type { DayKind } from '../engine/index.js'
 
 export type IsoDate = string
 

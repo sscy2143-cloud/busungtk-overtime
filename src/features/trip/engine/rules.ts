@@ -3,7 +3,7 @@
  * 관리자 확인 전에는 급여에 반영하지 않는다. 상태를 바꾸는 것은 회사·노무 결정 후에만 한다.
  */
 
-import type { RuleId } from './types'
+import type { RuleId } from './types.js'
 
 export const RULE_VERSION = '2026-10-26-final/proposals-v0'
 
