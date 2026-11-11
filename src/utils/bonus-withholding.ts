@@ -11,7 +11,7 @@
 //
 // 자료 신뢰성: 이전 달 자료는 담당자가 원천세 신고·확정 급여대장과 대조해 '확인' 표시한 것만 쓴다.
 // 자료가 없거나 미확인이면 계산하지 않는다(세액을 추정하지 않음).
-import { WITHHOLDING_MULTIPLIER, isBonusLabel, lookupWithholdingTax, type IncomeTaxCalc } from './payroll-deductions'
+import { WITHHOLDING_MULTIPLIER, isBonusLabel, isTaxFreeCandidateLabel, lookupWithholdingTax, type IncomeTaxCalc } from './payroll-deductions'
 
 export type Ym = string // 'YYYY-MM'
 
@@ -58,6 +58,13 @@ export interface BonusSlipInput {
   hireDate?: string | null
   /** 같은 해 1월 ~ 지급 전달 자료 */
   history: readonly MonthRecord[]
+  /** 이 명세서(귀속월) 일반 급여의 실제 지급일(YYYY-MM-DD) — 예: 9월분을 10월 15일 지급 */
+  salaryPayDate?: string | null
+  /**
+   * 상여와 일반 급여의 지급일·지급월이 다를 때, 지급대상기간의 상여외 급여·기원천징수세액을 "귀속월 기준"
+   * (1월~이 명세서 귀속월 급여와 그 급여의 원천징수세액)으로 계산하도록 세무사가 확인했는가. 기본 false → 계산하지 않음
+   */
+  accrualBasisConfirmed?: boolean
   /** 검증용. 운영 화면은 넘기지 않음 → 운영 원천징수율(WITHHOLDING_MULTIPLIER) */
   ratio?: number
 }
@@ -68,6 +75,8 @@ export interface BonusSlipCalc extends IncomeTaxCalc {
   regularTax: number | null
   bonusTax: number | null
   periodMonths: number | null
+  /** 상여·일반 급여 지급일이 달라 지급대상기간 급여 범위에 세무 판단이 필요한 경우 */
+  needsAccrualJudgment: boolean
   steps: string[]
   /** 계산은 했지만 세무 확인이 필요한 점 */
   warnings: string[]
@@ -93,10 +102,18 @@ export function calcBonusSlipTax(input: BonusSlipInput): BonusSlipCalc {
   const errors: string[] = []
   const warnings: string[] = []
   const steps: string[] = []
+  let needsAccrualJudgment = false
   const fail = (regularTax: number | null = null): BonusSlipCalc => ({
     totalPayment, incomeTax: null, localTax: null, holdReason: 'bonus',
-    regularTaxable, bonusTotal, regularTax, bonusTax: null, periodMonths: null, steps, warnings, errors,
+    regularTaxable, bonusTotal, regularTax, bonusTax: null, periodMonths: null, needsAccrualJudgment, steps, warnings, errors,
   })
+
+  // 비과세 항목은 과세급여에서 빼야 하지만 이 화면에는 비과세 금액 입력이 없다 → 잘못된 세액을 내지 않도록 계산 중단
+  const taxFree = payments.filter(p => (p.amount || 0) !== 0 && isTaxFreeCandidateLabel(p.label)).map(p => p.label)
+  if (taxFree.length) {
+    errors.push(`비과세 가능 항목(${taxFree.join(', ')}) 포함 — 비과세 금액을 제외한 과세급여로 계산해야 하므로 자동 계산하지 않음(세액 직접 확인)`)
+    return fail()
+  }
 
   if (bonuses.some(b => !Number.isFinite(b.amount) || b.amount < 0) || !Number.isFinite(regularTaxable) || regularTaxable < 0) {
     errors.push('지급 금액이 올바르지 않습니다')
@@ -107,11 +124,21 @@ export function calcBonusSlipTax(input: BonusSlipInput): BonusSlipCalc {
   if (regularTax == null) { errors.push('상여외 급여 세액을 계산할 수 없습니다'); return fail() }
 
   if (!isYmd(input.bonusPayDate)) { errors.push('상여·성과급 실제 지급일을 입력하세요 (지급한 달로 지급대상기간을 정함)'); return fail(regularTax) }
-  const payMonth = input.bonusPayDate.slice(0, 7)
-  if (payMonth !== input.period) {
-    errors.push(`명세서 귀속월(${input.period})과 상여 지급월(${payMonth})이 다릅니다 — 지급대상기간에 넣을 급여 범위를 세무 확인 후 처리`)
+  // 상여를 이 명세서 일반 급여와 같은 날, 귀속월 안에 함께 지급한 경우만 판단 없이 계산한다.
+  // 그 밖(예: 9월에 상여 별도 지급, 9월분 급여는 10월 15일 지급)은 지급대상기간의 상여외 급여와
+  // 기원천징수세액을 귀속월 기준으로 볼지 지급일 기준으로 볼지 세무 판단이 필요하다.
+  const salaryPayDate = isYmd(input.salaryPayDate) ? input.salaryPayDate : null
+  const paidTogether = salaryPayDate === input.bonusPayDate
+  needsAccrualJudgment = !(paidTogether && input.bonusPayDate.slice(0, 7) === input.period)
+  if (needsAccrualJudgment && !input.accrualBasisConfirmed) {
+    errors.push(
+      `상여 지급일(${input.bonusPayDate})과 ${input.period} 귀속 일반 급여 지급일(${salaryPayDate ?? '미입력'})이 ` +
+      `${paidTogether ? '같지만 귀속월과 지급월이 다릅니다' : '다릅니다'} — 지급대상기간에 넣을 일반 급여·기원천징수세액 범위는 세무 확인이 필요해 계산하지 않음`,
+    )
     return fail(regularTax)
   }
+  // 귀속월 기준: 지급대상기간 = 1월(직전 상여 다음 달) ~ 이 명세서 귀속월, 그 기간 귀속 급여의 원천징수세액을 뺀다
+  const payMonth = input.period
   const year = payMonth.slice(0, 4)
   if (input.hireDate && input.hireDate.slice(0, 4) === year && input.hireDate > `${year}-01-01`) {
     errors.push(`과세기간 중 입사(${input.hireDate}) — 지급대상기간 판단은 세무 확인 후 처리`)
@@ -171,7 +198,7 @@ export function calcBonusSlipTax(input: BonusSlipInput): BonusSlipCalc {
   const localTax = round10(regularTax * 0.1) + round10(bonusTax * 0.1)
   if (raw < 0) warnings.push(`상여분 계산값이 음수(${won(raw)}) → 0원 처리(세무 확인 필요)`)
   if (ratio !== 1) warnings.push(`상여분에도 운영 원천징수율 ${Math.round(ratio * 100)}%를 곱했습니다 — 적용 여부 세무 확인 필요`)
-  warnings.push(`${payMonth} 귀속 상여외 급여(${won(regularTaxable)})를 지급대상기간에 포함했습니다 — 실제 지급일이 다음 달이면 세무 확인 필요`)
+  if (needsAccrualJudgment) warnings.push(`세무 확인(귀속월 기준)에 따라 ${payMonth} 귀속 상여외 급여(${won(regularTaxable)})와 그 세액을 지급대상기간에 포함해 계산했습니다`)
   steps.push(
     `지급대상기간 ${periodStart}~${payMonth} (${periodMonths}개월)${priorBonusMonth ? ` — 직전 상여 ${priorBonusMonth} 다음 달부터` : ''}${distinct.size > 1 ? ` — 기간 ${per.join('+')} ÷ ${per.length}` : ''}`,
     `상여 ${won(bonusTotal)} + 기간 상여외 급여 ${won(regularSum)} = ${won(bonusTotal + regularSum)}`,
@@ -180,5 +207,5 @@ export function calcBonusSlipTax(input: BonusSlipInput): BonusSlipCalc {
     `− 기간 상여외 급여 원천징수세액 ${won(withheldSum)}(이번 달 ${won(regularTax)} 포함) = 상여분 ${won(bonusTax)}`,
     `이번 달 근로소득세 = 상여외 급여분 ${won(regularTax)} + 상여분 ${won(bonusTax)} = ${won(incomeTax)}, 지방소득세 ${won(localTax)}`,
   )
-  return { totalPayment, incomeTax, localTax, holdReason: null, regularTaxable, bonusTotal, regularTax, bonusTax, periodMonths, steps, warnings, errors }
+  return { totalPayment, incomeTax, localTax, holdReason: null, regularTaxable, bonusTotal, regularTax, bonusTax, periodMonths, needsAccrualJudgment, steps, warnings, errors }
 }

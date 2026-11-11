@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { calculateOvertimeBreakdown } from '../../utils/overtime-calc'
 import { monthRange, countBusinessDays, formatHours } from './payslip-constants'
 import type { InsuranceRow } from '../../utils/insurance-csv'
-import { STORED_TAX_STATUS_LABEL, WITHHOLDING_MULTIPLIER, applyIncomeTax, calcIncomeTax, classifyStoredTax, isBonusLabel } from '../../utils/payroll-deductions'
+import { STORED_TAX_STATUS_LABEL, WITHHOLDING_MULTIPLIER, applyIncomeTax, calcIncomeTax, classifyStoredTax, isBonusLabel, isTaxFreeCandidateLabel } from '../../utils/payroll-deductions'
 import { calcBonusSlipTax, neededHistoryMonths, ymAdd } from '../../utils/bonus-withholding'
 import { BonusTaxInputs, type HistoryRow } from './BonusTaxInputs'
 import { PayslipView, Watermark, type PayslipLineItem } from './PayslipView'
@@ -83,6 +83,10 @@ interface BonusTaxBasis {
   비율: number
   상여지급일: string
   지급대상기간: Record<string, number | null>
+  /** 일반 급여 지급일 */
+  급여지급일?: string
+  /** 상여·급여 지급일이 달라 귀속월 기준 계산을 세무사가 확인했다고 체크했는가 */
+  귀속월기준_세무확인?: boolean
   일반: number
   상여: number
   기준자료: Array<{ month: string; regularTaxable: number | null; regularTaxWithheld: number | null; bonusPaid: number; verified: boolean }>
@@ -105,6 +109,8 @@ function slipToHistoryRow(month: string, slip: { 지급내역: Array<{ 항목: s
   if (taxLine == null) flags.push('근로소득세 줄 없음')
   else if (regularTaxWithheld == null) flags.push('상여 있던 달 — 일반급여분 세액 직접 입력')
   if (regularTaxWithheld === 0 && regularTaxable >= 10_000_000) flags.push('0원 저장(1천만원 이상 오류 의심)')
+  const taxFree = slip.지급내역.filter(p => (p.금액 || 0) !== 0 && isTaxFreeCandidateLabel(p.항목)).map(p => p.항목)
+  if (taxFree.length) flags.push(`비과세 가능 항목(${taxFree.join(', ')}) 포함 — 과세급여에서 비과세 금액을 빼고 입력`)
   return { month, regularTaxable, regularTaxWithheld, bonusPaid, verified: false, source: 'saved', flags }
 }
 
@@ -292,6 +298,7 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
   // 상여·성과급 포함 달 계산 자료 (추정하지 않고 담당자가 입력·확인)
   const [bonusPayDate, setBonusPayDate] = useState('')
   const [bonusPeriods, setBonusPeriods] = useState<Record<string, number | null>>({})
+  const [accrualConfirmed, setAccrualConfirmed] = useState(false)
   const [taxHistory, setTaxHistory] = useState<HistoryRow[]>([])
   const [rawOvertimeRecords, setRawOvertimeRecords] = useState<OvertimeRequestRow[]>([])
   const [drillPopup, setDrillPopup] = useState<DrillPopupState | null>(null)
@@ -365,7 +372,7 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
   const bonusLabels = payments.filter(p => (p.amount || 0) !== 0 && isBonusLabel(p.label)).map(p => p.label)
   const hasBonus = bonusLabels.length > 0
   const bonusCalc = hasBonus
-    ? calcBonusSlipTax({ period, payments, dependents, bonusPayDate: bonusPayDate || null, bonusPeriods, hireDate: hireDate || null, history: taxHistory })
+    ? calcBonusSlipTax({ period, payments, dependents, bonusPayDate: bonusPayDate || null, bonusPeriods, hireDate: hireDate || null, history: taxHistory, salaryPayDate: payDate || null, accrualBasisConfirmed: accrualConfirmed })
     : null
   const taxCalc = bonusCalc ?? calcIncomeTax(payments, dependents)
   useEffect(() => {
@@ -400,6 +407,8 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
         산출근거: {
           방식: '상여(시행령195조)', 비율: WITHHOLDING_MULTIPLIER, 상여지급일: bonusPayDate, 지급대상기간: bonusPeriods,
           일반: bonusCalc.regularTax ?? 0, 상여: bonusCalc.bonusTax ?? 0,
+          급여지급일: payDate,
+          ...(bonusCalc.needsAccrualJudgment ? { 귀속월기준_세무확인: accrualConfirmed } : {}),
           기준자료: taxHistory.map(({ month, regularTaxable, regularTaxWithheld, bonusPaid, verified }) => ({ month, regularTaxable, regularTaxWithheld, bonusPaid, verified })),
         },
       }
@@ -497,6 +506,8 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
       }))
       setBonusPayDate(basis?.상여지급일 ?? '')
       setBonusPeriods(basis?.지급대상기간 ?? {})
+      setAccrualConfirmed(basis?.귀속월기준_세무확인 ?? false)
+      if (basis?.급여지급일) setPayDate(basis.급여지급일)
       setSavedTaxLine(savedLine)
 
       const compLeaveIds = new Set((compLeave ?? []).map(r => r.related_request_id))
@@ -767,10 +778,17 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
                 onBonusPayDateChange={setBonusPayDate}
                 periods={bonusPeriods}
                 onPeriodsChange={setBonusPeriods}
+                accrualConfirmed={accrualConfirmed}
+                onAccrualConfirmedChange={setAccrualConfirmed}
                 history={taxHistory.filter(r => neededHistoryMonths(period, bonusPeriods).includes(r.month))}
                 onHistoryChange={rows => setTaxHistory(prev => prev.map(r => rows.find(x => x.month === r.month) ?? r))}
                 calc={bonusCalc}
               />
+            )}
+            {taxCalc.holdReason === 'taxfree' && (
+              <p role="alert" className="text-red-600" data-testid="tax-hold-taxfree">
+                계산 확인 필요 — 비과세가 될 수 있는 항목(식대·자가운전보조금·보육수당 등)이 있습니다. 비과세 금액은 과세급여에서 빼야 하는데 이 화면에서는 뺄 수 없어 근로소득세를 자동 계산하지 않았습니다. 세액을 직접 확인·입력해 주세요.
+              </p>
             )}
             {taxCalc.holdReason === 'invalid' && (
               <p role="alert" className="text-red-600" data-testid="tax-hold-invalid">

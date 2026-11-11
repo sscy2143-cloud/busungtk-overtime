@@ -15,13 +15,15 @@ const numOrNull = (s: string) => {
 const fmt = (n: number | null) => (n == null ? '' : n.toLocaleString('ko-KR'))
 
 export function BonusTaxInputs({
-  bonusLabels, bonusPayDate, onBonusPayDateChange, periods, onPeriodsChange, history, onHistoryChange, calc,
+  bonusLabels, bonusPayDate, onBonusPayDateChange, periods, onPeriodsChange, accrualConfirmed, onAccrualConfirmedChange, history, onHistoryChange, calc,
 }: {
   bonusLabels: string[]
   bonusPayDate: string
   onBonusPayDateChange: (v: string) => void
   periods: Record<string, number | null>
   onPeriodsChange: (v: Record<string, number | null>) => void
+  accrualConfirmed: boolean
+  onAccrualConfirmedChange: (v: boolean) => void
   history: HistoryRow[]
   onHistoryChange: (rows: HistoryRow[]) => void
   calc: BonusSlipCalc
@@ -52,6 +54,16 @@ export function BonusTaxInputs({
           </label>
         ))}
       </div>
+
+      {calc.needsAccrualJudgment && (
+        <label className="flex items-start gap-1.5 rounded border border-warning-200 bg-warning-50 px-2 py-1.5 text-warning-700" data-testid="accrual-gate">
+          <input type="checkbox" aria-label="귀속월 기준 세무 확인" checked={accrualConfirmed} onChange={e => onAccrualConfirmedChange(e.target.checked)} className="mt-0.5" />
+          <span>
+            상여 지급일과 이 달 일반 급여 지급일(위 '급여지급일')이 다릅니다. 지급대상기간에 넣을 일반 급여·기원천징수세액 범위는 세무 판단 사항입니다.
+            세무사가 <b>귀속월 기준</b>(1월~이 명세서 귀속월 급여와 그 급여의 원천징수세액)으로 처리하도록 확인한 경우에만 체크하세요. 체크하지 않으면 계산하지 않습니다.
+          </span>
+        </label>
+      )}
 
       <div className="overflow-x-auto">
         <table className="w-full text-[11px]">

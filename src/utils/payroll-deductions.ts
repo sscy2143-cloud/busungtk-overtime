@@ -93,13 +93,21 @@ export function isBonusLabel(label: string) {
   return /상여|성과/.test(label)
 }
 
+/**
+ * 비과세가 될 수 있는 지급항목(식대·자가운전보조금·보육수당 등, 소득세법 제12조). 이 전산에는 항목별 비과세 금액
+ * 입력이 없어 과세급여에서 뺄 수 없으므로, 이런 항목이 있으면 세액을 자동 계산하지 않는다(잘못된 세액 방지).
+ */
+export function isTaxFreeCandidateLabel(label: string) {
+  return /비과세|식대|식비|중식|자가운전|차량유지|보육|육아|출산/.test(label)
+}
+
 export interface IncomeTaxCalc {
   totalPayment: number
   /** null = 자동 계산하지 않음(0원과 다름) → 화면에 '계산 확인 필요' */
   incomeTax: number | null
   localTax: number | null
   /** 자동 계산하지 않은 이유 */
-  holdReason: 'bonus' | 'invalid' | null
+  holdReason: 'bonus' | 'taxfree' | 'invalid' | null
 }
 
 interface TaxLine { label: string; amount: number }
@@ -113,6 +121,9 @@ export function calcIncomeTax(payments: readonly TaxLine[], dependents: number):
   const totalPayment = payments.reduce((s, p) => s + (p.amount || 0), 0)
   if (payments.some(p => (p.amount || 0) !== 0 && isBonusLabel(p.label))) {
     return { totalPayment, incomeTax: null, localTax: null, holdReason: 'bonus' }
+  }
+  if (payments.some(p => (p.amount || 0) !== 0 && isTaxFreeCandidateLabel(p.label))) {
+    return { totalPayment, incomeTax: null, localTax: null, holdReason: 'taxfree' }
   }
   const auto = calculateAutoDeductions(totalPayment, dependents)
   if (auto.근로소득세 == null || auto.근로지방소득세 == null) return { totalPayment, incomeTax: null, localTax: null, holdReason: 'invalid' }
