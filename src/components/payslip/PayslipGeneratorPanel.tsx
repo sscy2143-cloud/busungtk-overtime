@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { calculateOvertimeBreakdown } from '../../utils/overtime-calc'
 import { monthRange, countBusinessDays, formatHours } from './payslip-constants'
 import type { InsuranceRow } from '../../utils/insurance-csv'
-import { applyIncomeTax, calcIncomeTax, isBonusLabel } from '../../utils/payroll-deductions'
+import { applyIncomeTax, calcIncomeTax, compareIncomeTax, isBonusLabel } from '../../utils/payroll-deductions'
 import { PayslipView, Watermark, type PayslipLineItem } from './PayslipView'
 import { DEFAULT_CALC_FORMULAS } from './payslip-constants'
 
@@ -597,6 +597,25 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
     }))
   }
 
+  // 세액 차이 안내 — 자동으로 바뀌지 않게 보호 중인 세액(저장된 명세서·직접 고친 세액)이 현재 지급합계 기준 계산값과 다를 때만 표시.
+  // (예: 명세서 저장 뒤 [승인 내역 시간으로 갱신]으로 수당이 늘었는데 세액은 예전 지급액 기준으로 남아 있는 경우)
+  // 화면 표시일 뿐 값을 바꾸지 않는다. 일반 급여는 담당자가 확인하면 계산값으로 바꾸고, 상여·성과급 포함 달은 참고값만 보여준다.
+  const taxDiff = taxLocked ? compareIncomeTax(payments, deductions, dependents) : null
+
+  function applyCalculatedTax() {
+    if (!taxDiff || taxDiff.kind !== 'mismatch') return
+    const won = (n: number) => `${n.toLocaleString('ko-KR')}원`
+    const ok = window.confirm(
+      `지급합계 ${won(taxDiff.totalPayment)} 기준 계산값으로 세액을 바꿀까요?\n\n` +
+      `근로소득세: ${won(taxDiff.current.incomeTax)} → ${won(taxDiff.calculated.incomeTax)}\n` +
+      `근로지방소득세: ${won(taxDiff.current.localTax)} → ${won(taxDiff.calculated.localTax)}\n\n` +
+      '화면에만 반영되며, [수정 저장]을 눌러야 저장됩니다.',
+    )
+    if (!ok) return
+    // 근로소득세·지방소득세 두 줄만 바꾼다(4대보험·다른 공제항목은 그대로). 이후에도 자동으로는 바뀌지 않는다(taxLocked 유지).
+    setDeductions(prev => applyIncomeTax(prev, calcIncomeTax(payments, dependents)))
+  }
+
   const totalPaymentSummary = payments.reduce((s, p) => s + (p.amount || 0), 0)
   const totalDeductionSummary = deductions.reduce((s, d) => s + (d.amount || 0), 0)
   const netPaySummary = totalPaymentSummary - totalDeductionSummary
@@ -723,6 +742,36 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
               {hoursMismatches.some(m => m.saved != null) && (
                 <button type="button" onClick={applyApprovedHours} className="shrink-0 px-2.5 py-1 font-medium text-white bg-amber-500 rounded-lg hover:bg-amber-600">
                   승인 내역 시간으로 갱신
+                </button>
+              )}
+            </div>
+          )}
+
+          {taxDiff && (
+            <div data-testid="tax-diff" data-kind={taxDiff.kind} className="flex flex-wrap items-start justify-between gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
+              <div className="flex items-start gap-1.5 min-w-0">
+                <AlertTriangle size={14} className="mt-0.5 flex-shrink-0" />
+                {taxDiff.kind === 'mismatch' ? (
+                  <div>
+                    <p>공제항목의 세액이 현재 지급합계({taxDiff.totalPayment.toLocaleString('ko-KR')}원) 기준 계산값과 다릅니다. (지금 세액 → 계산값)</p>
+                    <p className="mt-0.5 font-medium">
+                      근로소득세 {taxDiff.current.incomeTax.toLocaleString('ko-KR')}원 → {taxDiff.calculated.incomeTax.toLocaleString('ko-KR')}원 · 근로지방소득세 {taxDiff.current.localTax.toLocaleString('ko-KR')}원 → {taxDiff.calculated.localTax.toLocaleString('ko-KR')}원
+                    </p>
+                    <p className="mt-0.5 text-amber-700">누르기 전에는 바뀌지 않고, 저장해야 반영됩니다. 직접 정한 세액이면 그대로 두세요.</p>
+                  </div>
+                ) : (
+                  <div>
+                    <p>상여·성과급이 포함되어 세액을 자동으로 계산하지 않습니다. 지금 세액({taxDiff.current.incomeTax.toLocaleString('ko-KR')}원 · {taxDiff.current.localTax.toLocaleString('ko-KR')}원)을 그대로 유지합니다.</p>
+                    <p className="mt-0.5 font-medium">
+                      참고: 지급합계 {taxDiff.totalPayment.toLocaleString('ko-KR')}원 전체를 한 달 급여로 보면 근로소득세 {taxDiff.calculated.incomeTax.toLocaleString('ko-KR')}원 · 근로지방소득세 {taxDiff.calculated.localTax.toLocaleString('ko-KR')}원
+                    </p>
+                    <p className="mt-0.5 text-amber-700">참고값은 확정 세액이 아닙니다. 상여는 지급대상기간과 그 기간의 급여·이미 뗀 세액으로 계산하므로, 세액을 바꾸려면 확인 후 공제항목에 직접 입력하세요.</p>
+                  </div>
+                )}
+              </div>
+              {taxDiff.kind === 'mismatch' && (
+                <button type="button" onClick={applyCalculatedTax} className="shrink-0 px-2.5 py-1 font-medium text-white bg-amber-500 rounded-lg hover:bg-amber-600">
+                  계산값으로 세액 변경
                 </button>
               )}
             </div>
