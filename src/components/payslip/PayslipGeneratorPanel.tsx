@@ -122,6 +122,11 @@ const HOURLY_RATE_MULTIPLIER: Record<string, number> = {
   '휴일근로수당': 1.5,
 }
 
+/** 시간 스테퍼(±0.5h)와 [승인 내역 시간으로 갱신]이 함께 쓰는 수당 계산: 시간 × 배율 × 시급, 원 단위 반올림 */
+function stepperAmount(label: string, hours: number, hourlyWage: number | undefined) {
+  return Math.round(hours * (HOURLY_RATE_MULTIPLIER[label] ?? 0) * (hourlyWage ?? 0))
+}
+
 function LineItemEditor({
   title, items, onChange, employeeName, onDrill, hourlyWage, originalHours, noDataLabels,
 }: { title: string; items: PayslipLineItem[]; onChange: (items: PayslipLineItem[]) => void; employeeName?: string; onDrill?: (label: string) => void; hourlyWage?: number; originalHours?: Record<string, number>; noDataLabels?: Record<string, boolean> }) {
@@ -132,7 +137,7 @@ function LineItemEditor({
     const rate = HOURLY_RATE_MULTIPLIER[item.label]
     if (!rate) return
     const nextHours = Math.max(0, Math.round(((item.hours ?? 0) + delta) * 2) / 2)
-    const nextAmount = Math.round(nextHours * rate * (hourlyWage ?? 0))
+    const nextAmount = stepperAmount(item.label, nextHours, hourlyWage)
     onChange(items.map((it, idx) => idx === i ? { ...it, hours: nextHours, amount: nextAmount } : it))
   }
 
@@ -560,12 +565,36 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
     ? Object.entries(approvedHoursByLabel)
       .map(([label, approved]) => ({ label, approved, row: payments.find(p => p.label === label) }))
       .filter(({ approved, row }) => row ? Math.abs((row.hours ?? 0) - approved) > 0.001 : approved > 0)
-      .map(({ label, approved, row }) => ({ label, approved, saved: row ? (row.hours ?? 0) : null }))
+      .map(({ label, approved, row }) => {
+        const saved = row ? (row.hours ?? 0) : null
+        const wage = employee?.hourly_wage
+        return {
+          label, approved, saved,
+          amountBefore: row?.amount ?? 0,
+          amountAfter: stepperAmount(label, approved, wage),
+          // 지금 금액이 '지금 시간 × 배율 × 시급'과 다르면 담당자가 금액을 직접 조정한 것으로 본다
+          manualAmount: row != null && (row.amount ?? 0) !== stepperAmount(label, saved ?? 0, wage),
+        }
+      })
     : []
 
-  // [승인 내역 시간으로 갱신] — 시간만 바꾸고 수당 금액은 그대로 둔다(금액은 담당자가 확인 후 직접 수정). 저장해야 반영된다.
+  // [승인 내역 시간으로 갱신] — 담당자가 누를 때만 시간과 그 수당 금액을 함께 바꾼다(시간 스테퍼와 같은 계산).
+  // 금액을 직접 조정해 둔 항목은 변경 전후 금액을 보여주고 덮어쓸지 확인받는다(취소하면 시간만 갱신, 금액 유지).
   function applyApprovedHours() {
-    setPayments(prev => prev.map(p => p.label in approvedHoursByLabel ? { ...p, hours: approvedHoursByLabel[p.label] } : p))
+    const manual = hoursMismatches.filter(m => m.saved != null && m.manualAmount && m.amountBefore !== m.amountAfter)
+    const won = (n: number) => `${n.toLocaleString('ko-KR')}원`
+    const overwriteManual = manual.length === 0 || window.confirm(
+      '직접 조정된 수당 금액이 있습니다.\n\n' +
+      manual.map(m => `${m.label}: ${won(m.amountBefore)} → ${won(m.amountAfter)}`).join('\n') +
+      '\n\n[확인] 승인 시간 기준 금액으로 바꾸기\n[취소] 시간만 갱신하고 지금 금액 유지',
+    )
+    const byLabel = new Map(hoursMismatches.map(m => [m.label, m]))
+    setPayments(prev => prev.map(p => {
+      const m = byLabel.get(p.label)
+      if (!m) return p
+      const keepAmount = m.manualAmount && !overwriteManual
+      return { ...p, hours: m.approved, amount: keepAmount ? p.amount : m.amountAfter }
+    }))
   }
 
   const totalPaymentSummary = payments.reduce((s, p) => s + (p.amount || 0), 0)
@@ -683,7 +712,12 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
                   <p className="mt-0.5 font-medium">
                     {hoursMismatches.map(m => `${m.label.replace('수당', '')} ${m.saved == null ? '항목 없음' : `${m.saved.toFixed(1)}h`} → ${m.approved.toFixed(1)}h`).join(' · ')}
                   </p>
-                  <p className="mt-0.5 text-amber-700">근거는 각 항목의 [상세]에서 확인하세요. 시간 갱신은 수당 금액을 바꾸지 않습니다 — 금액은 확인 후 직접 수정하고 저장하세요.</p>
+                  {hoursMismatches.some(m => m.saved != null) && (
+                    <p className="mt-0.5" data-testid="hours-mismatch-amounts">
+                      갱신 시 수당: {hoursMismatches.filter(m => m.saved != null).map(m => `${m.label} ${m.amountBefore.toLocaleString('ko-KR')}원 → ${m.amountAfter.toLocaleString('ko-KR')}원${m.manualAmount ? '(직접 조정된 금액)' : ''}`).join(' · ')}
+                    </p>
+                  )}
+                  <p className="mt-0.5 text-amber-700">근거는 각 항목의 [상세]에서 확인하세요. 금액은 시간 증감 버튼과 같은 계산(시간 × 배율 × 시급)이며, 누르기 전에는 바뀌지 않고 저장해야 반영됩니다.</p>
                 </div>
               </div>
               {hoursMismatches.some(m => m.saved != null) && (
