@@ -272,6 +272,8 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
   const [payments, setPayments] = useState<PayslipLineItem[]>([{ label: '기본급', amount: 0 }])
   const [deductions, setDeductions] = useState<PayslipLineItem[]>(DEFAULT_DEDUCTION_LABELS.map(label => ({ label, amount: 0 })))
   const [autoOvertime, setAutoOvertime] = useState({ extendedMinutes: 0, nightMinutes: 0, holidayMinutes: 0 })
+  // 저장된 명세서를 불러왔는지 — 저장 시간과 현재 승인 내역 집계를 비교해 차이를 안내하는 데 사용
+  const [loadedFromSaved, setLoadedFromSaved] = useState(false)
   const [dependents, setDependents] = useState(1)
   // true = 공제항목의 소득세를 자동으로 바꾸지 않음 (저장된 명세서를 연 경우·세액을 직접 고친 경우)
   const [taxLocked, setTaxLocked] = useState(false)
@@ -475,6 +477,7 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
       // '미작성으로 되돌리기'는 유형만 비우고 지급/공제 내역은 남겨두므로,
       // 유형이 아니라 실제 저장된 지급내역이 있는지로 복원 여부를 판단함
       const hasSavedContent = !!(slip?.지급내역 && slip.지급내역.length > 0)
+      setLoadedFromSaved(hasSavedContent)
       if (hasSavedContent && slip) {
         setExistingId(slip.id)
         setExistingFilePath(null)
@@ -545,6 +548,25 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
   const calcMethods = payments
     .filter(p => DEFAULT_CALC_FORMULAS[p.label])
     .map(p => ({ label: p.label, formula: DEFAULT_CALC_FORMULAS[p.label] }))
+
+  // 저장된 명세서의 연장·야간·휴일 시간 vs 현재 승인된 야근 신청 집계(calculateOvertimeBreakdown, 기존 규정 그대로).
+  // 명세서를 근무보다 먼저 만들어 0시간이 저장된 경우 등을 담당자가 알 수 있게 표시만 하고, 자동으로 바꾸지 않는다.
+  const approvedHoursByLabel: Record<string, number> = {
+    '연장근로수당': autoOvertime.extendedMinutes / 60,
+    '야간근로수당': autoOvertime.nightMinutes / 60,
+    '휴일근로수당': autoOvertime.holidayMinutes / 60,
+  }
+  const hoursMismatches = loadedFromSaved
+    ? Object.entries(approvedHoursByLabel)
+      .map(([label, approved]) => ({ label, approved, row: payments.find(p => p.label === label) }))
+      .filter(({ approved, row }) => row ? Math.abs((row.hours ?? 0) - approved) > 0.001 : approved > 0)
+      .map(({ label, approved, row }) => ({ label, approved, saved: row ? (row.hours ?? 0) : null }))
+    : []
+
+  // [승인 내역 시간으로 갱신] — 시간만 바꾸고 수당 금액은 그대로 둔다(금액은 담당자가 확인 후 직접 수정). 저장해야 반영된다.
+  function applyApprovedHours() {
+    setPayments(prev => prev.map(p => p.label in approvedHoursByLabel ? { ...p, hours: approvedHoursByLabel[p.label] } : p))
+  }
 
   const totalPaymentSummary = payments.reduce((s, p) => s + (p.amount || 0), 0)
   const totalDeductionSummary = deductions.reduce((s, d) => s + (d.amount || 0), 0)
@@ -651,6 +673,26 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
             <span className="text-sm font-semibold text-dark-700">실지급액</span>
             <span className="text-lg font-bold text-dark-900">{netPaySummary.toLocaleString('ko-KR')}원</span>
           </div>
+
+          {hoursMismatches.length > 0 && (
+            <div data-testid="hours-mismatch" className="flex flex-wrap items-start justify-between gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
+              <div className="flex items-start gap-1.5 min-w-0">
+                <AlertTriangle size={14} className="mt-0.5 flex-shrink-0" />
+                <div>
+                  <p>저장된 근로시간이 현재 승인된 야근 신청 집계와 다릅니다. (명세서 저장 → 승인 내역)</p>
+                  <p className="mt-0.5 font-medium">
+                    {hoursMismatches.map(m => `${m.label.replace('수당', '')} ${m.saved == null ? '항목 없음' : `${m.saved.toFixed(1)}h`} → ${m.approved.toFixed(1)}h`).join(' · ')}
+                  </p>
+                  <p className="mt-0.5 text-amber-700">근거는 각 항목의 [상세]에서 확인하세요. 시간 갱신은 수당 금액을 바꾸지 않습니다 — 금액은 확인 후 직접 수정하고 저장하세요.</p>
+                </div>
+              </div>
+              {hoursMismatches.some(m => m.saved != null) && (
+                <button type="button" onClick={applyApprovedHours} className="shrink-0 px-2.5 py-1 font-medium text-white bg-amber-500 rounded-lg hover:bg-amber-600">
+                  승인 내역 시간으로 갱신
+                </button>
+              )}
+            </div>
+          )}
 
           <div ref={lineItemSplitRef} className="flex items-start w-full">
             <div style={{ width: `${lineItemSplitPct}%` }} className="min-w-0 pr-2">
@@ -881,7 +923,16 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
                 )}
               </div>
               <div className="px-5 py-3 border-t border-dark-100 flex items-center justify-between bg-dark-50 rounded-b-2xl">
-                <span className="text-xs font-semibold text-dark-600">총 {drillPopup.records.length}건</span>
+                <span className="text-xs font-semibold text-dark-600">
+                  총 {drillPopup.records.length}건
+                  {(() => {
+                    const label = Object.keys(DRILL_LABEL).find(k => DRILL_LABEL[k] === drillPopup.type)
+                    const saved = payments.find(p => p.label === label)?.hours ?? 0
+                    return Math.abs(saved * 60 - totalMinutes) > 0.1
+                      ? <span data-testid="drill-saved-diff" className="ml-2 font-normal text-amber-600">명세서 시간 {saved.toFixed(1)}h와 다름</span>
+                      : null
+                  })()}
+                </span>
                 <span className="text-sm font-bold text-dark-800">{m === 0 ? `${h}시간` : `${h}시간 ${m}분`}</span>
               </div>
             </div>
