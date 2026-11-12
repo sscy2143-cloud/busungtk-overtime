@@ -140,24 +140,3 @@ export function applyIncomeTax<T extends TaxLine>(items: T[], calc: IncomeTaxCal
     d
   )
 }
-
-export type StoredTaxStatus = 'matches' | 'legit_zero' | 'suspected_zero_bug' | 'differs' | 'cannot_verify'
-
-/**
- * 저장된 근로소득세와 지금 계산값을 비교해 상태를 나눈다.
- * calcTax = null 이면(상여 포함·입력 오류 등) 계산값을 확정할 수 없음.
- */
-export function classifyStoredTax(stored: number | null, calcTax: number | null): StoredTaxStatus {
-  if (calcTax != null && stored === calcTax) return calcTax === 0 ? 'legit_zero' : 'matches'
-  if ((stored ?? 0) === 0 && (calcTax ?? 0) > 0) return 'suspected_zero_bug'
-  if (calcTax == null) return 'cannot_verify'
-  return 'differs'
-}
-
-export const STORED_TAX_STATUS_LABEL: Record<StoredTaxStatus, string> = {
-  matches: '저장값과 계산값 일치',
-  legit_zero: '계산상으로도 0원',
-  suspected_zero_bug: '0원 저장 — 계산상 세액이 있음(1천만원 이상 0원 오류 의심)',
-  differs: '저장값과 계산값이 다름(수동 입력이었는지 확인)',
-  cannot_verify: '자동 계산 보류 — 세액을 직접 확인해야 함',
-}
