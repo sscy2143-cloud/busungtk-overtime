@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { ChevronLeft, ChevronRight, Search, Upload, FileSpreadsheet, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { parseHealthInsuranceCsv, parseNationalPensionCsv, parseEmploymentInsuranceCsv, type InsuranceRow } from '../../utils/insurance-csv'
+import { planInsuranceBulkApply, type BulkApplySlip } from '../../utils/insurance-bulk-apply'
 import { PayslipGeneratorPanel, type GeneratorEmployee } from './PayslipGeneratorPanel'
 import { calculateOvertimeBreakdown } from '../../utils/overtime-calc'
 import { exportPayrollLedgerToExcel } from '../../utils/payroll-ledger-excel'
@@ -92,7 +93,10 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
   const [bulkApplying, setBulkApplying] = useState(false)
   const [bulkApplyResult, setBulkApplyResult] = useState<{
     updatedRows: Array<{ name: string; changes: Array<{ label: string; from: number; to: number }> }>
+    unchangedNames: string[]
     unmatchedNames: string[]
+    excluded: Array<{ name: string; reason: string }>
+    unknownNoticeNames: string[]
   } | null>(null)
   const [infoPopupPayroll, setInfoPopupPayroll] = useState<EmployeePayrollInfo | null>(null)
   const [infoPopupLoading, setInfoPopupLoading] = useState(false)
@@ -289,51 +293,40 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
 
   async function handleBulkApplyInsurance() {
     if (Object.keys(healthInsuranceData).length === 0) return
-    if (!confirm('이번 달에 작성완료된 명세서의 4대보험 항목을 업로드한 파일 값으로 일괄 갱신할까요?')) return
+    if (!confirm('업로드한 4대보험 고지액을 이번 달 급여명세서에 작성 상태와 관계없이 반영할까요?')) return
     setBulkApplying(true)
     try {
-      interface SlipRow { id: string; employee_id: string; 지급합계: number | null; 공제내역: Array<{ 항목: string; 금액: number }> | null }
-      const { data: slips } = await supabase
+      // 작성완료 여부와 관계없이 이 귀속월의 명세서를 모두 읽는다(명세서가 없는 직원은 새로 만들지 않는다)
+      const { data: slips, error: loadError } = await supabase
         .from('payslips')
-        .select('id, employee_id, 지급합계, 공제내역')
+        .select('id, employee_id, file_path, 지급합계, 지급내역, 공제내역')
         .eq('period', period)
-        .eq('유형', 'generated')
-        .returns<SlipRow[]>()
-      if (!slips || slips.length === 0) {
-        alert('이번 달에 작성완료된 명세서가 없습니다.')
+        .returns<BulkApplySlip[]>()
+      if (loadError) {
+        alert('명세서를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.')
         return
       }
-      const nameById = new Map(employees.map(e => [e.id, e.name]))
+      const plan = planInsuranceBulkApply({
+        slips: slips ?? [],
+        employees,
+        notice: healthInsuranceData,
+        employmentUploaded: !!insuranceCsvNames.employment,
+      })
       const updatedRows: Array<{ name: string; changes: Array<{ label: string; from: number; to: number }> }> = []
-      const unmatchedNames: string[] = []
-      for (const slip of slips) {
-        const name = nameById.get(slip.employee_id) ?? '(알 수 없음)'
-        const match = nameById.has(slip.employee_id) ? healthInsuranceData[name] : undefined
-        if (!match) { unmatchedNames.push(name); continue }
-        const changes: Array<{ label: string; from: number; to: number }> = []
-        const deductions = (slip.공제내역 ?? []).map(d => {
-          const newAmount =
-            d.항목 === '건강보험' && match.health != null ? match.health :
-            d.항목 === '장기요양보험' && match.longTermCare != null ? match.longTermCare :
-            d.항목 === '국민연금' && match.nationalPension != null ? match.nationalPension :
-            d.항목 === '고용보험' && match.employment != null ? match.employment :
-            // 고용보험 파일은 대상자만 명단에 오르므로, 그 파일을 올렸는데 이름이 없으면 비대상자로 보고 0원 처리
-            d.항목 === '고용보험' && insuranceCsvNames.employment && match.employment == null ? 0 :
-            null
-          if (newAmount == null || newAmount === d.금액) return d
-          changes.push({ label: d.항목, from: d.금액 || 0, to: newAmount })
-          return { ...d, 금액: newAmount }
-        })
-        if (changes.length === 0) continue
-        const 공제합계 = deductions.reduce((s, d) => s + (d.금액 || 0), 0)
-        const 지급합계 = slip.지급합계 ?? 0
-        const { error } = await supabase
-          .from('payslips')
-          .update({ 공제내역: deductions, 공제합계, 실지급액: 지급합계 - 공제합계 })
-          .eq('id', slip.id)
-        if (!error) updatedRows.push({ name, changes })
+      const excluded = [...plan.excluded]
+      for (const u of plan.updates) {
+        // 4대보험 줄과 그에 따른 공제합계·실지급액만 저장한다(지급항목·소득세·근로시간·작성 상태는 건드리지 않음)
+        const { error } = await supabase.from('payslips').update(u.patch).eq('id', u.slipId).eq('period', period)
+        if (error) excluded.push({ name: u.name, reason: '저장 실패 — 다시 시도해주세요' })
+        else updatedRows.push({ name: u.name, changes: u.changes })
       }
-      setBulkApplyResult({ updatedRows, unmatchedNames })
+      setBulkApplyResult({
+        updatedRows,
+        unchangedNames: plan.unchangedNames,
+        unmatchedNames: plan.unmatchedNames,
+        excluded,
+        unknownNoticeNames: plan.unknownNoticeNames,
+      })
       loadSummaries()
     } finally {
       setBulkApplying(false)
@@ -549,7 +542,7 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
               disabled={bulkApplying}
               className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-primary-700 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100 transition-colors disabled:opacity-50"
             >
-              {bulkApplying ? '반영 중...' : '작성완료된 명세서에 일괄 반영'}
+              {bulkApplying ? '반영 중...' : '4대보험 고지액 일괄반영'}
             </button>
           )}
         </div>
@@ -923,8 +916,10 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
               <div>
                 <p className="text-base font-bold text-dark-900">일괄 반영 결과</p>
                 <p className="text-xs text-dark-400 mt-0.5">
-                  {bulkApplyResult.updatedRows.length}명 갱신
-                  {bulkApplyResult.unmatchedNames.length > 0 && ` · ${bulkApplyResult.unmatchedNames.length}명 미매칭`}
+                  적용 {bulkApplyResult.updatedRows.length}명
+                  {bulkApplyResult.unchangedNames.length > 0 && ` · 변동 없음 ${bulkApplyResult.unchangedNames.length}명`}
+                  {` · 미매칭 ${bulkApplyResult.unmatchedNames.length}명`}
+                  {` · 제외 ${bulkApplyResult.excluded.length}명`}
                 </p>
               </div>
               <button onClick={() => setBulkApplyResult(null)} className="p-1.5 rounded-lg hover:bg-dark-100"><X size={18} className="text-dark-500" /></button>
@@ -947,10 +942,32 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
                   </div>
                 </div>
               ))}
+              {bulkApplyResult.unchangedNames.length > 0 && (
+                <div className="border-t border-dark-100 pt-3">
+                  <p className="text-xs font-semibold text-dark-600 mb-1">이미 고지액과 같아 변동 없음</p>
+                  <p className="text-xs text-dark-500">{bulkApplyResult.unchangedNames.join(', ')}</p>
+                </div>
+              )}
               {bulkApplyResult.unmatchedNames.length > 0 && (
                 <div className="border-t border-dark-100 pt-3">
-                  <p className="text-xs font-semibold text-warning-600 mb-1">파일에서 이름이 매칭되지 않아 건너뜀</p>
+                  <p className="text-xs font-semibold text-warning-600 mb-1">고지서에 이름이 없어 기존 값 유지 (미매칭)</p>
                   <p className="text-xs text-dark-500">{bulkApplyResult.unmatchedNames.join(', ')}</p>
+                </div>
+              )}
+              {bulkApplyResult.excluded.length > 0 && (
+                <div className="border-t border-dark-100 pt-3">
+                  <p className="text-xs font-semibold text-warning-600 mb-1">제외 사유</p>
+                  <div className="space-y-0.5">
+                    {bulkApplyResult.excluded.map((x, i) => (
+                      <p key={i} className="text-xs text-dark-500"><span className="font-medium text-dark-700">{x.name}</span> — {x.reason}</p>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {bulkApplyResult.unknownNoticeNames.length > 0 && (
+                <div className="border-t border-dark-100 pt-3">
+                  <p className="text-xs font-semibold text-warning-600 mb-1">고지서에는 있지만 직원 명단에 없는 이름</p>
+                  <p className="text-xs text-dark-500">{bulkApplyResult.unknownNoticeNames.join(', ')}</p>
                 </div>
               )}
             </div>
