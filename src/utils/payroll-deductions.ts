@@ -13,10 +13,16 @@ export const EMPLOYMENT_INSURANCE_RATE = 0.009
  */
 export const WITHHOLDING_MULTIPLIER = 1.2
 
-// 끝수 처리도 기존 운영 방식(10원 단위 반올림)을 그대로 유지한다.
-// → 1천만원 미만 직원의 세액은 이번 수정 전과 한 푼도 달라지지 않는다.
+// 4대보험 끝수 처리는 기존 운영 방식(10원 단위 반올림)을 그대로 유지한다.
 function roundTo10(n: number) {
   return Math.round(n / 10) * 10
+}
+
+// 근로소득세·지방소득세는 10원 미만 절사(홈택스 원천징수 계산과 동일).
+// 예) 간이세액 932,290원 × 120% = 1,118,748원 → 1,118,740원(반올림하면 1,118,750원으로 틀림)
+// 1e-6: 1.2·0.1 곱셈의 부동소수 오차(…9.9999)로 10원이 덜 잘리는 것을 막는다.
+function floorTo10(n: number) {
+  return Math.floor(n / 10 + 1e-6) * 10
 }
 
 /**
@@ -75,10 +81,10 @@ export interface AutoDeductions {
 export function calculateAutoDeductions(totalPayment: number, dependents: number): AutoDeductions {
   const 건강보험 = roundTo10(totalPayment * HEALTH_INSURANCE_RATE)
   const simpleTax = lookupWithholdingTax(totalPayment, dependents)
-  const 근로소득세 = simpleTax == null ? null : roundTo10(simpleTax * WITHHOLDING_MULTIPLIER)
+  const 근로소득세 = simpleTax == null ? null : floorTo10(simpleTax * WITHHOLDING_MULTIPLIER)
   return {
     근로소득세,
-    근로지방소득세: 근로소득세 == null ? null : roundTo10(근로소득세 * 0.1),
+    근로지방소득세: 근로소득세 == null ? null : floorTo10(근로소득세 * 0.1),
     국민연금: roundTo10(totalPayment * NATIONAL_PENSION_RATE),
     건강보험,
     장기요양보험: roundTo10(건강보험 * LONG_TERM_CARE_RATE_OF_HEALTH),
