@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import { WITHHOLDING_TAX_TABLE } from '../src/utils/withholding-tax-table'
 import {
-  lookupWithholdingTax, calculateAutoDeductions, calcIncomeTax, applyIncomeTax, compareIncomeTax,
+  lookupWithholdingTax, calculateAutoDeductions, calcIncomeTax, applyIncomeTax, compareIncomeTax, findStaleTaxBasis,
   WITHHOLDING_MULTIPLIER, NATIONAL_PENSION_RATE, HEALTH_INSURANCE_RATE, LONG_TERM_CARE_RATE_OF_HEALTH, EMPLOYMENT_INSURANCE_RATE,
 } from '../src/utils/payroll-deductions'
 
@@ -185,4 +185,31 @@ test('10원 반올림 시절 저장된 세액(1,118,750 / 111,880)은 일반 급
   const old = [{ label: '근로소득세', amount: 1_118_750 }, { label: '근로지방소득세', amount: 111_880 }]
   const diff = compareIncomeTax(plain(CASE_AFTER), old, 1)
   assert.deepEqual(diff?.calculated, { incomeTax: 1_118_740, localTax: 111_870 })
+})
+
+// ── 수당 추가 전 세액이 남았는지 판정(findStaleTaxBasis) — 명세서를 연 뒤 변경 여부와 무관한 근거 ──
+test('사례: 저장 세액 1,075,200 / 107,520 은 연장·휴일수당 168,252원을 뺀 7,728,693원 기준 계산값과 정확히 일치한다', () => {
+  assert.deepEqual(findStaleTaxBasis(CASE_AFTER, CASE_SAVED_TAX, 1), {
+    basisPayment: 7_728_693,
+    excluded: [{ label: '연장근로수당', amount: 96_144 }, { label: '휴일근로수당', amount: 72_108 }],
+  })
+})
+
+test('근거가 없으면 판정하지 않는다: 수당이 없거나, 지금 지급합계 기준과 같거나, 따로 정한 세액이거나, 비과세 후보·세액 줄 없음', () => {
+  assert.equal(findStaleTaxBasis(CASE_BEFORE, CASE_SAVED_TAX, 1), null) // 수당 없음(지금 지급합계 기준과 같음)
+  const matched = [{ label: '근로소득세', amount: 1_118_740 }, { label: '근로지방소득세', amount: 111_870 }]
+  assert.equal(findStaleTaxBasis(CASE_AFTER, matched, 1), null) // 지금 지급합계 기준과 같음
+  const custom = [{ label: '근로소득세', amount: 640_000 }, { label: '근로지방소득세', amount: 64_000 }]
+  assert.equal(findStaleTaxBasis(CASE_AFTER, custom, 1), null) // 다른 방식으로 정한 세액 — 어긋났다고 단정할 근거 없음
+  assert.equal(findStaleTaxBasis([...CASE_AFTER, { label: '식대', amount: 200_000 }], CASE_SAVED_TAX, 1), null)
+  assert.equal(findStaleTaxBasis(CASE_AFTER, [{ label: '국민연금', amount: 100_000 }], 1), null)
+  assert.equal(findStaleTaxBasis(CASE_AFTER, [{ label: '근로소득세', amount: 0 }, { label: '근로지방소득세', amount: 0 }], 1), null)
+})
+
+test('수당 중 일부만 나중에 더해진 경우도 찾는다(휴일수당만 빠진 7,824,837원 기준)', () => {
+  const partial = calculateAutoDeductions(7_896_945 - 72_108, 1)
+  const whole = calculateAutoDeductions(7_896_945, 1)
+  assert.notEqual(partial.근로소득세, whole.근로소득세)
+  const r = findStaleTaxBasis(CASE_AFTER, [{ label: '근로소득세', amount: partial.근로소득세! }, { label: '근로지방소득세', amount: partial.근로지방소득세! }], 1)
+  assert.deepEqual(r, { basisPayment: 7_824_837, excluded: [{ label: '휴일근로수당', amount: 72_108 }] })
 })

@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { calculateOvertimeBreakdown } from '../../utils/overtime-calc'
 import { monthRange, countBusinessDays, formatHours } from './payslip-constants'
 import type { InsuranceRow } from '../../utils/insurance-csv'
-import { applyIncomeTax, calcIncomeTax, compareIncomeTax, isBonusLabel } from '../../utils/payroll-deductions'
+import { applyIncomeTax, calcIncomeTax, compareIncomeTax, findStaleTaxBasis, isBonusLabel } from '../../utils/payroll-deductions'
 import { PayslipView, Watermark, type PayslipLineItem } from './PayslipView'
 import { DEFAULT_CALC_FORMULAS } from './payslip-constants'
 
@@ -282,6 +282,8 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
   const [dependents, setDependents] = useState(1)
   // true = 공제항목의 소득세를 자동으로 바꾸지 않음 (저장된 명세서를 연 경우·세액을 직접 고친 경우)
   const [taxLocked, setTaxLocked] = useState(false)
+  // 저장된 명세서를 연 시점(또는 마지막 저장 시점)의 지급합계·세액 — 그 뒤 지급항목이 바뀌었는지 판단하는 기준. 새 명세서는 null
+  const [taxBaseline, setTaxBaseline] = useState<{ payTotal: number; incomeTax: number; localTax: number } | null>(null)
   // 저장된 명세서의 근로소득세 줄 (예전 산출근거를 다시 저장할 때 지우지 않고 보존하기 위함)
   const [savedTaxLine, setSavedTaxLine] = useState<SavedDeductionLine | null>(null)
   const [rawOvertimeRecords, setRawOvertimeRecords] = useState<OvertimeRequestRow[]>([])
@@ -508,6 +510,10 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
         // 세액을 바꾸려면 공제항목에서 직접 수정 → 저장.
         // 공제내역이 비어 있는 명세서만 계산값으로 채운다. 4대보험은 저장값 유지(CSV 매칭은 applyHealthInsurance).
         setTaxLocked(deds.length > 0)
+        const savedAmount = (label: string) => deds.find(d => d.항목 === label)?.금액 ?? 0
+        setTaxBaseline(deds.length > 0
+          ? { payTotal: loadedPayments.reduce((s, p) => s + (p.amount || 0), 0), incomeTax: savedAmount('근로소득세'), localTax: savedAmount('근로지방소득세') }
+          : null)
         const liveDeductions = deds.length ? baseDeductions : applyIncomeTax(baseDeductions, calcIncomeTax(loadedPayments, empDependents))
         const savedHealthMatch = employee ? healthInsuranceDataRef.current[employee.name] : undefined
         setDeductions(savedHealthMatch ? applyHealthInsurance(liveDeductions, savedHealthMatch) : liveDeductions)
@@ -527,6 +533,7 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
         ]
         setPayments(autoPayments)
         setTaxLocked(false)
+        setTaxBaseline(null)
         // 소득세는 라이브 추정치를 기본값으로 채우되, 4대보험은 실제 고지내역(CSV) 없이는
         // 추정하지 않고 0으로 시작 — 아래 applyHealthInsurance에서 CSV 매칭 시에만 채워짐
         const defaultDeductions = applyIncomeTax(DEFAULT_DEDUCTION_LABELS.map(label => ({ label, amount: 0 })), calcIncomeTax(autoPayments, empDependents))
@@ -597,10 +604,18 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
     }))
   }
 
-  // 세액 차이 안내 — 자동으로 바뀌지 않게 보호 중인 세액(저장된 명세서·직접 고친 세액)이 현재 지급합계 기준 계산값과 다를 때만 표시.
-  // (예: 명세서 저장 뒤 [승인 내역 시간으로 갱신]으로 수당이 늘었는데 세액은 예전 지급액 기준으로 남아 있는 경우)
-  // 화면 표시일 뿐 값을 바꾸지 않는다. 일반 급여는 담당자가 확인하면 계산값으로 바꾸고, 상여·성과급 포함 달은 참고값만 보여준다.
+  // 세액 안내 — 자동으로 바뀌지 않게 보호 중인 세액(저장된 명세서·직접 고친 세액)에만 해당. 화면 표시일 뿐 값을 바꾸지 않는다.
+  // · 일반 급여: 세액이 현재 지급합계 기준 계산값과 다르면 안내하고, 담당자가 확인하면 계산값으로 바꾼다.
+  // · 상여·성과급 포함: 계산값과 다른 것이 정상일 수 있으므로 열기만 해서는 안내하지 않는다. 아래 두 경우에만 재검토를 안내한다(세액은 그대로).
+  //   ① 명세서를 연(저장한) 뒤 지급합계가 바뀌었고 세액은 그때 그대로인 경우
+  //   ② 지금 세액이 '시간 수당을 뺀 지급액' 기준 계산값과 정확히 같은 경우(수당이 더해지기 전 세액이 남은 것 — 이미 저장된 명세서도 판정 가능)
   const taxDiff = taxLocked ? compareIncomeTax(payments, deductions, dependents) : null
+  const bonusDiff = taxDiff?.kind === 'bonus-reference' ? taxDiff : null
+  const paymentsChangedSinceOpen = !!bonusDiff && !!taxBaseline
+    && bonusDiff.totalPayment !== taxBaseline.payTotal
+    && bonusDiff.current.incomeTax === taxBaseline.incomeTax && bonusDiff.current.localTax === taxBaseline.localTax
+  const staleTaxBasis = bonusDiff ? findStaleTaxBasis(payments, deductions, dependents) : null
+  const showTaxNotice = !!taxDiff && (taxDiff.kind === 'mismatch' || paymentsChangedSinceOpen || !!staleTaxBasis)
 
   function applyCalculatedTax() {
     if (!taxDiff || taxDiff.kind !== 'mismatch') return
@@ -664,6 +679,12 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
     setExistingFilePath(null)
     setIsDirty(false)
     setChangedFieldLabels([])
+    // 저장한 값이 새 기준 — 저장 뒤에는 '지급항목이 바뀌었습니다' 안내를 다시 띄우지 않는다
+    setTaxBaseline(prev => prev && {
+      payTotal: 지급합계,
+      incomeTax: deductions.find(d => d.label === '근로소득세')?.amount || 0,
+      localTax: deductions.find(d => d.label === '근로지방소득세')?.amount || 0,
+    })
     baselineRef.current = { payments, deductions, workStart, workEnd, message, adminNote, totalWorkDaysText, baseHoursText, leaveHoursText, etcHoursText }
     alert('저장되었습니다.')
     onSaved?.()
@@ -747,8 +768,8 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
             </div>
           )}
 
-          {taxDiff && (
-            <div data-testid="tax-diff" data-kind={taxDiff.kind} className="flex flex-wrap items-start justify-between gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
+          {taxDiff && showTaxNotice && (
+            <div data-testid="tax-diff" data-kind={taxDiff.kind} data-reason={taxDiff.kind === 'mismatch' ? 'mismatch' : staleTaxBasis ? 'stale-basis' : 'payments-changed'}className="flex flex-wrap items-start justify-between gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
               <div className="flex items-start gap-1.5 min-w-0">
                 <AlertTriangle size={14} className="mt-0.5 flex-shrink-0" />
                 {taxDiff.kind === 'mismatch' ? (
@@ -761,11 +782,12 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
                   </div>
                 ) : (
                   <div>
-                    <p>상여·성과급이 포함되어 세액을 자동으로 계산하지 않습니다. 지금 세액({taxDiff.current.incomeTax.toLocaleString('ko-KR')}원 · {taxDiff.current.localTax.toLocaleString('ko-KR')}원)을 그대로 유지합니다.</p>
-                    <p className="mt-0.5 font-medium">
-                      참고: 지급합계 {taxDiff.totalPayment.toLocaleString('ko-KR')}원 전체를 한 달 급여로 보면 근로소득세 {taxDiff.calculated.incomeTax.toLocaleString('ko-KR')}원 · 근로지방소득세 {taxDiff.calculated.localTax.toLocaleString('ko-KR')}원
-                    </p>
-                    <p className="mt-0.5 text-amber-700">참고값은 확정 세액이 아닙니다. 상여는 지급대상기간과 그 기간의 급여·이미 뗀 세액으로 계산하므로, 세액을 바꾸려면 확인 후 공제항목에 직접 입력하세요.</p>
+                    {staleTaxBasis ? (
+                      <p>지금 세액({taxDiff.current.incomeTax.toLocaleString('ko-KR')}원 · {taxDiff.current.localTax.toLocaleString('ko-KR')}원)은 {staleTaxBasis.excluded.map(x => x.label).join('·')} {staleTaxBasis.excluded.reduce((s, x) => s + x.amount, 0).toLocaleString('ko-KR')}원이 빠진 {staleTaxBasis.basisPayment.toLocaleString('ko-KR')}원 기준 금액입니다. 세액을 다시 검토해주세요.</p>
+                    ) : (
+                      <p>지급항목이 바뀌었습니다(지급합계 {taxBaseline?.payTotal.toLocaleString('ko-KR')}원 → {taxDiff.totalPayment.toLocaleString('ko-KR')}원). 세액({taxDiff.current.incomeTax.toLocaleString('ko-KR')}원 · {taxDiff.current.localTax.toLocaleString('ko-KR')}원)을 다시 검토해주세요.</p>
+                    )}
+                    <p className="mt-0.5 text-amber-700">상여·성과급 포함 명세서는 세액을 자동으로 바꾸지 않습니다. 바꾸려면 확인된 세액을 공제항목에 직접 입력하세요.</p>
                   </div>
                 )}
               </div>

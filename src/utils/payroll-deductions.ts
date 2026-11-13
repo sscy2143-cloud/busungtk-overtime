@@ -186,3 +186,38 @@ export function compareIncomeTax(payments: readonly TaxLine[], deductions: reado
   if (current.incomeTax === calculated.incomeTax && current.localTax === calculated.localTax) return null
   return { kind, totalPayment: calc.totalPayment, current, calculated }
 }
+
+const TIME_ALLOWANCE_LABELS = ['연장근로수당', '야간근로수당', '휴일근로수당']
+
+export interface StaleTaxBasis {
+  /** 지금 세액과 계산값이 정확히 일치하는 지급액(= 지급합계 − 빠진 수당) */
+  basisPayment: number
+  /** 그 지급액에 들어 있지 않은 시간 수당 */
+  excluded: { label: string; amount: number }[]
+}
+
+/**
+ * 지금 세액이 '시간 수당(연장·야간·휴일) 일부를 뺀 지급액' 기준 계산값(간이세액표 × 120%)과 두 줄 모두 정확히 같은지 찾는다.
+ * 같으면 그 수당이 더해지기 전에 계산된 세액이 그대로 남아 있을 가능성이 높다는 근거가 된다(명세서를 연 뒤 변경 여부와 무관).
+ * 지금 지급합계 기준 계산값과 이미 같거나, 비과세 후보 항목이 있거나, 세액 줄이 없으면 null. 화면 안내용 — 값을 바꾸지 않는다.
+ */
+export function findStaleTaxBasis(payments: readonly TaxLine[], deductions: readonly TaxLine[], dependents: number): StaleTaxBasis | null {
+  const income = deductions.find(d => d.label === '근로소득세')
+  const local = deductions.find(d => d.label === '근로지방소득세')
+  if (!income || !local || !(income.amount > 0)) return null
+  if (payments.some(p => (p.amount || 0) !== 0 && isTaxFreeCandidateLabel(p.label))) return null
+  const total = payments.reduce((s, p) => s + (p.amount || 0), 0)
+  const matches = (pay: number) => {
+    const auto = calculateAutoDeductions(pay, dependents)
+    return auto.근로소득세 === income.amount && auto.근로지방소득세 === (local.amount || 0)
+  }
+  if (matches(total)) return null
+  const allowances = payments.filter(p => (p.amount || 0) > 0 && TIME_ALLOWANCE_LABELS.includes(p.label)).map(p => ({ label: p.label, amount: p.amount }))
+  // 많이 뺀 조합부터(수당 전체가 나중에 더해진 경우가 가장 흔함)
+  for (let mask = (1 << allowances.length) - 1; mask >= 1; mask--) {
+    const excluded = allowances.filter((_, i) => mask & (1 << i))
+    const basisPayment = total - excluded.reduce((s, p) => s + p.amount, 0)
+    if (basisPayment > 0 && matches(basisPayment)) return { basisPayment, excluded }
+  }
+  return null
+}
