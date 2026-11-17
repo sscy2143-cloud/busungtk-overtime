@@ -198,7 +198,7 @@ export interface StaleTaxBasis {
 
 /**
  * 지금 세액이 '시간 수당(연장·야간·휴일) 일부를 뺀 지급액' 기준 계산값(간이세액표 × 120%)과 두 줄 모두 정확히 같은지 찾는다.
- * 같으면 그 수당이 더해지기 전에 계산된 세액이 그대로 남아 있을 가능성이 높다는 근거가 된다(명세서를 연 뒤 변경 여부와 무관).
+ * 같으면 그 수당이 더해지기 전 세액이 남아 있을 수 있다는 단서일 뿐, 실제 산정 근거가 확정된 것은 아니다(화면에서도 단정하지 않는다).
  * 지금 지급합계 기준 계산값과 이미 같거나, 비과세 후보 항목이 있거나, 세액 줄이 없으면 null. 화면 안내용 — 값을 바꾸지 않는다.
  */
 export function findStaleTaxBasis(payments: readonly TaxLine[], deductions: readonly TaxLine[], dependents: number): StaleTaxBasis | null {

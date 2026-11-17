@@ -368,7 +368,15 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
   function handleDeductionsChange(next: PayslipLineItem[]) {
     const changedTax = ['근로소득세', '근로지방소득세'].some(label =>
       next.find(d => d.label === label)?.amount !== deductions.find(d => d.label === label)?.amount)
-    if (changedTax) setTaxLocked(true)
+    if (changedTax) {
+      setTaxLocked(true)
+      // 담당자가 세액을 직접 정한 시점의 지급합계·세액이 새 기준(그 뒤 지급항목이 또 바뀌면 다시 안내)
+      setTaxBaseline({
+        payTotal: payments.reduce((s, p) => s + (p.amount || 0), 0),
+        incomeTax: next.find(d => d.label === '근로소득세')?.amount || 0,
+        localTax: next.find(d => d.label === '근로지방소득세')?.amount || 0,
+      })
+    }
     setDeductions(next)
   }
 
@@ -616,6 +624,15 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
     && bonusDiff.current.incomeTax === taxBaseline.incomeTax && bonusDiff.current.localTax === taxBaseline.localTax
   const staleTaxBasis = bonusDiff ? findStaleTaxBasis(payments, deductions, dependents) : null
   const showTaxNotice = !!taxDiff && (taxDiff.kind === 'mismatch' || paymentsChangedSinceOpen || !!staleTaxBasis)
+  //   ③ 새로 작성 중(세액을 아직 직접 정하지 않음)인데 상여·성과급이 있는 경우 — 자동 계산이 멈춰 세액이 상여 입력 전 값(또는 0원)으로 남아 있다
+  const bonusTaxPending = !taxLocked && hasBonus
+    && deductions.some(d => d.label === '근로소득세') && deductions.some(d => d.label === '근로지방소득세')
+  const currentTax = {
+    incomeTax: deductions.find(d => d.label === '근로소득세')?.amount || 0,
+    localTax: deductions.find(d => d.label === '근로지방소득세')?.amount || 0,
+  }
+  // 상여 포함 명세서의 세액이 확인되지 않은 상태 — 저장 전에 한 번 더 묻는다
+  const bonusTaxUnreviewed = bonusTaxPending || (!!bonusDiff && (paymentsChangedSinceOpen || !!staleTaxBasis))
 
   function applyCalculatedTax() {
     if (!taxDiff || taxDiff.kind !== 'mismatch') return
@@ -644,6 +661,15 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
 
   async function handleSave() {
     if (!empId) return
+    if (bonusTaxUnreviewed) {
+      const won = (n: number) => `${n.toLocaleString('ko-KR')}원`
+      const ok = window.confirm(
+        '상여·성과급이 포함된 명세서입니다. 세액은 자동으로 계산되지 않았습니다.\n\n' +
+        `근로소득세: ${won(currentTax.incomeTax)}\n근로지방소득세: ${won(currentTax.localTax)}\n\n` +
+        '이 세액이 확인된 금액이면 [확인], 다시 확인하려면 [취소]를 누르세요.',
+      )
+      if (!ok) return
+    }
     setSaving(true)
     if (existingFilePath) {
       await supabase.storage.from('payslips').remove([existingFilePath])
@@ -680,11 +706,9 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
     setIsDirty(false)
     setChangedFieldLabels([])
     // 저장한 값이 새 기준 — 저장 뒤에는 '지급항목이 바뀌었습니다' 안내를 다시 띄우지 않는다
-    setTaxBaseline(prev => prev && {
-      payTotal: 지급합계,
-      incomeTax: deductions.find(d => d.label === '근로소득세')?.amount || 0,
-      localTax: deductions.find(d => d.label === '근로지방소득세')?.amount || 0,
-    })
+    setTaxBaseline({ payTotal: 지급합계, ...currentTax })
+    // 상여 포함 명세서는 저장한 세액을 담당자가 확인한 값으로 보고 보호한다(다시 열었을 때와 같은 상태)
+    if (hasBonus) setTaxLocked(true)
     baselineRef.current = { payments, deductions, workStart, workEnd, message, adminNote, totalWorkDaysText, baseHoursText, leaveHoursText, etcHoursText }
     alert('저장되었습니다.')
     onSaved?.()
@@ -783,7 +807,7 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
                 ) : (
                   <div>
                     {staleTaxBasis ? (
-                      <p>지금 세액({taxDiff.current.incomeTax.toLocaleString('ko-KR')}원 · {taxDiff.current.localTax.toLocaleString('ko-KR')}원)은 {staleTaxBasis.excluded.map(x => x.label).join('·')} {staleTaxBasis.excluded.reduce((s, x) => s + x.amount, 0).toLocaleString('ko-KR')}원이 빠진 {staleTaxBasis.basisPayment.toLocaleString('ko-KR')}원 기준 금액입니다. 세액을 다시 검토해주세요.</p>
+                      <p>지금 세액({taxDiff.current.incomeTax.toLocaleString('ko-KR')}원 · {taxDiff.current.localTax.toLocaleString('ko-KR')}원)은 {staleTaxBasis.excluded.map(x => x.label).join('·')} {staleTaxBasis.excluded.reduce((s, x) => s + x.amount, 0).toLocaleString('ko-KR')}원을 뺀 {staleTaxBasis.basisPayment.toLocaleString('ko-KR')}원의 간이세액표 계산값과 일치합니다. 실제 산정 기준을 확인하세요.</p>
                     ) : (
                       <p>지급항목이 바뀌었습니다(지급합계 {taxBaseline?.payTotal.toLocaleString('ko-KR')}원 → {taxDiff.totalPayment.toLocaleString('ko-KR')}원). 세액({taxDiff.current.incomeTax.toLocaleString('ko-KR')}원 · {taxDiff.current.localTax.toLocaleString('ko-KR')}원)을 다시 검토해주세요.</p>
                     )}
@@ -796,6 +820,16 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
                   계산값으로 세액 변경
                 </button>
               )}
+            </div>
+          )}
+
+          {bonusTaxPending && (
+            <div data-testid="tax-diff" data-kind="bonus-reference" data-reason="bonus-unreviewed" className="flex items-start gap-1.5 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
+              <AlertTriangle size={14} className="mt-0.5 flex-shrink-0" />
+              <div>
+                <p>상여·성과급이 포함되어 세액을 자동으로 계산하지 않습니다. 지금 세액({currentTax.incomeTax.toLocaleString('ko-KR')}원 · {currentTax.localTax.toLocaleString('ko-KR')}원)은 상여 입력 전 지급액 기준일 수 있습니다.</p>
+                <p className="mt-0.5 text-amber-700">확인된 세액을 공제항목에 직접 입력하세요.</p>
+              </div>
             </div>
           )}
 
