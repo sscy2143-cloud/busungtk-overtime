@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { calculateOvertimeBreakdown } from '../../utils/overtime-calc'
 import { monthRange, countBusinessDays, formatHours } from './payslip-constants'
 import type { InsuranceRow } from '../../utils/insurance-csv'
-import { calculateAutoDeductions } from '../../utils/payroll-deductions'
+import { applyIncomeTax, calcIncomeTax, isBonusLabel } from '../../utils/payroll-deductions'
 import { PayslipView, Watermark, type PayslipLineItem } from './PayslipView'
 import { DEFAULT_CALC_FORMULAS } from './payslip-constants'
 
@@ -40,6 +40,9 @@ interface OvertimeRequestRow {
   planned_end: string
   site_name?: string | null
   reason?: string | null
+  status?: string
+  approved_at?: string | null
+  manager_approved_at?: string | null
 }
 
 interface DrillPopupState {
@@ -49,6 +52,25 @@ interface DrillPopupState {
     bd: ReturnType<typeof calculateOvertimeBreakdown>
     minutes: number
   }>
+  /** 집계에서 빠진 신청(최종 승인 전·대체휴무 전환) — 참고 표시만, 시간·수당에는 넣지 않음 */
+  excluded: Array<{ r: OvertimeRequestRow; minutes: number; why: string }>
+}
+
+/** 이 항목(연장/야간/휴일)에 해당하는 인정 분 — 기존 집계식 그대로 */
+function minutesForType(type: DrillPopupState['type'], bd: ReturnType<typeof calculateOvertimeBreakdown>) {
+  return type === 'extended' ? bd.extendedMinutes :
+    type === 'night' ? bd.nightMinutes :
+    bd.holidayMinutes + bd.holidayOvertimeMinutes + bd.holidayNightMinutes + bd.holidayOvertimeNightMinutes
+}
+
+/** 최종 승인 전 신청의 상태 설명 (2단계 승인: 대표 + 인사담당자) */
+function pendingReason(r: OvertimeRequestRow) {
+  if (r.status === 'manager_approved') {
+    if (r.approved_at && !r.manager_approved_at) return '인사담당자 승인 대기'
+    if (r.manager_approved_at && !r.approved_at) return '대표 승인 대기'
+    return '최종 승인 대기'
+  }
+  return '승인 대기'
 }
 
 const DOW_KO = ['일', '월', '화', '수', '목', '금', '토']
@@ -72,8 +94,12 @@ interface GeneratedPayslipRow {
   admin_note: string | null
   유형?: string
   지급내역?: Array<{ 항목: string; 금액: number; 시간?: number }>
-  공제내역?: Array<{ 항목: string; 금액: number }>
+  공제내역?: SavedDeductionLine[]
 }
+
+// 공제내역 JSON 한 줄. 예전에 저장된 근로소득세 줄에는 산출근거(상여 계산 근거)가 있을 수 있음 —
+// 화면에서는 쓰지 않지만 지우지 않도록 다시 저장할 때 그대로 보존한다.
+interface SavedDeductionLine { 항목: string; 금액: number; 산출근거?: unknown }
 
 const DEFAULT_DEDUCTION_LABELS = ['근로소득세', '근로지방소득세', '국민연금', '건강보험', '장기요양보험', '고용보험']
 
@@ -96,6 +122,11 @@ const HOURLY_RATE_MULTIPLIER: Record<string, number> = {
   '휴일근로수당': 1.5,
 }
 
+/** 시간 스테퍼(±0.5h)와 [승인 내역 시간으로 갱신]이 함께 쓰는 수당 계산: 시간 × 배율 × 시급, 원 단위 반올림 */
+function stepperAmount(label: string, hours: number, hourlyWage: number | undefined) {
+  return Math.round(hours * (HOURLY_RATE_MULTIPLIER[label] ?? 0) * (hourlyWage ?? 0))
+}
+
 function LineItemEditor({
   title, items, onChange, employeeName, onDrill, hourlyWage, originalHours, noDataLabels,
 }: { title: string; items: PayslipLineItem[]; onChange: (items: PayslipLineItem[]) => void; employeeName?: string; onDrill?: (label: string) => void; hourlyWage?: number; originalHours?: Record<string, number>; noDataLabels?: Record<string, boolean> }) {
@@ -106,7 +137,7 @@ function LineItemEditor({
     const rate = HOURLY_RATE_MULTIPLIER[item.label]
     if (!rate) return
     const nextHours = Math.max(0, Math.round(((item.hours ?? 0) + delta) * 2) / 2)
-    const nextAmount = Math.round(nextHours * rate * (hourlyWage ?? 0))
+    const nextAmount = stepperAmount(item.label, nextHours, hourlyWage)
     onChange(items.map((it, idx) => idx === i ? { ...it, hours: nextHours, amount: nextAmount } : it))
   }
 
@@ -133,7 +164,10 @@ function LineItemEditor({
               />
               {hasRate ? (
                 <div className="flex items-center gap-1 shrink-0">
-                  <span className={`w-10 text-right text-xs tabular-nums ${isModified ? 'text-amber-500' : 'text-dark-600'}`}>{(item.hours ?? 0).toFixed(1)}h</span>
+                  <span
+                    className={`w-10 text-right text-xs tabular-nums ${isModified ? 'text-amber-500' : 'text-dark-600'}`}
+                    title={isModified ? `승인된 야근 신청 집계: ${(originalHours?.[item.label] ?? 0).toFixed(1)}h (저장·조정된 시간과 다름)` : undefined}
+                  >{(item.hours ?? 0).toFixed(1)}h</span>
                   <div className="flex flex-col">
                     <button
                       type="button"
@@ -243,8 +277,18 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
   const [payments, setPayments] = useState<PayslipLineItem[]>([{ label: '기본급', amount: 0 }])
   const [deductions, setDeductions] = useState<PayslipLineItem[]>(DEFAULT_DEDUCTION_LABELS.map(label => ({ label, amount: 0 })))
   const [autoOvertime, setAutoOvertime] = useState({ extendedMinutes: 0, nightMinutes: 0, holidayMinutes: 0 })
+  // 저장된 명세서를 불러왔는지 — 저장 시간과 현재 승인 내역 집계를 비교해 차이를 안내하는 데 사용
+  const [loadedFromSaved, setLoadedFromSaved] = useState(false)
   const [dependents, setDependents] = useState(1)
+  // true = 공제항목의 소득세를 자동으로 바꾸지 않음 (저장된 명세서를 연 경우·세액을 직접 고친 경우)
+  const [taxLocked, setTaxLocked] = useState(false)
+  // 저장된 명세서의 근로소득세 줄 (예전 산출근거를 다시 저장할 때 지우지 않고 보존하기 위함)
+  const [savedTaxLine, setSavedTaxLine] = useState<SavedDeductionLine | null>(null)
   const [rawOvertimeRecords, setRawOvertimeRecords] = useState<OvertimeRequestRow[]>([])
+  // 집계에서 빠진 신청 (최종 승인 전·대체휴무 전환) — 상세 팝업에 참고로만 표시
+  const [excludedOvertime, setExcludedOvertime] = useState<Array<{ r: OvertimeRequestRow; why: string }>>([])
+  // 야근 신청 조회 실패 — 실패를 "내역 없음(0시간)"으로 보이지 않게 따로 안내
+  const [overtimeLoadError, setOvertimeLoadError] = useState<string | null>(null)
   const [drillPopup, setDrillPopup] = useState<DrillPopupState | null>(null)
 
   function openDrill(label: string) {
@@ -253,15 +297,15 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
     const records = rawOvertimeRecords
       .map(r => {
         const bd = calculateOvertimeBreakdown(r.date, r.planned_start, r.planned_end)
-        const minutes =
-          type === 'extended' ? bd.extendedMinutes :
-          type === 'night' ? bd.nightMinutes :
-          bd.holidayMinutes + bd.holidayOvertimeMinutes + bd.holidayNightMinutes + bd.holidayOvertimeNightMinutes
-        return { r, bd, minutes }
+        return { r, bd, minutes: minutesForType(type, bd) }
       })
       .filter(({ minutes }) => minutes > 0)
       .sort((a, b) => a.r.date.localeCompare(b.r.date))
-    setDrillPopup({ type, records })
+    const excluded = excludedOvertime
+      .map(({ r, why }) => ({ r, why, minutes: minutesForType(type, calculateOvertimeBreakdown(r.date, r.planned_start, r.planned_end)) }))
+      .filter(({ minutes }) => minutes > 0)
+      .sort((a, b) => a.r.date.localeCompare(b.r.date))
+    setDrillPopup({ type, records, excluded })
   }
 
   const healthInsuranceDataRef = useRef(healthInsuranceData)
@@ -310,17 +354,27 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
   //  반면 4대보험(국민연금/건강보험/장기요양보험/고용보험)은 이미 보수월액 기준으로 미리 고지되는
   //  금액이라 지급항목을 바꿀 때마다 재추정해서 덮어쓰면 안 됨 — 최초 생성 시 1회 추정값만 채우고,
   //  이후엔 직접 수정하거나 4대보험 고지내역 CSV 업로드로만 갱신되도록 둠)
+  // 저장된 명세서를 열었거나 세액을 직접 고친 경우(taxLocked)에는 자동으로 덮어쓰지 않는다(직접 수정만 가능).
+  // 상여·성과급이 있는 달은 지급합계로 세액이 정해지지 않으므로 자동 계산하지 않고 기존 값·직접 입력값을 그대로 둔다.
+  const hasBonus = payments.some(p => (p.amount || 0) !== 0 && isBonusLabel(p.label))
   useEffect(() => {
-    if (!empId) return
-    const totalPayment = payments.reduce((s, p) => s + (p.amount || 0), 0)
-    const auto = calculateAutoDeductions(totalPayment, dependents)
-    setDeductions(prev => prev.map(d =>
-      d.label === '근로소득세' ? { ...d, amount: auto.근로소득세 } :
-      d.label === '근로지방소득세' ? { ...d, amount: auto.근로지방소득세 } :
-      d
-    ))
+    if (!empId || taxLocked || hasBonus) return
+    setDeductions(prev => applyIncomeTax(prev, calcIncomeTax(payments, dependents)))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [payments])
+  }, [payments, dependents, taxLocked, hasBonus])
+
+  function handleDeductionsChange(next: PayslipLineItem[]) {
+    const changedTax = ['근로소득세', '근로지방소득세'].some(label =>
+      next.find(d => d.label === label)?.amount !== deductions.find(d => d.label === label)?.amount)
+    if (changedTax) setTaxLocked(true)
+    setDeductions(next)
+  }
+
+  // 예전에 저장된 근로소득세 줄의 산출근거는 다시 저장해도 지우지 않고 그대로 남긴다
+  function taxLineMeta(d: PayslipLineItem): Partial<SavedDeductionLine> {
+    if (d.label !== '근로소득세' || savedTaxLine?.산출근거 == null) return {}
+    return { 산출근거: savedTaxLine.산출근거 }
+  }
 
   // 근로시간 통계 (수동입력 — 근태 데이터 미연동 항목)
   const [totalWorkDaysText, setTotalWorkDaysText] = useState('')
@@ -382,22 +436,33 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
     async function load() {
       setLoading(true)
       const { start, end } = monthRange(period)
-      const [{ data: slip }, { data: reqs }, { data: compLeave }, payrollInfo, { data: leaves }] = await Promise.all([
+      const [{ data: slip }, { data: reqs, error: reqsError }, { data: compLeave, error: compLeaveError }, payrollInfo, { data: leaves }, { data: notFinalReqs }] = await Promise.all([
         supabase.from('payslips').select('*').eq('employee_id', empId).eq('period', period).maybeSingle<GeneratedPayslipRow>(),
         supabase.from('overtime_requests').select('*').eq('employee_id', empId).eq('status', 'approved').gte('date', start).lte('date', end).returns<OvertimeRequestRow[]>(),
         supabase.from('substitute_history').select('related_request_id').not('related_request_id', 'is', null).returns<{ related_request_id: string | null }[]>(),
         supabase.from('employee_payroll_info').select('dependents_count, base_salary, birth_date').eq('employee_id', empId).maybeSingle<{ dependents_count: number; base_salary: number; birth_date: string | null }>(),
         supabase.from('leave_requests').select('days').eq('employee_id', empId).eq('status', 'approved').gte('start_date', start).lte('end_date', end).returns<{ days: number }[]>(),
+        // 상세 팝업 참고용 — 아직 최종 승인 전인 신청(집계에는 넣지 않음)
+        supabase.from('overtime_requests').select('*').eq('employee_id', empId).in('status', ['pending', 'manager_approved']).gte('date', start).lte('date', end).returns<OvertimeRequestRow[]>(),
       ])
       if (cancelled) return
+      const loadError = reqsError ?? compLeaveError
+      setOvertimeLoadError(loadError ? (loadError.message || '알 수 없는 오류') : null)
       justLoadedRef.current = true
       const empDependents = payrollInfo.data?.dependents_count ?? 1
       setDependents(empDependents)
       setBirthDate(payrollInfo.data?.birth_date ?? '')
 
+      // 저장된 근로소득세 줄(산출근거 보존용)
+      setSavedTaxLine((slip?.지급내역?.length ? (slip.공제내역 ?? []).find(d => d.항목 === '근로소득세') : undefined) ?? null)
+
       const compLeaveIds = new Set((compLeave ?? []).map(r => r.related_request_id))
       const filteredReqs = (reqs ?? []).filter(r => !compLeaveIds.has(r.id))
       setRawOvertimeRecords(filteredReqs)
+      setExcludedOvertime([
+        ...(reqs ?? []).filter(r => compLeaveIds.has(r.id)).map(r => ({ r, why: '대체휴무로 전환' })),
+        ...(notFinalReqs ?? []).map(r => ({ r, why: pendingReason(r) })),
+      ])
       let extendedMinutes = 0, nightMinutes = 0
       let holiday = 0, holidayOT = 0, holidayNight = 0, holidayOTNight = 0
       for (const r of filteredReqs) {
@@ -417,6 +482,7 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
       // '미작성으로 되돌리기'는 유형만 비우고 지급/공제 내역은 남겨두므로,
       // 유형이 아니라 실제 저장된 지급내역이 있는지로 복원 여부를 판단함
       const hasSavedContent = !!(slip?.지급내역 && slip.지급내역.length > 0)
+      setLoadedFromSaved(hasSavedContent)
       if (hasSavedContent && slip) {
         setExistingId(slip.id)
         setExistingFilePath(null)
@@ -436,16 +502,13 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
           ? pays.map(p => ({ label: p.항목, amount: p.금액, hours: p.시간 ?? autoHoursByLabel[p.항목] }))
           : [{ label: '기본급', amount: 0 }]
         setPayments(loadedPayments)
-        const loadedTotal = loadedPayments.reduce((s, p) => s + (p.amount || 0), 0)
-        const autoDed = calculateAutoDeductions(loadedTotal, empDependents)
         const baseDeductions = deds.length ? deds.map(d => ({ label: d.항목, amount: d.금액 })) : DEFAULT_DEDUCTION_LABELS.map(label => ({ label, amount: 0 }))
-        // 소득세만 그 달 지급총액 기준으로 다시 계산하고, 4대보험은 저장된 값을 그대로 유지
-        // (CSV 고지내역 매칭은 아래 applyHealthInsurance에서 별도 처리)
-        const liveDeductions = baseDeductions.map(d =>
-          d.label === '근로소득세' ? { ...d, amount: autoDed.근로소득세 } :
-          d.label === '근로지방소득세' ? { ...d, amount: autoDed.근로지방소득세 } :
-          d
-        )
+        // 저장된 명세서는 소득세를 포함해 저장된 값을 그대로 보여준다(열기만 해서는 세액이 바뀌지 않음).
+        // (이전에는 열 때마다 소득세를 다시 계산해 덮어써서, 직접 고친 세액이 사라졌음)
+        // 세액을 바꾸려면 공제항목에서 직접 수정 → 저장.
+        // 공제내역이 비어 있는 명세서만 계산값으로 채운다. 4대보험은 저장값 유지(CSV 매칭은 applyHealthInsurance).
+        setTaxLocked(deds.length > 0)
+        const liveDeductions = deds.length ? baseDeductions : applyIncomeTax(baseDeductions, calcIncomeTax(loadedPayments, empDependents))
         const savedHealthMatch = employee ? healthInsuranceDataRef.current[employee.name] : undefined
         setDeductions(savedHealthMatch ? applyHealthInsurance(liveDeductions, savedHealthMatch) : liveDeductions)
       } else {
@@ -463,14 +526,10 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
           { label: '휴일근로수당', amount: Math.round(holidayPay), hours: holidayMinutes / 60 },
         ]
         setPayments(autoPayments)
-        const totalPayment = autoPayments.reduce((s, p) => s + (p.amount || 0), 0)
-        const auto = calculateAutoDeductions(totalPayment, empDependents)
+        setTaxLocked(false)
         // 소득세는 라이브 추정치를 기본값으로 채우되, 4대보험은 실제 고지내역(CSV) 없이는
         // 추정하지 않고 0으로 시작 — 아래 applyHealthInsurance에서 CSV 매칭 시에만 채워짐
-        const defaultDeductions = DEFAULT_DEDUCTION_LABELS.map(label => ({
-          label,
-          amount: label === '근로소득세' ? auto.근로소득세 : label === '근로지방소득세' ? auto.근로지방소득세 : 0,
-        }))
+        const defaultDeductions = applyIncomeTax(DEFAULT_DEDUCTION_LABELS.map(label => ({ label, amount: 0 })), calcIncomeTax(autoPayments, empDependents))
         const healthMatch = employee ? healthInsuranceDataRef.current[employee.name] : undefined
         setDeductions(healthMatch ? applyHealthInsurance(defaultDeductions, healthMatch) : defaultDeductions)
       }
@@ -495,6 +554,49 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
     .filter(p => DEFAULT_CALC_FORMULAS[p.label])
     .map(p => ({ label: p.label, formula: DEFAULT_CALC_FORMULAS[p.label] }))
 
+  // 저장된 명세서의 연장·야간·휴일 시간 vs 현재 승인된 야근 신청 집계(calculateOvertimeBreakdown, 기존 규정 그대로).
+  // 명세서를 근무보다 먼저 만들어 0시간이 저장된 경우 등을 담당자가 알 수 있게 표시만 하고, 자동으로 바꾸지 않는다.
+  const approvedHoursByLabel: Record<string, number> = {
+    '연장근로수당': autoOvertime.extendedMinutes / 60,
+    '야간근로수당': autoOvertime.nightMinutes / 60,
+    '휴일근로수당': autoOvertime.holidayMinutes / 60,
+  }
+  const hoursMismatches = loadedFromSaved
+    ? Object.entries(approvedHoursByLabel)
+      .map(([label, approved]) => ({ label, approved, row: payments.find(p => p.label === label) }))
+      .filter(({ approved, row }) => row ? Math.abs((row.hours ?? 0) - approved) > 0.001 : approved > 0)
+      .map(({ label, approved, row }) => {
+        const saved = row ? (row.hours ?? 0) : null
+        const wage = employee?.hourly_wage
+        return {
+          label, approved, saved,
+          amountBefore: row?.amount ?? 0,
+          amountAfter: stepperAmount(label, approved, wage),
+          // 지금 금액이 '지금 시간 × 배율 × 시급'과 다르면 담당자가 금액을 직접 조정한 것으로 본다
+          manualAmount: row != null && (row.amount ?? 0) !== stepperAmount(label, saved ?? 0, wage),
+        }
+      })
+    : []
+
+  // [승인 내역 시간으로 갱신] — 담당자가 누를 때만 시간과 그 수당 금액을 함께 바꾼다(시간 스테퍼와 같은 계산).
+  // 금액을 직접 조정해 둔 항목은 변경 전후 금액을 보여주고 덮어쓸지 확인받는다(취소하면 시간만 갱신, 금액 유지).
+  function applyApprovedHours() {
+    const manual = hoursMismatches.filter(m => m.saved != null && m.manualAmount && m.amountBefore !== m.amountAfter)
+    const won = (n: number) => `${n.toLocaleString('ko-KR')}원`
+    const overwriteManual = manual.length === 0 || window.confirm(
+      '직접 조정된 수당 금액이 있습니다.\n\n' +
+      manual.map(m => `${m.label}: ${won(m.amountBefore)} → ${won(m.amountAfter)}`).join('\n') +
+      '\n\n[확인] 승인 시간 기준 금액으로 바꾸기\n[취소] 시간만 갱신하고 지금 금액 유지',
+    )
+    const byLabel = new Map(hoursMismatches.map(m => [m.label, m]))
+    setPayments(prev => prev.map(p => {
+      const m = byLabel.get(p.label)
+      if (!m) return p
+      const keepAmount = m.manualAmount && !overwriteManual
+      return { ...p, hours: m.approved, amount: keepAmount ? p.amount : m.amountAfter }
+    }))
+  }
+
   const totalPaymentSummary = payments.reduce((s, p) => s + (p.amount || 0), 0)
   const totalDeductionSummary = deductions.reduce((s, d) => s + (d.amount || 0), 0)
   const netPaySummary = totalPaymentSummary - totalDeductionSummary
@@ -518,7 +620,7 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
       employee_id: empId,
       period,
       지급내역: payments.filter(p => p.label).map(p => ({ 항목: p.label, 금액: p.amount || 0, 시간: p.hours })),
-      공제내역: deductions.filter(d => d.label).map(d => ({ 항목: d.label, 금액: d.amount || 0 })),
+      공제내역: deductions.filter(d => d.label).map(d => ({ 항목: d.label, 금액: d.amount || 0, ...taxLineMeta(d) })),
       지급합계,
       공제합계,
       실지급액: 지급합계 - 공제합계,
@@ -601,6 +703,31 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
             <span className="text-lg font-bold text-dark-900">{netPaySummary.toLocaleString('ko-KR')}원</span>
           </div>
 
+          {hoursMismatches.length > 0 && (
+            <div data-testid="hours-mismatch" className="flex flex-wrap items-start justify-between gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
+              <div className="flex items-start gap-1.5 min-w-0">
+                <AlertTriangle size={14} className="mt-0.5 flex-shrink-0" />
+                <div>
+                  <p>저장된 근로시간이 현재 승인된 야근 신청 집계와 다릅니다. (명세서 저장 → 승인 내역)</p>
+                  <p className="mt-0.5 font-medium">
+                    {hoursMismatches.map(m => `${m.label.replace('수당', '')} ${m.saved == null ? '항목 없음' : `${m.saved.toFixed(1)}h`} → ${m.approved.toFixed(1)}h`).join(' · ')}
+                  </p>
+                  {hoursMismatches.some(m => m.saved != null) && (
+                    <p className="mt-0.5" data-testid="hours-mismatch-amounts">
+                      갱신 시 수당: {hoursMismatches.filter(m => m.saved != null).map(m => `${m.label} ${m.amountBefore.toLocaleString('ko-KR')}원 → ${m.amountAfter.toLocaleString('ko-KR')}원${m.manualAmount ? '(직접 조정된 금액)' : ''}`).join(' · ')}
+                    </p>
+                  )}
+                  <p className="mt-0.5 text-amber-700">근거는 각 항목의 [상세]에서 확인하세요. 금액은 시간 증감 버튼과 같은 계산(시간 × 배율 × 시급)이며, 누르기 전에는 바뀌지 않고 저장해야 반영됩니다.</p>
+                </div>
+              </div>
+              {hoursMismatches.some(m => m.saved != null) && (
+                <button type="button" onClick={applyApprovedHours} className="shrink-0 px-2.5 py-1 font-medium text-white bg-amber-500 rounded-lg hover:bg-amber-600">
+                  승인 내역 시간으로 갱신
+                </button>
+              )}
+            </div>
+          )}
+
           <div ref={lineItemSplitRef} className="flex items-start w-full">
             <div style={{ width: `${lineItemSplitPct}%` }} className="min-w-0 pr-2">
               <LineItemEditor
@@ -626,7 +753,7 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
               <LineItemEditor
                 title="공제항목"
                 items={deductions}
-                onChange={setDeductions}
+                onChange={handleDeductionsChange}
                 employeeName={employee?.name}
                 noDataLabels={{
                   '국민연금': !insuranceCsvStatus.nationalPension,
@@ -787,6 +914,11 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
                 <button onClick={() => setDrillPopup(null)} className="p-1.5 rounded-lg hover:bg-dark-100"><X size={18} className="text-dark-500" /></button>
               </div>
               <div className="overflow-y-auto flex-1 divide-y divide-dark-50">
+                {overtimeLoadError && (
+                  <p role="alert" data-testid="drill-load-error" className="px-5 py-3 text-xs text-red-600 bg-red-50">
+                    야근 신청 내역을 불러오지 못했습니다({overtimeLoadError}). 시간이 0으로 보일 수 있으니 새로고침 후 다시 확인해 주세요.
+                  </p>
+                )}
                 {drillPopup.records.length === 0 ? (
                   <p className="px-5 py-8 text-center text-sm text-dark-400">해당 기간 내역이 없습니다</p>
                 ) : drillPopup.records.map(({ r, bd, minutes }) => {
@@ -808,9 +940,33 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
                     </div>
                   )
                 })}
+                {drillPopup.excluded.length > 0 && (
+                  <div className="px-5 py-3 bg-dark-50/60" data-testid="drill-excluded">
+                    <p className="text-xs font-semibold text-dark-500 mb-1.5">집계 제외 {drillPopup.excluded.length}건 — 최종 승인된 신청만 시간·수당에 들어갑니다</p>
+                    {drillPopup.excluded.map(({ r, minutes, why }) => {
+                      const dow = DOW_KO[new Date(r.date + 'T00:00:00+09:00').getDay()]
+                      const mh = Math.floor(minutes / 60), mm = minutes % 60
+                      return (
+                        <div key={r.id} className="flex items-center justify-between py-1 text-xs text-dark-400">
+                          <span>{r.date.slice(5).replace('-', '/')} ({dow}) {r.planned_start} ~ {r.planned_end}</span>
+                          <span className="whitespace-nowrap">{mm === 0 ? `${mh}시간` : `${mh}시간 ${mm}분`} · {why}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
               <div className="px-5 py-3 border-t border-dark-100 flex items-center justify-between bg-dark-50 rounded-b-2xl">
-                <span className="text-xs font-semibold text-dark-600">총 {drillPopup.records.length}건</span>
+                <span className="text-xs font-semibold text-dark-600">
+                  총 {drillPopup.records.length}건
+                  {(() => {
+                    const label = Object.keys(DRILL_LABEL).find(k => DRILL_LABEL[k] === drillPopup.type)
+                    const saved = payments.find(p => p.label === label)?.hours ?? 0
+                    return Math.abs(saved * 60 - totalMinutes) > 0.1
+                      ? <span data-testid="drill-saved-diff" className="ml-2 font-normal text-amber-600">명세서 시간 {saved.toFixed(1)}h와 다름</span>
+                      : null
+                  })()}
+                </span>
                 <span className="text-sm font-bold text-dark-800">{m === 0 ? `${h}시간` : `${h}시간 ${m}분`}</span>
               </div>
             </div>

@@ -115,6 +115,24 @@ export function PayslipView({
   const totalDeduction = deductions.reduce((s, d) => s + d.amount, 0)
   const netPay = totalPayment - totalDeduction
   const [excelLoading, setExcelLoading] = useState(false)
+  const [pdfLoading, setPdfLoading] = useState(false)
+
+  // 일괄 다운로드와 같은 PDF 생성(exportPayslipToPdf)을 그대로 사용 — 디자인·파일명 동일.
+  // payslip-image 가 이 컴포넌트를 import 하므로 순환을 피하려고 눌렀을 때 불러온다.
+  async function handlePdfDownload() {
+    setPdfLoading(true)
+    try {
+      const { exportPayslipToPdf } = await import('../../utils/payslip-image')
+      await exportPayslipToPdf({
+        companyName, period, payDate, employeeName, birthDate, department, position, hireDate,
+        workStart, workEnd, payments, deductions, workStats, calcMethods, message,
+      })
+    } catch (e) {
+      alert('PDF 생성에 실패했습니다: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setPdfLoading(false)
+    }
+  }
 
   async function handleExcelDownload() {
     setExcelLoading(true)
@@ -160,11 +178,12 @@ export function PayslipView({
             {excelLoading ? '생성 중...' : '엑셀 다운로드'}
           </button>
           <button
-            onClick={() => window.print()}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-primary-500 rounded-lg hover:bg-primary-600 transition-colors"
+            onClick={handlePdfDownload}
+            disabled={pdfLoading}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-primary-500 rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50"
           >
             <Printer size={13} />
-            인쇄 / PDF 저장
+            {pdfLoading ? '생성 중...' : '인쇄 / PDF 저장'}
           </button>
         </div>
       )}
