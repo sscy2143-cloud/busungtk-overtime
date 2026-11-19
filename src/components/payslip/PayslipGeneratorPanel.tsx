@@ -631,8 +631,9 @@ export function PayslipGeneratorPanel({ employees, period, onSaved, empId: contr
     incomeTax: deductions.find(d => d.label === '근로소득세')?.amount || 0,
     localTax: deductions.find(d => d.label === '근로지방소득세')?.amount || 0,
   }
-  // 상여 포함 명세서의 세액이 확인되지 않은 상태 — 저장 전에 한 번 더 묻는다
-  const bonusTaxUnreviewed = bonusTaxPending || (!!bonusDiff && (paymentsChangedSinceOpen || !!staleTaxBasis))
+  // 저장 전 확인 — 이번 편집에서 세액 재검토가 필요해진 경우만(새 명세서의 상여 입력, 기준 시점 뒤 지급합계 변경) 묻는다.
+  // 이미 그렇게 저장돼 있던 불일치(staleTaxBasis)는 화면 안내만 하고, 메모·4대보험 등 다른 수정의 저장을 막지 않는다.
+  const bonusTaxUnreviewed = bonusTaxPending || paymentsChangedSinceOpen
 
   function applyCalculatedTax() {
     if (!taxDiff || taxDiff.kind !== 'mismatch') return
