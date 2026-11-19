@@ -43,6 +43,15 @@ describe('015: employees_directory security_invoker 전환', () => {
     expect(await countAs(ALICE, 'authenticated', 'select id from public.employees_directory')).toBe(4)
   })
 
+  it('적용 전 점검 SQL(읽기 전용)이 실행되고, app_private 는 아직 없으며 뷰는 invoker=false 로 보인다', async () => {
+    const res = (await db.exec(sql('보안점검-015-사전.sql'))).filter((x) => x.fields.length > 0)
+    expect(res.length).toBeGreaterThanOrEqual(5)
+    expect(res[0].rows[0]).toMatchObject({ schema_exists: false })
+    expect(res[1].rows).toHaveLength(0)
+    expect(String((res[3].rows[0] as Record<string, unknown>).options)).toContain('security_invoker=false')
+    expect(res[4].rows).toHaveLength(0)
+  })
+
   it('재현: employees RLS 를 그대로 두고 뷰만 security_invoker=true 로 바꾸면 일반 직원은 본인 행 1건만 본다 (명부 기능 파손)', async () => {
     await db.exec('begin')
     await db.exec('alter view public.employees_directory set (security_invoker = true)')
@@ -107,6 +116,43 @@ describe('015: employees_directory security_invoker 전환', () => {
 
   it('원본 employees 는 열리지 않았다: 일반 직원은 여전히 본인 행만, 시급 칼럼 직접 조회 불가', async () => {
     expect(await countAs(ALICE, 'authenticated', 'select id from public.employees')).toBe(1)
+  })
+
+  it('민감정보 차단(실제 권한 모델): 일반 직원은 다른 직원의 시급·2차 인증 해시 행을 못 읽고(RLS 0행), 익명은 employees 자체를 못 읽는다', async () => {
+    await asUser(null)
+    await db.exec(`update public.employees set hourly_wage = 12345, second_auth_hash = 'hash' where id = '${BOSS}'`)
+    // 본인 행은 읽을 수 있는 것이 기존 설계(employees_select_self). 다른 직원의 민감 칼럼은 행 자체가 보이지 않는다.
+    expect(await countAs(ALICE, 'authenticated', `select hourly_wage, second_auth_hash from public.employees where id = '${BOSS}'`)).toBe(0)
+    expect(await countAs(ALICE, 'authenticated', `select hourly_wage from public.employees where id <> '${ALICE}'`)).toBe(0)
+    expect(await countAs(GONE, 'authenticated', 'select hourly_wage from public.employees')).toBeLessThanOrEqual(1)
+    expect(await countAs(NEWBIE, 'authenticated', 'select hourly_wage from public.employees')).toBe(0)
+    expect(await runAs(null, 'anon', 'select hourly_wage from public.employees')).toMatch(/permission denied/)
+    // 명부 뷰와 전용 함수에는 민감 칼럼이 없다
+    expect(await runAs(ALICE, 'authenticated', 'select hourly_wage from app_private.employees_directory_rows()')).toMatch(/does not exist/)
+    expect(await runAs(ALICE, 'authenticated', 'select second_auth_hash from public.employees_directory')).toMatch(/does not exist/)
+    // 015 는 employees 정책을 늘리지 않았다 (전체 조회 정책 없음)
+    const pol = (await db.query<{ p: string }>("select policyname as p from pg_policies where tablename = 'employees'")).rows.map((r) => r.p)
+    expect(pol.some((p) => /group|all|directory/i.test(p))).toBe(false)
+  })
+
+  it('함수 정의 점검: 모든 객체 이름이 스키마 명시이고 search_path 가 고정이라 호출자가 search_path 를 바꿔도 가짜 employees 에 속지 않는다', async () => {
+    const def = (await one<{ d: string }>("select pg_get_functiondef('app_private.employees_directory_rows()'::regprocedure) as d")).d
+    expect(def).toMatch(/SECURITY DEFINER/i)
+    expect(def).toMatch(/SET search_path TO 'pg_catalog', 'public'|SET search_path TO pg_catalog, public/i)
+    const body = def.slice(def.indexOf('AS $'))
+    const targets = [...body.matchAll(/\b(?:from|join)\s+([\w.]+)/gi)].map((m) => m[1])
+    expect(targets.length).toBeGreaterThanOrEqual(2)
+    for (const t of targets) expect(t, `스키마 명시: ${t}`).toMatch(/^public\./)
+    expect(def).toContain('auth.uid()')
+    expect(def).toContain('public.employees')
+    expect(def).toMatch(/is_active = true/)
+    // 공격: 앞쪽 search_path 에 가짜 employees(모든 직원 활성) 를 둔 스키마
+    await db.exec("create schema evil; create table evil.employees as select id, name, department, role, employee_type, true as is_active from public.employees")
+    await asUser(GONE); await db.exec('set role authenticated')
+    try {
+      await db.exec('set search_path = evil, public')
+      expect((await db.query('select * from app_private.employees_directory_rows()')).rows).toHaveLength(0)   // 퇴사자는 여전히 0행
+    } finally { await db.exec('reset search_path'); await db.exec('reset role'); await db.exec('drop schema evil cascade') }
   })
 
   it('전용 함수: definer, search_path 고정, anon·PUBLIC 실행 불가, anon 은 스키마 사용 불가, public 스키마에 새 함수 없음', async () => {
