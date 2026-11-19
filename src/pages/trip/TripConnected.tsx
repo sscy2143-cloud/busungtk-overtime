@@ -31,7 +31,7 @@ export function TripClosedNotice({ title }: { title: string }) {
  *  - employees 목록은 동행자 선택·이름 표시용 (활성 직원의 id·이름·역할만, employees_directory 뷰)
  *  - 공휴일 달력은 서버 계산이 holidays 표로 판단한다. 화면 미리보기는 검증된 달력이 없으면 전부 "관리자 확인" 으로 표시 (NO_CALENDAR)
  */
-export function TripConnected({ children, revalidateKey }: { children: ReactNode; revalidateKey?: number }) {
+export function TripConnected({ children, revalidateKey, quiet = false }: { children: ReactNode; revalidateKey?: number; quiet?: boolean }) {
   const { employee } = useAuth()
   const [employees, setEmployees] = useState<EmployeeRow[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -49,8 +49,9 @@ export function TripConnected({ children, revalidateKey }: { children: ReactNode
     return () => { alive = false }
   }, [employee?.id])
 
-  if (isDemoMode) return <TripClosedNotice title="데모 모드에서는 출장 신청을 쓸 수 없습니다" />
+  if (isDemoMode) return quiet ? null : <TripClosedNotice title="데모 모드에서는 출장 신청을 쓸 수 없습니다" />
   if (!employee) return null
+  if (employees === null && quiet) return null
   if (employees === null) {
     return <div className="mx-auto max-w-lg px-4 pt-4"><p className="text-sm text-dark-500">불러오는 중…</p></div>
   }
@@ -61,10 +62,11 @@ export function TripConnected({ children, revalidateKey }: { children: ReactNode
 
   return (
     <>
-      {loadError && <p className="mx-auto max-w-lg px-4 pt-2 text-xs text-amber-800">직원 목록을 불러오지 못했습니다 — 동행자 선택이 제한됩니다</p>}
+      {loadError && !quiet && <p className="mx-auto max-w-lg px-4 pt-2 text-xs text-amber-800">직원 목록을 불러오지 못했습니다 — 동행자 선택이 제한됩니다</p>}
       <TripRemoteProvider
         key={employee.id}
         revalidateKey={revalidateKey}
+        quiet={quiet}
         baseUrl={import.meta.env.VITE_SUPABASE_URL}
         anonKey={import.meta.env.VITE_SUPABASE_ANON_KEY}
         getAccessToken={getAccessToken}

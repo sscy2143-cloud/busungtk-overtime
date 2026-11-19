@@ -39,6 +39,8 @@ const KNOWN: Record<string, { title: string; action: ErrorAction; hint?: string 
   UNKNOWN_REGION: { title: '등록되지 않은 지역 코드입니다', action: 'fix_input' },
   CALC_INVARIANT: { title: '계산 결과가 검증을 통과하지 못했습니다', action: 'none', hint: '관리자에게 알려 주세요. 입력은 보존되어 있습니다' },
   CALC_DAY_MISMATCH: { title: '계산 결과가 이 신청의 것이 아닙니다', action: 'reload' },
+  DUPLICATE_ID: { title: '저장하지 못했습니다 (내부 번호 중복)', action: 'reload', hint: '새로 불러온 뒤 다시 시도하세요. 입력은 보존되어 있습니다. 계속되면 관리자에게 알려 주세요' },
+  IMMUTABLE: { title: '이미 계산된 결과는 고칠 수 없습니다', action: 'reload' },
   LOCKED: { title: '승인·반려·취소된 신청은 바꿀 수 없습니다', action: 'none' },
   REVIEW_CALC_MISMATCH: { title: '승인 대상 계산 결과가 이 신청의 것이 아닙니다', action: 'reload' },
   STORE_FAILED: { title: '서버에 저장하지 못했습니다', action: 'none', hint: '잠시 후 다시 시도하세요. 입력은 보존되어 있습니다' },

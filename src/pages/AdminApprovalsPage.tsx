@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import type { OvertimeRequest, ApprovalHistory, OvertimeType } from '../types'
 import { REQUEST_STATUS_LABEL, OVERTIME_TYPE_LABEL } from '../types'
+import { TripPendingNotice } from './trip/TripPendingNotice'
 
 
 interface RejectModalState {
@@ -517,6 +518,9 @@ export function AdminApprovalsPage() {
           <span className="text-sm font-semibold text-warning-700">건의 야근 신청이 승인 대기 중입니다</span>
         </div>
       )}
+
+      {/* 출장 검토 대기 알림 — 코드 스위치 OFF·대표 아님이면 아무것도 그리지 않는다 */}
+      <TripPendingNotice />
 
       {/* 페이지 헤더 */}
       <div className="flex items-start justify-between gap-3 flex-wrap">

@@ -27,6 +27,12 @@ export interface TripScreenProviderProps {
   children: ReactNode
 }
 
+/**
+ * 저장소별 ID 순번. 같은 저장소를 여러 제공자가 이어 쓰면(샌드박스에서 사용자를 바꿀 때 제공자가 새로 올라온다) 순번이 0부터 다시 시작해
+ * 'claim-1' 이 겹치고 DUPLICATE_ID 로 저장이 막혔다. 저장소에 순번을 묶어 이어 가고, 새 저장소는 항상 1부터라 테스트 결과는 그대로 결정적이다.
+ */
+const idSeqByRepo = new WeakMap<object, { n: number }>()
+
 /** 기본 인자는 모듈 상수로 둔다 — 렌더마다 새 객체가 생기면 useMemo 가 풀려 메모리 저장소가 새로 만들어진다 */
 const NO_FLAGS: Partial<Record<FeatureKey, boolean>> = Object.freeze({})
 
@@ -49,13 +55,15 @@ export function TripScreenProvider(props: TripScreenProviderProps) {
 
   const svc = useMemo<TripClientService>(() => {
     if (service) return service
-    let seq = 0
+    const theRepo = repo ?? createMemoryRepository()
+    const counter = idSeqByRepo.get(theRepo) ?? { n: 0 }
+    idSeqByRepo.set(theRepo, counter)
     let tick = 0
     const deps: ServiceDeps = {
-      repo: repo ?? createMemoryRepository(),
+      repo: theRepo,
       calendar,
       now: () => sequentialClock(today, tick++),
-      newId: (prefix) => `${prefix}-${++seq}`,
+      newId: (prefix) => `${prefix}-${++counter.n}`,
     }
     const directory = Object.fromEntries(employees.map((e) => [e.id, e.role]))
     const adminActor = employees.find((e) => e.role === 'admin')

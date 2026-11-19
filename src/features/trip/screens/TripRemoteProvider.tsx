@@ -20,6 +20,8 @@ export interface TripRemoteProviderProps {
   computeUrl?: string
   /** 바뀔 때마다 서버 값으로 다시 채운다 (글루가 화면 복귀·주기마다 올린다). 권한 회수·로그아웃이 화면에 남지 않게 하는 용도 */
   revalidateKey?: number
+  /** 기존 화면 안에 끼워 넣는 용도 — 불러오는 중·실패 안내를 그리지 않고 아무것도 보여 주지 않는다 */
+  quiet?: boolean
   children: ReactNode
 }
 
@@ -31,7 +33,7 @@ type Load = { kind: 'loading' } | { kind: 'ready'; info: SyncInfo } | { kind: 'f
  * 스위치가 꺼져 있으면 refresh 는 성공하되 자료가 없고, 화면은 각자 "아직 열리지 않았습니다" 를 보여 준다.
  */
 export function TripRemoteProvider(props: TripRemoteProviderProps) {
-  const { baseUrl, anonKey, getAccessToken, computeUrl, actor, employees, today, calendar, revalidateKey = 0, children } = props
+  const { baseUrl, anonKey, getAccessToken, computeUrl, actor, employees, today, calendar, revalidateKey = 0, quiet = false, children } = props
   // 계정 전환 시 글루가 key={사용자 id} 로 이 제공자를 새로 올리므로 이전 사용자의 거울은 남지 않는다
   const service = useMemo<TripClientService>(
     () => createTripClient(createFetchBackend({ baseUrl, anonKey, getAccessToken, computeUrl }), { calendar }),
@@ -64,6 +66,7 @@ export function TripRemoteProvider(props: TripRemoteProviderProps) {
     return () => { alive = false }
   }, [service, attempt, revalidateKey])
 
+  if (quiet && load.kind !== 'ready') return null
   if (load.kind === 'loading') {
     return <div className="mx-auto max-w-lg px-4 pt-4"><Card title="출장 신청"><NoticeList items={['불러오는 중…']} /></Card></div>
   }

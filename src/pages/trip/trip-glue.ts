@@ -9,7 +9,7 @@
  */
 
 import type { Employee } from '../../types'
-import type { Actor } from '../../features/trip/data'
+import type { Actor, Schedule, TripClaimRecord } from '../../features/trip/data'
 import { TRIP_FEATURE } from '../../features/trip/ui'
 
 export const TRIP_ROUTES = Object.freeze({ employee: '/trip', admin: '/admin/trip' })
@@ -30,4 +30,16 @@ export function todayIso(d: Date = new Date()): string {
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
+}
+
+/** 취소·반려된 출장은 시간을 차지하지 않는다 */
+const ACTIVE: ReadonlyArray<TripClaimRecord['status']> = ['draft', 'submitted', 'returned', 'approved']
+
+export function scheduleCovers(s: Schedule, date: string): boolean {
+  return s.kind === 'day' ? s.date === date : s.startDate <= date && date <= s.endDate
+}
+
+/** 선택한 날짜에 걸친, 아직 유효한 내 출장 건 (순수 함수 — 테스트 대상) */
+export function tripClaimsOnDate(claims: TripClaimRecord[], date: string): TripClaimRecord[] {
+  return claims.filter((c) => ACTIVE.includes(c.status) && scheduleCovers(c.header.schedule, date))
 }

@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase'
 import { OVERTIME_TYPE_LABEL } from '../types'
 import { GroupMemberSelect } from '../components/overtime/GroupMemberSelect'
 import { WeeklyGauge } from '../components/overtime/WeeklyGauge'
+import { TripRequestHint } from './trip/TripRequestHint'
 import {
   calculateOvertimeBreakdown,
   isHolidayDate,
@@ -226,6 +227,9 @@ export function RequestPage() {
               </span>
             </div>
           )}
+
+          {/* 출장수당 안내 — 코드 스위치 OFF 면 아무것도 그리지 않는다 */}
+          <div className="mt-2"><TripRequestHint date={date} /></div>
 
           {date && !autoHoliday && (
             <label className="flex items-center gap-2 mt-2 cursor-pointer">
