@@ -146,3 +146,78 @@ export function applyIncomeTax<T extends TaxLine>(items: T[], calc: IncomeTaxCal
     d
   )
 }
+
+export interface IncomeTaxDifference {
+  /**
+   * 'mismatch' = 일반 급여: 공제항목의 세액이 현재 지급합계 기준 계산값과 다름(담당자가 확인하면 계산값으로 바꿀 수 있음)
+   * 'bonus-reference' = 상여·성과급 포함: 자동 계산 대상이 아니므로 참고값만 제시(확정 세액 아님, 세액은 바꾸지 않음)
+   */
+  kind: 'mismatch' | 'bonus-reference'
+  totalPayment: number
+  current: { incomeTax: number; localTax: number }
+  calculated: { incomeTax: number; localTax: number }
+}
+
+/**
+ * 공제항목에 들어 있는 근로소득세·지방소득세와 현재 지급합계 기준 계산값(간이세액표 × 120%, 10원 미만 절사)을 비교한다.
+ * 화면 안내용 — 값을 바꾸지 않는다. 같으면 null. 비과세 후보 항목이 있으면 과세급여를 알 수 없으므로 비교하지 않는다(null).
+ * 상여·성과급이 있는 달은 지급합계 전체를 한 달 급여로 본 값을 '참고'로만 돌려준다
+ * (시행령 195조: 상여는 지급대상기간과 그 기간의 급여·기원천징수세액으로 계산해야 하므로 확정 세액이 아님).
+ */
+export function compareIncomeTax(payments: readonly TaxLine[], deductions: readonly TaxLine[], dependents: number): IncomeTaxDifference | null {
+  const income = deductions.find(d => d.label === '근로소득세')
+  const local = deductions.find(d => d.label === '근로지방소득세')
+  if (!income || !local) return null
+  const calc = calcIncomeTax(payments, dependents)
+  let kind: IncomeTaxDifference['kind']
+  let calculated: IncomeTaxDifference['calculated']
+  if (calc.holdReason === null && calc.incomeTax != null && calc.localTax != null) {
+    kind = 'mismatch'
+    calculated = { incomeTax: calc.incomeTax, localTax: calc.localTax }
+  } else if (calc.holdReason === 'bonus' && !payments.some(p => (p.amount || 0) !== 0 && isTaxFreeCandidateLabel(p.label))) {
+    const auto = calculateAutoDeductions(calc.totalPayment, dependents)
+    if (auto.근로소득세 == null || auto.근로지방소득세 == null) return null
+    kind = 'bonus-reference'
+    calculated = { incomeTax: auto.근로소득세, localTax: auto.근로지방소득세 }
+  } else {
+    return null
+  }
+  const current = { incomeTax: income.amount || 0, localTax: local.amount || 0 }
+  if (current.incomeTax === calculated.incomeTax && current.localTax === calculated.localTax) return null
+  return { kind, totalPayment: calc.totalPayment, current, calculated }
+}
+
+const TIME_ALLOWANCE_LABELS = ['연장근로수당', '야간근로수당', '휴일근로수당']
+
+export interface StaleTaxBasis {
+  /** 지금 세액과 계산값이 정확히 일치하는 지급액(= 지급합계 − 빠진 수당) */
+  basisPayment: number
+  /** 그 지급액에 들어 있지 않은 시간 수당 */
+  excluded: { label: string; amount: number }[]
+}
+
+/**
+ * 지금 세액이 '시간 수당(연장·야간·휴일) 일부를 뺀 지급액' 기준 계산값(간이세액표 × 120%)과 두 줄 모두 정확히 같은지 찾는다.
+ * 같으면 그 수당이 더해지기 전 세액이 남아 있을 수 있다는 단서일 뿐, 실제 산정 근거가 확정된 것은 아니다(화면에서도 단정하지 않는다).
+ * 지금 지급합계 기준 계산값과 이미 같거나, 비과세 후보 항목이 있거나, 세액 줄이 없으면 null. 화면 안내용 — 값을 바꾸지 않는다.
+ */
+export function findStaleTaxBasis(payments: readonly TaxLine[], deductions: readonly TaxLine[], dependents: number): StaleTaxBasis | null {
+  const income = deductions.find(d => d.label === '근로소득세')
+  const local = deductions.find(d => d.label === '근로지방소득세')
+  if (!income || !local || !(income.amount > 0)) return null
+  if (payments.some(p => (p.amount || 0) !== 0 && isTaxFreeCandidateLabel(p.label))) return null
+  const total = payments.reduce((s, p) => s + (p.amount || 0), 0)
+  const matches = (pay: number) => {
+    const auto = calculateAutoDeductions(pay, dependents)
+    return auto.근로소득세 === income.amount && auto.근로지방소득세 === (local.amount || 0)
+  }
+  if (matches(total)) return null
+  const allowances = payments.filter(p => (p.amount || 0) > 0 && TIME_ALLOWANCE_LABELS.includes(p.label)).map(p => ({ label: p.label, amount: p.amount }))
+  // 많이 뺀 조합부터(수당 전체가 나중에 더해진 경우가 가장 흔함)
+  for (let mask = (1 << allowances.length) - 1; mask >= 1; mask--) {
+    const excluded = allowances.filter((_, i) => mask & (1 << i))
+    const basisPayment = total - excluded.reduce((s, p) => s + p.amount, 0)
+    if (basisPayment > 0 && matches(basisPayment)) return { basisPayment, excluded }
+  }
+  return null
+}

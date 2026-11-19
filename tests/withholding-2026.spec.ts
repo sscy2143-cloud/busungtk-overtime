@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import { WITHHOLDING_TAX_TABLE } from '../src/utils/withholding-tax-table'
 import {
-  lookupWithholdingTax, calculateAutoDeductions, calcIncomeTax, applyIncomeTax,
+  lookupWithholdingTax, calculateAutoDeductions, calcIncomeTax, applyIncomeTax, compareIncomeTax, findStaleTaxBasis,
   WITHHOLDING_MULTIPLIER, NATIONAL_PENSION_RATE, HEALTH_INSURANCE_RATE, LONG_TERM_CARE_RATE_OF_HEALTH, EMPLOYMENT_INSURANCE_RATE,
 } from '../src/utils/payroll-deductions'
 
@@ -132,4 +132,84 @@ test('상여·성과급·비과세 후보가 있으면 자동 계산하지 않�
     assert.notEqual(calc.holdReason, null)
     assert.deepEqual(applyIncomeTax(existing, calc), existing)
   }
+})
+
+// ── 세액 차이 안내(compareIncomeTax) — 저장 뒤 지급액이 바뀐 명세서 ──
+// 사례 금액: 저장 당시 지급액 7,728,693원(기본급+상여금+성과금) → 수당 168,252원 추가 → 7,896,945원, 가족 1명
+const CASE_BEFORE = [{ label: '기본급', amount: 3_091_477 }, { label: '상여금', amount: 1_545_739 }, { label: '성과금', amount: 3_091_477 }]
+const CASE_AFTER = [...CASE_BEFORE, { label: '연장근로수당', amount: 96_144 }, { label: '휴일근로수당', amount: 72_108 }]
+const CASE_SAVED_TAX = [{ label: '근로소득세', amount: 1_075_200 }, { label: '근로지방소득세', amount: 107_520 }, { label: '국민연금', amount: 100_000 }]
+const plain = (items: { label: string; amount: number }[]) => [{ label: '기본급', amount: items.reduce((s, p) => s + p.amount, 0) }]
+
+test('사례 검산: 7,728,693원 → 1,075,200 / 107,520, 7,896,945원 → 1,118,740 / 111,870 (간이세액표 × 120%, 10원 미만 절사)', () => {
+  const before = calculateAutoDeductions(7_728_693, 1)
+  assert.deepEqual([before.근로소득세, before.근로지방소득세], [1_075_200, 107_520])
+  const after = calculateAutoDeductions(7_896_945, 1)
+  assert.deepEqual([after.근로소득세, after.근로지방소득세], [1_118_740, 111_870])
+  assert.equal(CASE_AFTER.reduce((s, p) => s + p.amount, 0), 7_896_945)
+})
+
+test('상여·성과급 포함 명세서: 저장 세액을 바꾸지 않고 참고값만 돌려준다', () => {
+  // 자동 계산은 여전히 하지 않는다(기존 보호 규칙)
+  const calc = calcIncomeTax(CASE_AFTER, 1)
+  assert.equal(calc.incomeTax, null)
+  assert.equal(calc.holdReason, 'bonus')
+  assert.deepEqual(applyIncomeTax(CASE_SAVED_TAX, calc), CASE_SAVED_TAX)
+  const diff = compareIncomeTax(CASE_AFTER, CASE_SAVED_TAX, 1)
+  assert.deepEqual(diff, {
+    kind: 'bonus-reference', totalPayment: 7_896_945,
+    current: { incomeTax: 1_075_200, localTax: 107_520 },
+    calculated: { incomeTax: 1_118_740, localTax: 111_870 },
+  })
+})
+
+test('일반 급여: 지급액이 바뀌어 저장 세액과 계산값이 다르면 mismatch, 확인 후 적용하면 세액 두 줄만 바뀐다', () => {
+  const pays = plain(CASE_AFTER) // 같은 금액이지만 상여 항목 없음
+  const diff = compareIncomeTax(pays, CASE_SAVED_TAX, 1)
+  assert.equal(diff?.kind, 'mismatch')
+  assert.deepEqual(diff?.calculated, { incomeTax: 1_118_740, localTax: 111_870 })
+  const applied = applyIncomeTax(CASE_SAVED_TAX, calcIncomeTax(pays, 1))
+  assert.deepEqual(applied, [{ label: '근로소득세', amount: 1_118_740 }, { label: '근로지방소득세', amount: 111_870 }, { label: '국민연금', amount: 100_000 }])
+  assert.equal(compareIncomeTax(pays, applied, 1), null) // 적용 뒤에는 안내 없음
+})
+
+test('세액이 계산값과 같으면 안내 없음 / 비과세 후보 항목이 있으면 비교하지 않음 / 세액 줄이 없으면 비교하지 않음', () => {
+  assert.equal(compareIncomeTax(plain(CASE_BEFORE), CASE_SAVED_TAX, 1), null)
+  assert.equal(compareIncomeTax(CASE_BEFORE, CASE_SAVED_TAX, 1), null) // 상여 포함이지만 참고값과 같음
+  assert.equal(compareIncomeTax([...plain(CASE_AFTER), { label: '식대', amount: 200_000 }], CASE_SAVED_TAX, 1), null)
+  assert.equal(compareIncomeTax([...CASE_AFTER, { label: '식대', amount: 200_000 }], CASE_SAVED_TAX, 1), null)
+  assert.equal(compareIncomeTax(plain(CASE_AFTER), [{ label: '국민연금', amount: 100_000 }], 1), null)
+})
+
+test('10원 반올림 시절 저장된 세액(1,118,750 / 111,880)은 일반 급여에서 mismatch로 안내된다', () => {
+  const old = [{ label: '근로소득세', amount: 1_118_750 }, { label: '근로지방소득세', amount: 111_880 }]
+  const diff = compareIncomeTax(plain(CASE_AFTER), old, 1)
+  assert.deepEqual(diff?.calculated, { incomeTax: 1_118_740, localTax: 111_870 })
+})
+
+// ── 수당 추가 전 세액이 남았는지 판정(findStaleTaxBasis) — 명세서를 연 뒤 변경 여부와 무관한 근거 ──
+test('사례: 저장 세액 1,075,200 / 107,520 은 연장·휴일수당 168,252원을 뺀 7,728,693원 기준 계산값과 정확히 일치한다', () => {
+  assert.deepEqual(findStaleTaxBasis(CASE_AFTER, CASE_SAVED_TAX, 1), {
+    basisPayment: 7_728_693,
+    excluded: [{ label: '연장근로수당', amount: 96_144 }, { label: '휴일근로수당', amount: 72_108 }],
+  })
+})
+
+test('근거가 없으면 판정하지 않는다: 수당이 없거나, 지금 지급합계 기준과 같거나, 따로 정한 세액이거나, 비과세 후보·세액 줄 없음', () => {
+  assert.equal(findStaleTaxBasis(CASE_BEFORE, CASE_SAVED_TAX, 1), null) // 수당 없음(지금 지급합계 기준과 같음)
+  const matched = [{ label: '근로소득세', amount: 1_118_740 }, { label: '근로지방소득세', amount: 111_870 }]
+  assert.equal(findStaleTaxBasis(CASE_AFTER, matched, 1), null) // 지금 지급합계 기준과 같음
+  const custom = [{ label: '근로소득세', amount: 640_000 }, { label: '근로지방소득세', amount: 64_000 }]
+  assert.equal(findStaleTaxBasis(CASE_AFTER, custom, 1), null) // 다른 방식으로 정한 세액 — 어긋났다고 단정할 근거 없음
+  assert.equal(findStaleTaxBasis([...CASE_AFTER, { label: '식대', amount: 200_000 }], CASE_SAVED_TAX, 1), null)
+  assert.equal(findStaleTaxBasis(CASE_AFTER, [{ label: '국민연금', amount: 100_000 }], 1), null)
+  assert.equal(findStaleTaxBasis(CASE_AFTER, [{ label: '근로소득세', amount: 0 }, { label: '근로지방소득세', amount: 0 }], 1), null)
+})
+
+test('수당 중 일부만 나중에 더해진 경우도 찾는다(휴일수당만 빠진 7,824,837원 기준)', () => {
+  const partial = calculateAutoDeductions(7_896_945 - 72_108, 1)
+  const whole = calculateAutoDeductions(7_896_945, 1)
+  assert.notEqual(partial.근로소득세, whole.근로소득세)
+  const r = findStaleTaxBasis(CASE_AFTER, [{ label: '근로소득세', amount: partial.근로소득세! }, { label: '근로지방소득세', amount: partial.근로지방소득세! }], 1)
+  assert.deepEqual(r, { basisPayment: 7_824_837, excluded: [{ label: '휴일근로수당', amount: 72_108 }] })
 })
