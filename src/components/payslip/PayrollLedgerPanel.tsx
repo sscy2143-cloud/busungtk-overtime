@@ -6,6 +6,7 @@ import { planInsuranceBulkApply, type BulkApplySlip } from '../../utils/insuranc
 import { PayslipGeneratorPanel, type GeneratorEmployee } from './PayslipGeneratorPanel'
 import { calculateOvertimeBreakdown } from '../../utils/overtime-calc'
 import { exportPayrollLedgerToExcel } from '../../utils/payroll-ledger-excel'
+import { ledgerEmployees } from '../../utils/payroll-ledger-employees'
 import { exportPayslipToExcel } from '../../utils/payslip-excel'
 import { exportPayslipToPdf, exportPayslipToImage } from '../../utils/payslip-image'
 import { DEFAULT_CALC_FORMULAS, monthRange, countBusinessDays } from './payslip-constants'
@@ -236,7 +237,7 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
     onSaved?.()
   }
 
-  const rows: LedgerRow[] = employees.filter(e => e.is_active).map(emp => {
+  const rows: LedgerRow[] = ledgerEmployees(employees, summaries).map(emp => {
     const slip = summaries[emp.id]
     if (slip?.유형 === 'generated') {
       return { employee: emp, status: 'generated', totalPayment: slip.지급합계 ?? 0, totalDeduction: slip.공제합계 ?? 0, netPay: slip.실지급액 ?? 0 }
@@ -670,6 +671,9 @@ export function PayrollLedgerPanel({ employees, onSaved }: PayrollLedgerPanelPro
                           >
                             {r.employee.name}
                           </button>
+                          {!r.employee.is_active && (
+                            <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-dark-100 text-dark-500">퇴직</span>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-xs text-dark-400">{r.employee.department}</td>
                         <td className="px-4 py-3 text-center text-xs text-dark-500">{r.employee.hire_date ?? '-'}</td>
