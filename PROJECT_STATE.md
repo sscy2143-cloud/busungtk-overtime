@@ -1,12 +1,13 @@
 # PROJECT_STATE — 부성티케이 근태관리 (busungtk-overtime-int2)
 
 > 간결한 현재 상태만 기록한다. 출장수당 세부 이력·규정·결정 근거는 `docs/출장수당/HANDOFF.md`(기존 상태 문서)를 기준으로 하고 여기서 중복해 쓰지 않는다.
-> 마지막 갱신: 2026-11-23 · 작업 종료 때마다 갱신한다.
+> 마지막 갱신: 2026-11-25 · 작업 종료 때마다 갱신한다.
 
 ## 버전
-- Production: master `208d05e` (사용자 확인값). 로컬 `origin/master` 는 `02e18a3` 까지 진행돼 있어 통합 브랜치의 기준과 다르다 — 배포 전 재확인.
-- 개발 브랜치: `integration/trip-on-d15` @ `36bd91f` (작업 트리 깨끗, push 안 함)
-- 015 employees_directory 보안 SQL: 운영 적용·검증 완료, 로컬 커밋 `97a3c3b`·`4e8bd5c` 보존
+- Production: master `208d05e` (사용자 확인값). 2026-11-25 fetch 기준 `origin/master` 는 `02e18a3`(통합 브랜치와 서로 갈라짐) — 배포 전 재확인.
+- 개발 브랜치: `integration/trip-on-d15` (T10 `36bd91f` 이후 문서 커밋, push 안 함)
+- 015 employees_directory 보안 SQL: 운영 적용됨. 2026-11-25 사용자 실행 읽기 전용 점검 통과 — 뷰 security_invoker=true(칼럼 6개·갱신 불가·anon 조회 불가), invoker 아닌 public 뷰 0, 전용 함수 definer·search_path 고정·anon 실행 불가·인증/재직 검사, public definer 67·anon 실행 0, employees RLS 유지(그룹 전체 조회 정책 없음), employees 트리거 5개 전부 활성, 출장 스위치 ON 0 (`보안점검-015-사후-한번에.sql`)
+- 015 남은 확인(미검증): Security Advisor 0010 사라짐, Data API Exposed schemas 에 app_private 없음, 일반 직원 계정의 야근 그룹 직원 목록 표시
 
 ## 완료·검증된 것
 - T0~T7: 계산 엔진(규정 19개 사례), 데이터·클라이언트·서버 재계산, 직원 신청·관리자 검토 화면, 앱 연결 글루, DB·RPC·RLS 운영 적용
