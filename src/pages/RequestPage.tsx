@@ -80,18 +80,6 @@ export function RequestPage() {
   const [toast, setToast] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
-  interface NotionSchedule {
-    id: string
-    title: string
-    date: string
-    siteName: string
-    workTitle: string
-    status: string
-  }
-  const [schedules, setSchedules] = useState<NotionSchedule[]>([])
-  const [scheduleLoading, setScheduleLoading] = useState(false)
-  const [selectedScheduleId, setSelectedScheduleId] = useState('')
-
   useEffect(() => {
     async function fetchEmployees() {
       // D14: 직원 선택 목록은 이름 목록 뷰(employees_directory, 008a)에서 읽는다 — base 표의 시급·인증 정보는 일반 직원에게 열리지 않는다
@@ -100,41 +88,12 @@ export function RequestPage() {
         .select('id, name, department')
         .eq('is_active', true)
         .neq('id', employee?.id ?? '')
-        .not('name', 'in', '("이름 테스트")')
+        .not('name', 'in', '("이름 테스트","김은숙")')
         .order('name')
       if (data) setAllEmployees(data)
     }
     if (employee?.id) fetchEmployees()
   }, [employee?.id])
-
-  useEffect(() => {
-    async function fetchSchedules() {
-      setScheduleLoading(true)
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        const res = await fetch('/api/notion-schedules', {
-          headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
-        })
-        if (res.ok) {
-          const { schedules: items } = await res.json()
-          setSchedules(items ?? [])
-        }
-      } catch { /* 실패해도 무시 */ }
-      setScheduleLoading(false)
-    }
-    fetchSchedules()
-  }, [])
-
-  function handleScheduleSelect(scheduleId: string) {
-    setSelectedScheduleId(scheduleId)
-    if (!scheduleId) return
-    const s = schedules.find(s => s.id === scheduleId)
-    if (!s) return
-    if (s.date) setDate(s.date)
-    if (s.siteName) setSiteName(s.siteName)
-    if (s.workTitle) setWorkDetails(s.workTitle)
-    setForceHoliday(false)
-  }
 
   const autoHoliday = date ? isHolidayDate(date) : false
   const holidayName = date ? getHolidayName(date) : null
@@ -240,48 +199,6 @@ export function RequestPage() {
       )}
 
       <form onSubmit={handleConfirm} className="space-y-5">
-        {/* 노션 스케줄 선택 */}
-        {schedules.length > 0 && (
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className={labelClass}>
-                <span className="flex items-center gap-1.5">
-                  <Calendar size={15} className="text-primary-500" />
-                  노션 작업 일정
-                </span>
-              </label>
-              <a
-                href="notion://www.notion.so/5feec1e4b2284dffb3428a3f130dfa0d"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-primary-500 hover:underline"
-              >
-                노션 바로가기
-              </a>
-            </div>
-            <div className="relative">
-              <select
-                value={selectedScheduleId}
-                onChange={(e) => handleScheduleSelect(e.target.value)}
-                className={`${inputClass} appearance-none pr-8`}
-              >
-                <option value="">일정을 선택하거나 아래에서 직접 입력하세요</option>
-                {schedules.map(s => (
-                  <option key={s.id} value={s.id}>
-                    {s.date.slice(5).replace('-', '/')} — {s.title}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-dark-300 pointer-events-none" />
-            </div>
-            <p className="text-xs text-dark-400 mt-1.5">노션에 등록된 최근 2주치 작업 일정입니다.</p>
-            <p className="text-xs text-dark-400 mt-0.5">선택하면 날짜, 현장명, 내용이 자동으로 채워집니다.</p>
-          </div>
-        )}
-        {scheduleLoading && (
-          <p className="text-xs text-dark-400">스케줄 불러오는 중...</p>
-        )}
-
         {/* 날짜 */}
         <div>
           <label className={labelClass}>
