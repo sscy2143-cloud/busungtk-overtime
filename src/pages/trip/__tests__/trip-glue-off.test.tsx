@@ -1,5 +1,5 @@
 /**
- * 글루 페이지 — 코드 스위치가 꺼진 기본 상태(TRIP_FEATURE 전부 false).
+ * 글루 페이지 — 코드 스위치가 꺼진 상태(TRIP_FEATURE 전부 false 로 가짜 주입). 운영 기본값은 2026-11-25 부터 켜짐.
  * 기존 앱 컨텍스트·DB 클라이언트는 가짜로 바꾸고, react-dom/server 로 그려 서버 호출이 전혀 없는지 본다.
  */
 import { describe, expect, it, vi } from 'vitest'
@@ -10,6 +10,10 @@ const { getSession, from, auth } = vi.hoisted(() => ({
   from: vi.fn(),
   auth: { employee: { id: 'emp-1', name: '김직원', role: 'employee' as 'employee' | 'manager' | 'admin' } },
 }))
+vi.mock('../../../features/trip/ui', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('../../../features/trip/ui')>()
+  return { ...mod, TRIP_FEATURE: Object.freeze({ employeeForm: false, adminReview: false }) }
+})
 vi.mock('../../../lib/supabase', () => ({ isDemoMode: false, supabase: { auth: { getSession }, from } }))
 vi.mock('../../../contexts/AuthContext', () => ({ useAuth: () => auth }))
 vi.mock('react-router-dom', () => ({ useNavigate: () => () => {} }))
@@ -18,7 +22,7 @@ import { TripEmployeePage } from '../TripEmployeePage'
 import { AdminTripPage } from '../AdminTripPage'
 import { TRIP_ROUTES, todayIso, tripActorOf, tripScreenOpen } from '../trip-glue'
 
-describe('코드 스위치 OFF (기본값)', () => {
+describe('코드 스위치 OFF', () => {
   it('스위치 상수는 전부 꺼져 있다', () => {
     expect(tripScreenOpen('employeeForm')).toBe(false)
     expect(tripScreenOpen('adminReview')).toBe(false)
