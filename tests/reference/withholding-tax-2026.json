@@ -704,7 +704,7 @@
   }
  ],
  "withholdingRate": 1.2,
- "rounding": "근로소득세 = 간이세액 × 120% 의 10원 미만 절사, 지방소득세 = 근로소득세 × 10% 의 10원 미만 절사",
+ "rounding": "1천만원 초과 계산식 결과(100%)는 먼저 10원 미만 절사, 근로소득세 = 간이세액 × 120% 의 10원 미만 절사, 지방소득세 = 근로소득세 × 10% 의 10원 미만 절사 (2026-11-25 홈택스 간이세액 조회로 확인)",
  "hometaxCases": [
   {
    "name": "김민기(홈택스 조회)",
@@ -714,6 +714,9 @@
    "simpleTax100": 932290,
    "incomeTax120": 1118740,
    "localTax": 111870
-  }
+  },
+  { "name": "홈택스 조회 2026-11-25 (1천만원 초과·합성 금액)", "monthlyTaxable": 10001238, "dependents": 2, "children8to20": 0, "simpleTax100": 1456990, "incomeTax120": 1748380, "localTax": 174830 },
+  { "name": "홈택스 조회 2026-11-25 (1천만원 초과·합성 금액)", "monthlyTaxable": 10002475, "dependents": 1, "children8to20": 0, "simpleTax100": 1533240, "incomeTax120": 1839880, "localTax": 183980 },
+  { "name": "홈택스 조회 2026-11-25 (1천만원 초과·합성 금액)", "monthlyTaxable": 10192308, "dependents": 1, "children8to20": 0, "simpleTax100": 1598360, "incomeTax120": 1918030, "localTax": 191800 }
  ]
 }

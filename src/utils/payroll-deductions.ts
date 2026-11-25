@@ -56,7 +56,9 @@ export function lookupWithholdingTax(monthlySalaryWon: number, dependents: numbe
   const famIdx = Math.min(11, Math.max(1, Math.trunc(dependents)))
   if (monthlySalaryWon >= 10_000_000) {
     const base = TAX_AT_10M[famIdx - 1]
-    return monthlySalaryWon === 10_000_000 ? base : base + overTenMillionAddition(monthlySalaryWon)
+    // 계산식 결과는 원 미만이 남으므로 100% 세액을 먼저 10원 미만 절사한다(홈택스 간이세액 조회와 동일).
+    // 예) 10,002,475원·가족1: 1,533,248.93 → 1,533,240 → ×120% 1,839,888 → 1,839,880
+    return monthlySalaryWon === 10_000_000 ? base : floorTo10(base + overTenMillionAddition(monthlySalaryWon))
   }
   const salaryThousand = monthlySalaryWon / 1000
   const row = WITHHOLDING_TAX_TABLE.find(r => salaryThousand >= r[0] && salaryThousand < r[1])

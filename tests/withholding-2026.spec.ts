@@ -24,7 +24,8 @@ const refSimple = (won: number, fam: number): number => {
     const base = REF.taxAt10M[fam - 1]
     if (won === 10_000_000) return base
     const b = REF.over10MBrackets.find(x => x.upTo == null || won <= x.upTo)!
-    return base + b.base + (won - b.from) * b.rate + b.plus
+    // 홈택스: 계산식 100% 세액을 먼저 10원 미만 절사
+    return Math.floor((base + b.base + (won - b.from) * b.rate + b.plus) / 10 + 1e-6) * 10
   }
   const k = won / 1000
   const row = REF.rows.find(r => k >= r[0] && k < r[1])!
@@ -32,7 +33,7 @@ const refSimple = (won: number, fam: number): number => {
 }
 const oldRound10 = (n: number) => Math.round(n / 10) * 10
 
-test('홈택스 기준: 김민기 7,896,945원·가족 1명 → 100% 932,290 / 120% 1,118,740 / 지방 111,870', () => {
+test('홈택스 조회값과 일치: 김민기 7,896,945원 + 1천만원 초과 3건(100%·120%·지방세)', () => {
   for (const c of REF.hometaxCases) {
     assert.equal(lookupWithholdingTax(c.monthlyTaxable, c.dependents), c.simpleTax100, c.name)
     const a = calculateAutoDeductions(c.monthlyTaxable, c.dependents)
@@ -86,7 +87,7 @@ test('770천원 미만은 0원, 10,000천원 정확히는 표의 10,000천원 �
   }
 })
 
-test('1,000만원 초과 별표2 계산식: 각 구간 경계 ±1원·중간값 × 가족 1~11명', () => {
+test('1,000만원 초과 별표2 계산식(100% 10원 절사 → ×120% 10원 절사): 각 구간 경계 ±1원·중간값 × 가족 1~11명', () => {
   const points: number[] = [10_000_001, 10_192_308, 12_345_678]
   for (const b of REF.over10MBrackets) {
     points.push(b.from + 1)
@@ -96,9 +97,10 @@ test('1,000만원 초과 별표2 계산식: 각 구간 경계 ±1원·중간값 
   for (const won of points) for (let fam = 1; fam <= 11; fam++) {
     const simple = refSimple(won, fam)
     const got = lookupWithholdingTax(won, fam)!
-    assert.ok(Math.abs(got - simple) < 1e-6, `${won} fam${fam} ${got} vs ${simple}`)
+    assert.equal(got, simple, `${won} fam${fam} 100%`)
+    assert.equal(simple % 10, 0)
     const a = calculateAutoDeductions(won, fam)
-    const inc = Math.floor(Math.round(simple * 1.2 * 1e6) / 1e7) * 10
+    const inc = expIncome(simple)
     assert.equal(a.근로소득세, inc, `${won} fam${fam} 소득세`)
     assert.equal(a.근로지방소득세, expLocal(inc), `${won} fam${fam} 지방세`)
   }
