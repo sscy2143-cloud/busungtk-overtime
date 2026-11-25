@@ -24,6 +24,8 @@ export interface TripScreenContext {
   /** 화면 상태가 바뀌어 다시 그려야 할 때 — 메모리 저장소는 변경 알림이 없으므로 호출자가 올린다 */
   revision: number
   bump: () => void
+  /** 계산 근거(표준 이동 구간·자정 넘김 판단)를 신청 화면에서도 보여 줄지 — 대표·인사담당만 true (화면 표시용, 권한 아님) */
+  showCalcDetails: boolean
 }
 
 export const TripContext = createContext<TripScreenContext | null>(null)

@@ -74,6 +74,8 @@ export function TripConnected({ children, revalidateKey, quiet = false }: { chil
         employees={list}
         today={todayIso()}
         calendar={NO_CALENDAR}
+        // 계산 근거(표준 이동 구간·자정 넘김 판단)는 대표·인사담당에게만 보인다 (2026-11-25 사용자 요청). 일반 직원·팀장(직원)에게는 숨김
+        showCalcDetails={employee.role === 'admin' || employee.role === 'manager'}
       >
         {children}
       </TripRemoteProvider>

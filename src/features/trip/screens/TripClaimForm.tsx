@@ -27,7 +27,7 @@ interface Props {
  * 근무 유형은 고르지 않는다. 지역·일정·현장 시각·점심만 기본 입력이다.
  */
 export function TripClaimForm({ claimId, onSubmitted, onBack }: Props) {
-  const { service, actor, calendar, today, bump } = useTrip()
+  const { service, actor, calendar, today, bump, showCalcDetails } = useTrip()
   const [state, dispatch] = useReducer(formReducer, claimId, (id): TripFormState => {
     if (!id) return initialFormState(today)
     const r = service.myClaim(actor, id)
@@ -145,7 +145,7 @@ export function TripClaimForm({ claimId, onSubmitted, onBack }: Props) {
             </fieldset>
             <div className="mt-4 border-t border-dark-100 pt-3">
               <p className="mb-2 text-xs font-semibold text-dark-500">인정시간 미리보기 {state.dirty && state.saved ? '(저장 전 값)' : ''}</p>
-              <DayPreviewCard preview={buildDayPreview({ classification: c.classification, result: c.result })} />
+              <DayPreviewCard preview={buildDayPreview({ classification: c.classification, result: c.result })} showDetails={showCalcDetails} />
             </div>
           </Card>
         )

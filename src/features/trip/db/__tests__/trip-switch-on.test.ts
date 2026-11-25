@@ -12,10 +12,10 @@ it('운영 스위치 켜기 SQL: 화면 두 스위치만 켜지고 재직 대표
   await db.exec(r('적용-단일실행본-출장수당.sql'))
   await db.exec("insert into public.employees (id, name, role, is_active) values ('00000000-0000-0000-0000-00000000000b','대표','admin',true),('00000000-0000-0000-0000-00000000000a','퇴사대표','admin',false)")
   await db.exec(r('운영-스위치-켜기.sql'))
-  const f = (await db.query<any>('select key, enabled from public.trip_feature_flags order by key')).rows
-  const h = (await db.query<any>('select key, changed_by from public.trip_feature_flag_history order by key')).rows
+  const f = (await db.query<{ key: string; enabled: boolean }>('select key, enabled from public.trip_feature_flags order by key')).rows
+  const h = (await db.query<{ key: string; changed_by: string }>('select key, changed_by from public.trip_feature_flag_history order by key')).rows
   expect(f).toEqual([{ key: 'admin_review', enabled: true }, { key: 'employee_form', enabled: true }, { key: 'payroll_apply', enabled: false }])
-  const admins = (await db.query<any>("select id from public.employees where role = 'admin' and is_active")).rows.map((x: any) => x.id)
+  const admins = (await db.query<{ id: string }>("select id from public.employees where role = 'admin' and is_active")).rows.map((x) => x.id)
   expect(h).toHaveLength(2)
-  expect(h.every((x: any) => admins.includes(x.changed_by))).toBe(true) // 재직 대표만, 퇴사 대표(…0a) 아님
+  expect(h.every((x) => admins.includes(x.changed_by))).toBe(true) // 재직 대표만, 퇴사 대표(…0a) 아님
 }, 60000)

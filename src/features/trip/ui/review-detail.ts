@@ -42,7 +42,7 @@ export interface ClaimDetailView {
   proposedNote?: string
 }
 
-const EMPTY_PREVIEW: DayPreview = { heading: '계산 전', prompts: [], errors: [], rows: [], standardTravel: [], notices: [], flags: [] }
+const EMPTY_PREVIEW: DayPreview = { heading: '계산 전', prompts: [], errors: [], rows: [], standardTravel: [], notices: [], staffNotices: [], flags: [] }
 
 const rangeText = (r: { start: number; end: number }) => formatHours(r.end - r.start)
 const carryText = (c: { work?: { start: number; end: number }; travel: { start: number; end: number }[] }) =>

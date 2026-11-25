@@ -23,6 +23,8 @@ export interface DayPreview {
   /** 계산에 쓴 표준 이동 구간 — 실제 시각이 아님 */
   standardTravel: string[]
   notices: string[]
+  /** 담당자(대표·인사담당)에게만 보이는 안내 — 자정 넘김 자동 판단(AUTO_NEXT_DAY) 등 */
+  staffNotices: string[]
   flags: { title: string; kind: string; message: string }[]
   /** 미확정 규칙이 있으면 안내 */
   proposedNote?: string
@@ -37,7 +39,8 @@ export function buildDayPreview(calc: Pick<TripCalcRecord, 'classification' | 'r
     errors: [],
     rows: [],
     standardTravel: [],
-    notices: cls.notices.map((n) => n.message),
+    notices: cls.notices.filter((n) => n.code !== 'AUTO_NEXT_DAY').map((n) => n.message),
+    staffNotices: cls.notices.filter((n) => n.code === 'AUTO_NEXT_DAY').map((n) => n.message),
     flags: [],
   }
   if (!result) return base

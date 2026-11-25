@@ -30,7 +30,7 @@ const claim = (over: Record<string, unknown>) => ({
 const ctx = (service: Record<string, unknown>, actorRole: 'admin' | 'employee' = 'admin'): TripScreenContext => ({
   service: service as never, actor: { id: actorRole === 'admin' ? 'boss' : 'emp-1', role: actorRole },
   employees: [{ id: 'emp-1', name: '김직원' }, { id: 'emp-2', name: '박직원' }, { id: 'boss', name: '대표' }],
-  calendar: { verified: false } as never, today: '2026-11-12', revision: 0, bump: () => {},
+  calendar: { verified: false } as never, today: '2026-11-12', revision: 0, bump: () => {}, showCalcDetails: false,
 })
 const wrap = (value: TripScreenContext, node: ReactNode) => renderToStaticMarkup(<TripContext.Provider value={value}>{node}</TripContext.Provider>)
 

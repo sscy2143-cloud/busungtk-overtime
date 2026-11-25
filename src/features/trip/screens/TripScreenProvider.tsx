@@ -24,6 +24,8 @@ export interface TripScreenProviderProps {
   grantEligible?: string[]
   /** 바깥(원격 제공자)이 거울을 다시 채웠을 때 올리는 번호 — 화면 revision 에 더해져 다시 그려진다 */
   revisionSeed?: number
+  /** 계산 근거 표시 여부. 기본: admin 이면 true */
+  showCalcDetails?: boolean
   children: ReactNode
 }
 
@@ -50,7 +52,7 @@ function sequentialClock(today: IsoDate, n: number): string {
  * 시간·ID 생성은 결정적(순번)이라 같은 조작이면 같은 결과가 난다.
  */
 export function TripScreenProvider(props: TripScreenProviderProps) {
-  const { actor, employees, today, calendar = NO_CALENDAR, flags = NO_FLAGS, repo, service, viewGrants, grantEligible, revisionSeed = 0, children } = props
+  const { actor, employees, today, calendar = NO_CALENDAR, flags = NO_FLAGS, repo, service, viewGrants, grantEligible, revisionSeed = 0, showCalcDetails, children } = props
   const [revision, setRevision] = useState(0)
 
   const svc = useMemo<TripClientService>(() => {
@@ -80,7 +82,8 @@ export function TripScreenProvider(props: TripScreenProviderProps) {
     today,
     revision: revision + revisionSeed,
     bump: () => setRevision((r) => r + 1),
-  }), [svc, actor, employees, calendar, today, revision, revisionSeed])
+    showCalcDetails: showCalcDetails ?? actor.role === 'admin',
+  }), [svc, actor, employees, calendar, today, revision, revisionSeed, showCalcDetails])
 
   return <TripContext value={value}>{children}</TripContext>
 }

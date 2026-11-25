@@ -25,9 +25,9 @@ function seeded(calendar: HolidayCalendar = TEST_CALENDAR) {
   return { repo, submitted, other }
 }
 
-function render(ui: React.ReactNode, opts: { actor: Actor; repo?: TripRepository; flags?: Record<string, boolean>; calendar?: HolidayCalendar }) {
+function render(ui: React.ReactNode, opts: { actor: Actor; repo?: TripRepository; flags?: Record<string, boolean>; calendar?: HolidayCalendar; showCalcDetails?: boolean }) {
   return renderToStaticMarkup(
-    <TripScreenProvider actor={opts.actor} employees={EMPLOYEES} today={MON} repo={opts.repo} flags={opts.flags} calendar={opts.calendar}>
+    <TripScreenProvider actor={opts.actor} employees={EMPLOYEES} today={MON} repo={opts.repo} flags={opts.flags} calendar={opts.calendar} showCalcDetails={opts.showCalcDetails}>
       {ui}
     </TripScreenProvider>,
   )
@@ -68,7 +68,7 @@ describe('직원 화면', () => {
 
   it('기존 신청을 열면 입력과 미리보기(기준 사례 2시간 확정, 중간일 제안값)가 보인다', () => {
     const { repo, submitted } = seeded()
-    const html = render(<TripClaimForm claimId={submitted.id} />, { actor: alice, repo, flags: { employeeForm: true }, calendar: TEST_CALENDAR })
+    const html = render(<TripClaimForm claimId={submitted.id} />, { actor: alice, repo, flags: { employeeForm: true }, calendar: TEST_CALENDAR, showCalcDetails: true })
     expect(html).toContain('숙박 출장 가는 날 · 평일')
     expect(html).toContain('숙박 출장 중간일 · 평일')
     expect(html).toContain('관리자 확인 필요')
@@ -92,6 +92,19 @@ describe('직원 화면', () => {
     expect(html).toMatch(/disabled=""[^>]*>제출</)
     const far = render(<TripClaimForm />, { actor: alice, flags: { employeeForm: true } })
     expect(far).not.toContain(NEAR_ONLY_MESSAGE)
+  })
+
+  it('계산 근거(표준 이동 구간·자정 넘김 판단)는 대표·인사담당에게만 — 일반 직원 신청 화면에서는 숨김', () => {
+    const repo = createMemoryRepository()
+    const svc = createTripService({ repo, calendar: TEST_CALENDAR, now: () => 'x', newId: (p) => `${p}-d` })
+    const c = unwrap(svc.createClaim(alice, { header: dayHeader(['대전'], MON), entries: [siteEntry(MON, '22:00', '03:30')] }))
+    const staff = render(<TripClaimForm claimId={c.id} />, { actor: alice, repo, flags: { employeeForm: true }, calendar: TEST_CALENDAR, showCalcDetails: true })
+    const plain = render(<TripClaimForm claimId={c.id} />, { actor: alice, repo, flags: { employeeForm: true }, calendar: TEST_CALENDAR, showCalcDetails: false })
+    expect(staff).toContain('계산에 쓴 표준 이동 구간')
+    expect(staff).toContain('다음 날로 보았습니다')
+    expect(plain).not.toContain('계산에 쓴 표준 이동 구간')
+    expect(plain).not.toContain('다음 날로 보았습니다')
+    expect(plain).toContain('인정시간 미리보기') // 시간 자체는 직원에게도 보인다
   })
 
   it('남의 신청은 열 수 없다', () => {
