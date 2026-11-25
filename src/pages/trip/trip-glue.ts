@@ -12,7 +12,7 @@ import type { Employee } from '../../types'
 import type { Actor, Schedule, TripClaimRecord } from '../../features/trip/data'
 import { TRIP_FEATURE } from '../../features/trip/ui'
 
-export const TRIP_ROUTES = Object.freeze({ employee: '/trip', admin: '/admin/trip' })
+export const TRIP_ROUTES = Object.freeze({ employee: '/request?type=trip', admin: '/admin/trip' })
 
 /** 출장 기능의 역할: employees.role 의 admin 만 관리자, manager 는 직원 (api/trip-compute · client 와 같은 규칙) */
 export function tripActorOf(employee: Pick<Employee, 'id' | 'role'>): Actor {
@@ -43,3 +43,7 @@ export function scheduleCovers(s: Schedule, date: string): boolean {
 export function tripClaimsOnDate(claims: TripClaimRecord[], date: string): TripClaimRecord[] {
   return claims.filter((c) => ACTIVE.includes(c.status) && scheduleCovers(c.header.schedule, date))
 }
+
+/** 연장근무 신청 화면의 근무 장소. 사무실·외부 현장은 기존 야근 양식, 출장만 출장수당 양식 */
+export type WorkKind = 'office' | 'field' | 'trip'
+export const parseWorkKind = (v: string | null): WorkKind => (v === 'trip' || v === 'field' ? v : 'office')

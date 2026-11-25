@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { AlertTriangle, Users, Calendar, Clock, Info, ChevronDown } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -7,6 +7,10 @@ import { OVERTIME_TYPE_LABEL } from '../types'
 import { GroupMemberSelect } from '../components/overtime/GroupMemberSelect'
 import { WeeklyGauge } from '../components/overtime/WeeklyGauge'
 import { TripRequestHint } from './trip/TripRequestHint'
+import { TripConnected } from './trip/TripConnected'
+import { parseWorkKind, tripScreenOpen, type WorkKind } from './trip/trip-glue'
+import { WorkKindPicker } from './trip/WorkKindPicker'
+import { EmployeeTripScreen } from '../features/trip/screens'
 import {
   calculateOvertimeBreakdown,
   isHolidayDate,
@@ -14,7 +18,31 @@ import {
   formatMinutes,
 } from '../utils/overtime-calc'
 
+/**
+ * 연장근무 신청. 출장 코드 스위치가 켜져 있으면 맨 위에서 근무 장소(사무실·외부 현장·출장)를 고른다.
+ *  - 사무실·외부 현장 → 기존 야근 양식 그대로 (저장·계산·승인 로직 변경 없음, 외부 현장은 출장수당 대상 아님)
+ *  - 출장 → 출장수당 양식 (별도 저장·서버 계산·대표 검토, 급여 반영 OFF)
+ * 스위치가 꺼져 있으면 예전 화면과 똑같다.
+ */
 export function RequestPage() {
+  const [params, setParams] = useSearchParams()
+  if (!tripScreenOpen('employeeForm')) return <OvertimeRequestForm />
+  const kind = parseWorkKind(params.get('type'))
+  const pick = (k: WorkKind) => setParams(k === 'office' ? {} : { type: k }, { replace: true })
+  return (
+    <div className="pb-24">
+      <div className="max-w-lg mx-auto px-4 pt-6">
+        <h1 className="text-xl font-bold text-dark-900 mb-4">연장근무 신청</h1>
+        <WorkKindPicker value={kind} onChange={pick} />
+      </div>
+      {kind === 'trip'
+        ? <TripConnected><EmployeeTripScreen startAt="list" /></TripConnected>
+        : <OvertimeRequestForm key={kind} embedded />}
+    </div>
+  )
+}
+
+function OvertimeRequestForm({ embedded = false }: { embedded?: boolean }) {
   const { employee } = useAuth()
   const navigate = useNavigate()
 
@@ -183,8 +211,8 @@ export function RequestPage() {
   const labelClass = "block text-sm font-semibold text-dark-700 mb-1.5"
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-6 pb-24">
-      <h1 className="text-xl font-bold text-dark-900 mb-6">야근 제출</h1>
+    <div className={embedded ? 'max-w-lg mx-auto px-4 pb-24' : 'max-w-lg mx-auto px-4 py-6 pb-24'}>
+      {!embedded && <h1 className="text-xl font-bold text-dark-900 mb-6">야근 제출</h1>}
 
       {/* 주간 게이지 */}
       <div data-tour="overtime-gauge" className="mb-6">

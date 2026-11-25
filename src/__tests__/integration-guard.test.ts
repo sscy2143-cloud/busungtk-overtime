@@ -51,8 +51,8 @@ describe('기존 급여·야근 라우트 원형 유지', () => {
 })
 
 describe('출장 라우트·메뉴는 코드 스위치 뒤에 있다', () => {
-  it('라우트 2개: 직원은 로그인 영역, 관리자는 AdminRoute 안', () => {
-    expect(route('trip')).toBe('<TripEmployeePage />')
+  it('라우트: 직원 출장은 연장근무 신청의 출장 선택으로 넘김(2026-11-25), 관리자는 AdminRoute 안', () => {
+    expect(route('trip')).toBe('<Navigate to="/request?type=trip" replace />')
     expect(route('admin/trip')).toBe('<AdminRoute><AdminTripPage /></AdminRoute>')
     expect(route('trip/all')).toBe('<TripViewerPage />')
     expect(app.indexOf('path="trip/all"')).toBeGreaterThan(app.indexOf('<ProtectedRoute><ActiveEmployeeGuard><AppLayout />'))
@@ -60,11 +60,11 @@ describe('출장 라우트·메뉴는 코드 스위치 뒤에 있다', () => {
   })
   it('사이드바 항목은 TRIP_FEATURE 조건 안에만 있다', () => {
     expect(sidebar).toContain("import { TRIP_FEATURE } from '../../features/trip/ui'")
-    expect(sidebar).toMatch(/\{TRIP_FEATURE\.employeeForm && \(\s*<NavLink to="\/trip"/)
+    // 직원 출장 신청 메뉴는 없앴다 — 연장근무 신청 화면 안의 '출장' 선택으로 들어간다 (2026-11-25)
+    expect(sidebar).not.toMatch(/<NavLink to="\/trip"/)
     expect(sidebar).toMatch(/\{TRIP_FEATURE\.adminReview && isSuperAdmin && \(\s*<NavLink to="\/admin\/trip"/)
     // 조회 권한자 메뉴는 코드 스위치 + 서버 권한(useTripViewGrant) + admin 제외 조건 안에만
     expect(sidebar).toMatch(/\{TRIP_FEATURE\.adminReview && tripViewGranted && !isSuperAdmin && \(\s*<NavLink to="\/trip\/all"/)
-    expect(sidebar.match(/to="\/trip"/g)).toHaveLength(1)
     expect(sidebar.match(/to="\/trip\/all"/g)).toHaveLength(1)
     expect(sidebar.match(/to="\/admin\/trip"/g)).toHaveLength(1)
   })

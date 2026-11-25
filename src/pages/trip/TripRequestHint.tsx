@@ -21,7 +21,7 @@ export function HintBody({ date }: { date: string }) {
       )}
       <Link to={TRIP_ROUTES.employee} className="flex min-h-11 items-center gap-2 rounded-xl border border-dark-200 bg-white px-4 py-3 text-sm text-dark-700 hover:border-primary-400">
         <Briefcase size={16} className="text-primary-600" />
-        <span>외부 현장 출장이었나요? <span className="font-semibold text-primary-700">출장으로 신청하기</span> — 지역별 이동시간은 자동으로 계산됩니다</span>
+        <span>출장수당 대상 출장이었나요? <span className="font-semibold text-primary-700">출장으로 신청하기</span> — 지역별 이동시간은 자동으로 계산됩니다</span>
       </Link>
     </div>
   )

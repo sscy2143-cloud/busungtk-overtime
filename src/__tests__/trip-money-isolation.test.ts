@@ -19,11 +19,16 @@ describe('출장 ↔ 급여 격리', () => {
     },
   )
 
-  it('야근 신청·승인 화면은 출장 안내 컴포넌트만 연결한다 (그 밖의 출장 참조 없음)', () => {
-    for (const [f, comp] of [['pages/RequestPage.tsx', 'TripRequestHint'], ['pages/AdminApprovalsPage.tsx', 'TripPendingNotice']] as const) {
+  it('야근 신청·승인 화면은 정해진 출장 연결 부품만 쓴다 (출장 표·조회 직접 참조 없음)', () => {
+    const allowed: Record<string, string[]> = {
+      // 2026-11-25: 신청 화면 맨 위 근무 장소 선택 + 출장일 때 출장 화면을 통째로 끼움 (야근 양식·저장 로직은 그대로)
+      'pages/RequestPage.tsx': ['./trip/TripRequestHint', './trip/TripConnected', './trip/trip-glue', './trip/WorkKindPicker', 'features/trip'],
+      'pages/AdminApprovalsPage.tsx': ['./trip/TripPendingNotice'],
+    }
+    for (const [f, want] of Object.entries(allowed)) {
       const t = read(f)
-      const refs = t.match(/features\/trip|pages\/trip|\.\/trip\/[A-Za-z]+/g) ?? []
-      expect(refs, f).toEqual([`./trip/${comp}`])
+      const refs = t.match(/features\/trip|pages\/trip|\.\/trip\/[A-Za-z-]+/g) ?? []
+      expect(refs, f).toEqual(want)
       expect(t).not.toMatch(/trip_(claims|day_calcs|claim_days)|reviewQueue|myClaims/)
     }
   })

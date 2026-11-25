@@ -151,13 +151,7 @@ const superAdminNav: NavItem[] = []
                 <FilePlus size={16} />
                 연장근무 신청
               </NavLink>
-              {/* 출장 신청 — 코드 스위치가 켜진 뒤에만 보인다 (메뉴 숨김은 차단이 아니다. 차단은 서버 스위치가 한다) */}
-              {TRIP_FEATURE.employeeForm && (
-                <NavLink to="/trip" className={subNavLinkClass}>
-                  <Plane size={16} />
-                  출장 신청
-                </NavLink>
-              )}
+              {/* 출장 신청은 연장근무 신청 화면 안의 '출장' 선택으로 합쳤다 (2026-11-25) */}
               {TRIP_FEATURE.adminReview && tripViewGranted && !isSuperAdmin && (
                 <NavLink to="/trip/all" className={subNavLinkClass}>
                   <Plane size={16} />

@@ -56,7 +56,7 @@ describe('글루 도우미', () => {
     expect(todayIso(new Date(2026, 0, 1, 0, 5))).toBe('2026-01-01')
   })
   it('라우트 상수', () => {
-    expect(TRIP_ROUTES).toEqual({ employee: '/trip', admin: '/admin/trip' })
+    expect(TRIP_ROUTES).toEqual({ employee: '/request?type=trip', admin: '/admin/trip' })
   })
 })
 

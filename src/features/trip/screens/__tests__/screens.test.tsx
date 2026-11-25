@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import {
   createMemoryRepository, createTripService, type Actor, type HolidayCalendar, type ServiceDeps, type TripRepository,
 } from '../../data'
+import { NEAR_ONLY_MESSAGE } from '../TripClaimForm'
 import { MON, TEST_CALENDAR, TUE, alice, bob, boss, dayHeader, siteEntry, stayHeader, unwrap } from '../../data/__tests__/fixtures'
 import { AdminTripReview, ClaimReviewDetail, EmployeeTripScreen, MyTripClaims, TripClaimForm, TripRemoteProvider, TripScreenProvider, TripViewGrantsAdmin, TripViewerScreen, WorkRequestEntry } from '..'
 
@@ -74,6 +75,23 @@ describe('직원 화면', () => {
     expect(html).toContain('계산에 쓴 표준 이동 구간: 06:00~08:00')
     expect(html).not.toContain('>제출<') // 제출된 건은 수정·제출 버튼 없음
     expect(html).toContain('신청 취소')
+  })
+
+  it('연장근무 신청 안에 끼울 때(startAt=list)는 종류 선택 단계 없이 내 출장 목록부터 보인다', () => {
+    const html = render(<EmployeeTripScreen startAt="list" />, { actor: alice, flags: { employeeForm: true } })
+    expect(html).not.toContain('근무 종류 선택')
+    expect(html).not.toContain('어떤 근무를 신청하나요')
+  })
+
+  it('근거리 지역(서울·인천·경기남부)만 고르면 출장수당 대상 아님 안내, 저장·제출 막힘', () => {
+    const repo = createMemoryRepository()
+    const svc = createTripService({ repo, calendar: TEST_CALENDAR, now: () => 'x', newId: (p) => `${p}-n` })
+    const near = unwrap(svc.createClaim(alice, { header: dayHeader(['서울'], MON), entries: [siteEntry(MON, '08:00', '19:00')] }))
+    const html = render(<TripClaimForm claimId={near.id} />, { actor: alice, repo, flags: { employeeForm: true }, calendar: TEST_CALENDAR })
+    expect(html).toContain(NEAR_ONLY_MESSAGE)
+    expect(html).toMatch(/disabled=""[^>]*>제출</)
+    const far = render(<TripClaimForm />, { actor: alice, flags: { employeeForm: true } })
+    expect(far).not.toContain(NEAR_ONLY_MESSAGE)
   })
 
   it('남의 신청은 열 수 없다', () => {

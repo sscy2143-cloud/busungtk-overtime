@@ -6,9 +6,12 @@ import {
 import { useTrip } from './context'
 import { Button, Card, ErrorBanner, Field, NoticeList, inputClass } from './parts'
 import { RegionPicker } from './RegionPicker'
+import { REGIONS } from '../engine'
 import { DayEntryEditor } from './DayEntryEditor'
 import { DayPreviewCard } from './DayPreviewCard'
 import { CompanionInvite } from './CompanionInvite'
+
+export const NEAR_ONLY_MESSAGE = "서울·인천·경기남부(근거리)만 고르면 출장수당 대상이 아닙니다. 연장근무 신청에서 ‘외부 현장’으로 신청하세요"
 
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -37,6 +40,8 @@ export function TripClaimForm({ claimId, onSubmitted, onBack }: Props) {
 
   const computed = previewDays(state, calendar)
   const blockers = submitBlockers(state, computed)
+  // 외부 현장(근거리: 서울·인천·경기남부)은 출장수당 대상이 아니다 — 연장근무 신청의 '외부 현장'으로 신청한다
+  const nearOnly = state.header.regions.length > 0 && state.header.regions.every((r) => Object.hasOwn(REGIONS, r) && REGIONS[r].kind === 'excluded')
   const editable = !state.saved || state.saved.status === 'draft' || state.saved.status === 'returned'
   const weekResult = state.saved ? service.weeklyCheck(actor, state.entries[0].date) : null
   const week = weekResult?.ok ? weekResult.value : null
@@ -101,6 +106,7 @@ export function TripClaimForm({ claimId, onSubmitted, onBack }: Props) {
       <Card title="어디로, 언제">
         <fieldset disabled={!editable} className="space-y-3">
           <RegionPicker value={state.header.regions} onChange={(regions) => dispatch({ type: 'setRegions', regions })} />
+          {nearOnly && <NoticeList tone="warn" items={[NEAR_ONLY_MESSAGE]} />}
           <div className="flex gap-2">
             {(['day', 'stay'] as const).map((k) => (
               <label key={k} className={`flex min-h-11 flex-1 cursor-pointer items-center justify-center rounded-lg border text-sm ${sched.kind === k ? 'border-primary-500 bg-primary-50 text-primary-800' : 'border-dark-300 text-dark-700'}`}>
@@ -157,8 +163,8 @@ export function TripClaimForm({ claimId, onSubmitted, onBack }: Props) {
             <p className="text-xs text-dark-500">{blockers.join(' · ')}</p>
           )}
           <div className="flex gap-2">
-            {editable && <Button kind="secondary" onClick={save} disabled={busy || (state.saved ? !state.dirty : false)}>{state.saved ? '저장' : '저장하고 계속'}</Button>}
-            {editable && <Button onClick={submit} disabled={busy || blockers.length > 0}>제출</Button>}
+            {editable && <Button kind="secondary" onClick={save} disabled={busy || nearOnly || (state.saved ? !state.dirty : false)}>{state.saved ? '저장' : '저장하고 계속'}</Button>}
+            {editable && <Button onClick={submit} disabled={busy || nearOnly || blockers.length > 0}>제출</Button>}
             {state.saved && ['draft', 'submitted', 'returned'].includes(state.saved.status) && <Button kind="danger" onClick={cancel} disabled={busy}>신청 취소</Button>}
           </div>
         </div>

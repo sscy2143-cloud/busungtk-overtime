@@ -36,7 +36,6 @@ import { UserGuidePage } from './pages/UserGuidePage'
 import { SettingsPage } from './pages/SettingsPage'
 import { ForcePasswordChangePage } from './pages/ForcePasswordChangePage'
 // 출장수당 (T7 글루). 코드 스위치 TRIP_FEATURE 와 서버 스위치 trip_feature_flags 가 모두 꺼져 있어 안내만 보인다
-import { TripEmployeePage } from './pages/trip/TripEmployeePage'
 import { AdminTripPage } from './pages/trip/AdminTripPage'
 import { TripViewerPage } from './pages/trip/TripViewerPage'
 
@@ -81,7 +80,7 @@ export default function App() {
           <Route path="leave/request" element={<LeaveRequestPage />} />
           <Route path="notifications" element={<NotificationsPage />} />
           <Route path="expenses" element={<ExpensePage />} />
-          <Route path="trip" element={<TripEmployeePage />} />
+          <Route path="trip" element={<Navigate to="/request?type=trip" replace />} />
           <Route path="trip/all" element={<TripViewerPage />} />
           {/* 직원용 급여명세서 화면은 열지 않는다 (2026-11-03 핫픽스).
               직접 주소 입력·새로고침·뒤로가기 모두 대시보드로 보낸다.

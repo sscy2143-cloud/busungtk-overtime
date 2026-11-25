@@ -37,9 +37,9 @@ export function WorkRequestEntry({ onPickOvertime, onPickTrip }: { onPickOvertim
 type View = { name: 'entry' } | { name: 'list' } | { name: 'form'; claimId?: string }
 
 /** 직원 쪽 전체 흐름: 입구 → 목록 → 양식. 기능이 닫혀 있으면 안내만 보여 준다 */
-export function EmployeeTripScreen({ onPickOvertime }: { onPickOvertime?: () => void }) {
+export function EmployeeTripScreen({ onPickOvertime, startAt = 'entry' }: { onPickOvertime?: () => void; startAt?: 'entry' | 'list' }) {
   const { service, revision } = useTrip()
-  const [view, setView] = useState<View>({ name: 'entry' })
+  const [view, setView] = useState<View>(startAt === 'list' ? { name: 'list' } : { name: 'entry' })
   const feature = service.featureState('employeeForm')
 
   if (!feature.enabled) {
@@ -58,7 +58,7 @@ export function EmployeeTripScreen({ onPickOvertime }: { onPickOvertime?: () => 
     case 'list':
       return (
         <div>
-          <div className="mx-auto max-w-lg px-4 pt-2"><Button kind="ghost" onClick={() => setView({ name: 'entry' })}>← 근무 종류 선택</Button></div>
+          {startAt === 'entry' && <div className="mx-auto max-w-lg px-4 pt-2"><Button kind="ghost" onClick={() => setView({ name: 'entry' })}>← 근무 종류 선택</Button></div>}
           <MyTripClaims key={revision} onOpen={(claimId) => setView({ name: 'form', claimId })} onNew={() => setView({ name: 'form' })} />
         </div>
       )
