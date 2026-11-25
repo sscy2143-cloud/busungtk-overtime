@@ -7,7 +7,7 @@
 - Production: master `208d05e` (사용자 확인값). 2026-11-25 fetch 기준 `origin/master` 는 `02e18a3`(통합 브랜치와 서로 갈라짐) — 배포 전 재확인.
 - 개발 브랜치: **`integration/trip-t10-on-master`** (작업트리 `busungtk-overtime-t10-master`). 2026-11-25 `origin/master` `d3fa845` 위에 `integration/trip-on-d15` 의 7커밋(015 SQL·T10 `36bd91f`·문서)을 충돌 없이 다시 얹음 → T10 은 `1ea2ac4`. vitest 691/691(+출장 적용 확인 4건), tsc 0, 빌드 성공, 바뀐 파일 lint 원 브랜치와 동일. **push 안 함**
 - 이전 개발 브랜치 `integration/trip-on-d15` 는 master 와 갈라져 있어 더 쓰지 않는다(보존만)
-- 출장 DB 적용 확인: `docs/출장수당/T5-DB-초안/보안점검-출장-적용확인-한번에.sql` (읽기 전용, 사용자 SQL Editor 실행 대기)
+- 출장 DB 적용 확인 **통과** (2026-11-25 사용자 실행, `보안점검-출장-적용확인-한번에.sql`): applied=true, 표 14/14, RLS 꺼진 표 0, anon 표 조회 0, 출장 함수 41·anon 실행 0, 스위치 3개 전부 false, payroll_apply 잠금 제약 있음, 출장 신청 0건, employees.position 칼럼 있음 → 추가 DB 실행 불필요
 - 미정 규정 결정 자료: `docs/출장수당/미정규정-결정자료.md` (결정 대기)
 - 015 employees_directory 보안 SQL: 운영 적용됨. 2026-11-25 사용자 실행 읽기 전용 점검 통과 — 뷰 security_invoker=true(칼럼 6개·갱신 불가·anon 조회 불가), invoker 아닌 public 뷰 0, 전용 함수 definer·search_path 고정·anon 실행 불가·인증/재직 검사, public definer 67·anon 실행 0, employees RLS 유지(그룹 전체 조회 정책 없음), employees 트리거 5개 전부 활성, 출장 스위치 ON 0 (`보안점검-015-사후-한번에.sql`)
 - 015 남은 확인(미검증): Security Advisor 0010 사라짐, Data API Exposed schemas 에 app_private 없음, 일반 직원 계정의 야근 그룹 직원 목록 표시
