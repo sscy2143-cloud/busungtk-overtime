@@ -84,7 +84,16 @@ function sectionBody(key: SectionKey, entry: DayEntry, onPatch: (p: Partial<DayE
         </label>
       )
     case 'office':
-      return <TimeRange value={entry.office} onChange={(office) => onPatch({ office })} labelStart="사무실 시작" labelEnd="사무실 종료" />
+      return (
+        <div className="space-y-2">
+          <TimeRange value={entry.office} onChange={(office) => onPatch({ office })} labelStart="사무실 시작" labelEnd="사무실 종료" />
+          <p className="text-xs text-dark-500" data-testid="office-hint">
+            현장에 가기 전이나 다녀온 뒤, 같은 날 사무실에서 일한 시간을 적습니다.
+            예: 사무실 09:00~13:00 근무 후 현장으로 출발 → 사무실 시작 09:00, 종료 13:00.
+            이동시간은 지역 표준시간으로 자동 계산되니 따로 적지 않아도 됩니다.
+          </p>
+        </div>
+      )
     case 'noSiteWork':
       return (
         <div className="space-y-2">
