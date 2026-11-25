@@ -1,7 +1,6 @@
 import { formSections, visibleSections, type FormSection, type SectionKey } from '../ui'
 import type { ClaimHeader, Classification, DayEntry } from '../data'
 import { Field, TimeRange, inputClass } from './parts'
-import { RegionPicker } from './RegionPicker'
 
 interface Props {
   header: ClaimHeader
@@ -60,10 +59,7 @@ export function DayEntryEditor({ header, entry, classification, onPatch }: Props
           <summary className="cursor-pointer text-sm text-dark-600">추가 상황 (해당할 때만)</summary>
           <div className="mt-3 space-y-4">
             {optional.filter((s) => !shownKeys.has(s.key)).map(render)}
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-dark-700">{SECTION_TITLE.regions}</p>
-              <RegionPicker label="이날 방문 지역 (비우면 출장 공통 지역)" value={entry.regions ?? []} onChange={(r) => onPatch({ regions: r.length ? r : undefined })} />
-            </div>
+            {/* '이날만 다른 지역' 입력은 2026-11-25 사용자 요청으로 화면에서 뺐다 — 지역은 위의 출장 공통 지역 하나로 입력 */}
           </div>
         </details>
       )}
