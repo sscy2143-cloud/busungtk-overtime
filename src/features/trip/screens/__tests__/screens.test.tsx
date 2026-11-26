@@ -52,7 +52,7 @@ describe('직원 화면', () => {
     expect(html).toContain('지역을 고르세요')
     expect(html).toContain('당일 출장')
     expect(html).toContain('현장 시작')
-    expect(html).toContain('점심시간(1시간)을 썼습니다')
+    expect(html).not.toContain('점심시간(1시간)을 썼습니다') // 체크 상자 없음 — 항상 1시간을 빼고 미리보기에 휴게시간으로 표시
     expect(html).toContain('추가 상황 (해당할 때만)')
     // 사무실 근무는 예외 입력 — 접힌 "추가 상황" 안에만 있다
     expect(html.indexOf('사무실 시작')).toBeGreaterThan(html.indexOf('추가 상황 (해당할 때만)'))
@@ -105,6 +105,23 @@ describe('직원 화면', () => {
     expect(plain).not.toContain('계산에 쓴 표준 이동 구간')
     expect(plain).not.toContain('다음 날로 보았습니다')
     expect(plain).toContain('인정시간 미리보기') // 시간 자체는 직원에게도 보인다
+  })
+
+  it('휴게시간: 입력 칸 위가 아니라 인정시간 미리보기 아래 체크 상자, 기본 체크 + 미리보기에 휴게시간 1시간 / 해제하면 0시간', () => {
+    const repo = createMemoryRepository()
+    let seq = 0
+    const svc = createTripService({ repo, calendar: TEST_CALENDAR, now: () => 'x', newId: (p) => `${p}-b${++seq}` })
+    const on = unwrap(svc.createClaim(alice, { header: dayHeader(['대전'], MON), entries: [siteEntry(MON, '08:00', '17:00')] }))
+    const html = render(<TripClaimForm claimId={on.id} />, { actor: alice, repo, flags: { employeeForm: true }, calendar: TEST_CALENDAR })
+    expect(html.indexOf('휴게시간 1시간을 썼습니다')).toBeGreaterThan(html.indexOf('인정시간 미리보기'))
+    expect(html).toMatch(/data-testid="break-check"[^]*?checked=""/)
+    const breakRow = (h: string) => h.split('data-testid="break-row"')[1]?.split('</tr>')[0] ?? ''
+    expect(breakRow(html)).toContain('>1시간<')
+    const off = unwrap(svc.createClaim(bob, { header: dayHeader(['대전'], MON), entries: [{ ...siteEntry(MON, '08:00', '17:00'), lunchTaken: false }] }))
+    const html2 = render(<TripClaimForm claimId={off.id} />, { actor: bob, repo, flags: { employeeForm: true }, calendar: TEST_CALENDAR })
+    expect(breakRow(html2)).toContain('>0시간<')
+    expect(html2).not.toMatch(/data-testid="break-check"[^>]*>\s*<input[^>]*checked=""/)
+    expect(html2).toContain('연장')
   })
 
   it('남의 신청은 열 수 없다', () => {

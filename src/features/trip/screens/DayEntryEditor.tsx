@@ -73,12 +73,8 @@ function sectionBody(key: SectionKey, entry: DayEntry, onPatch: (p: Partial<DayE
     case 'site':
       return <TimeRange value={entry.site} onChange={(site) => onPatch({ site })} labelStart="현장 시작" labelEnd="현장 종료" />
     case 'lunch':
-      return (
-        <label className="flex min-h-11 items-center gap-2 text-sm text-dark-800">
-          <input type="checkbox" className="h-5 w-5" checked={entry.lunchTaken ?? true} onChange={(e) => onPatch({ lunchTaken: e.target.checked ? undefined : false })} />
-          점심시간(1시간)을 썼습니다
-        </label>
-      )
+      // 점심 체크 상자는 2026-11-25 사용자 요청으로 화면에서 뺐다 — 항상 1시간을 빼고 미리보기에 '휴게시간 1시간'으로 보여 준다
+      return null
     case 'office':
       return (
         <div className="space-y-2">

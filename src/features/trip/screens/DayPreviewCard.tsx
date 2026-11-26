@@ -30,6 +30,13 @@ export function DayPreviewCard({ preview, compact = false, showDetails = true }:
                 <td className="py-1 pl-2 text-right"><ValuePill status={r.status} /></td>
               </tr>
             ))}
+            {p.breakText && (
+              <tr className="border-t border-dark-100" data-testid="break-row">
+                <td className="py-1 pr-2 text-dark-600">휴게시간 <span className="text-xs text-dark-400">(근무에서 뺌)</span></td>
+                <td className="py-1 text-right font-medium tabular-nums text-dark-900">{p.breakText}</td>
+                <td />
+              </tr>
+            )}
           </tbody>
         </table>
       )}

@@ -11,6 +11,9 @@ import { DayEntryEditor } from './DayEntryEditor'
 import { DayPreviewCard } from './DayPreviewCard'
 import { CompanionInvite } from './CompanionInvite'
 
+/** 휴게 체크를 해제하면 미리보기의 휴게시간도 0시간으로 보여 준다 (계산은 저장 후 서버가 다시 함) */
+const withBreak = (p: ReturnType<typeof buildDayPreview>, taken: boolean) => (p.breakText && !taken ? { ...p, breakText: '0시간' } : p)
+
 export const NEAR_ONLY_MESSAGE = "서울·인천·경기남부(근거리)만 고르면 출장수당 대상이 아닙니다. 연장근무 신청에서 ‘외부 현장’으로 신청하세요"
 
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토']
@@ -145,7 +148,13 @@ export function TripClaimForm({ claimId, onSubmitted, onBack }: Props) {
             </fieldset>
             <div className="mt-4 border-t border-dark-100 pt-3">
               <p className="mb-2 text-xs font-semibold text-dark-500">인정시간 미리보기 {state.dirty && state.saved ? '(저장 전 값)' : ''}</p>
-              <DayPreviewCard preview={buildDayPreview({ classification: c.classification, result: c.result })} showDetails={showCalcDetails} />
+              <DayPreviewCard preview={withBreak(buildDayPreview({ classification: c.classification, result: c.result }), entry.lunchTaken ?? true)} showDetails={showCalcDetails} />
+              {/* 휴게시간 체크: 입력 칸 위가 아니라 미리보기 아래에 둔다 (2026-11-26 사용자 요청). 기본은 쉰 것으로 보고, 못 쉬었으면 직원이 해제 */}
+              <label className="mt-3 flex min-h-11 items-center gap-2 text-sm text-dark-800" data-testid="break-check">
+                <input type="checkbox" className="h-5 w-5" disabled={!editable} checked={entry.lunchTaken ?? true}
+                  onChange={(e) => dispatch({ type: 'patchEntry', date: c.date, patch: { lunchTaken: e.target.checked ? undefined : false } })} />
+                <span>휴게시간 1시간을 썼습니다 <span className="block text-xs text-dark-500">근무 중 쉬지 못했다면 체크를 해제하세요</span></span>
+              </label>
             </div>
           </Card>
         )

@@ -28,6 +28,8 @@ export interface DayPreview {
   flags: { title: string; kind: string; message: string }[]
   /** 미확정 규칙이 있으면 안내 */
   proposedNote?: string
+  /** 근무시간에서 뺀 휴게 (2026-11-25: 점심 체크 상자를 없애고 항상 1시간을 빼며 미리보기에 표시) */
+  breakText?: string
 }
 
 export function buildDayPreview(calc: Pick<TripCalcRecord, 'classification' | 'result'>): DayPreview {
@@ -61,6 +63,8 @@ export function buildDayPreview(calc: Pick<TripCalcRecord, 'classification' | 'r
   return {
     ...base,
     rows,
+    // 점심(1시간)은 항상 뺀다. 단 사무실 근무 후 출발(5-3)에서 점심이 표준 이동과 겹치면 빼지 않는다(N2 제안값)
+    breakText: result.flags.some((f) => f.code === 'N2_LUNCH_DURING_TRAVEL') ? '0시간 (점심이 이동 중 — 제안값)' : '1시간',
     standardTravel: result.trace.travel.map(formatRange),
     flags: result.flags.map((f) => ({ title: flagTitle(f.code), kind: FLAG_KIND_LABEL[f.kind], message: f.message })),
     ...(result.status === 'proposed'
