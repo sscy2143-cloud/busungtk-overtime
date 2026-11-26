@@ -14,8 +14,8 @@ describe('표시 형식', () => {
     expect(formatHours(0)).toBe('0시간')
   })
 
-  it('기능 스위치: 화면 두 개는 켜져 있다 (2026-11-25 사용자 지시). 급여 반영은 별도 상수로 항상 꺼짐', () => {
-    expect(TRIP_FEATURE).toEqual({ employeeForm: true, adminReview: true })
+  it('기능 스위치: 직원 신청 화면은 꺼짐(2026-11-26 사용자 지시, 직원 비노출), 대표 검토 화면만 켜짐. 급여 반영은 항상 꺼짐', () => {
+    expect(TRIP_FEATURE).toEqual({ employeeForm: false, adminReview: true })
   })
 })
 

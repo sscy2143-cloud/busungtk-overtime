@@ -1,5 +1,5 @@
 /** 출장 기능 화면 스위치. 환경변수가 아니라 코드 상수. 2026-11-25 사용자 지시로 켬 — 실제 동작은 서버 스위치(trip_feature_flags)도 켜져야 한다. 급여 반영은 이 스위치와 무관하게 항상 꺼짐 */
-export const TRIP_FEATURE = Object.freeze({ employeeForm: true, adminReview: true })
+export const TRIP_FEATURE = Object.freeze({ employeeForm: false, adminReview: true })
 
 export * from './format'
 export * from './labels'
